@@ -1,0 +1,5 @@
+/cs-team
+/cs-team.exe
+/cs-team.old.exe
+*.test
+/dist/

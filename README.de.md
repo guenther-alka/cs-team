@@ -1,0 +1,169 @@
+# cs-team
+
+Multiuser CalDAV-Kalender, Calc und Text auf RustFS/S3. Ein Go-Binary, Web-UI eingebettet.
+
+Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
+
+## Start
+
+    export S3_ENDPOINT=127.0.0.1:9000 S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team S3_TLS=0
+    export CS_ADMIN_USER=admin CS_ADMIN_PASS=geheim     # nur beim ersten Start (legt users.json an)
+    ./cs-team                                           # :8080  (CS_LISTEN ändert das)
+    ./cs-team adduser anna geheim2 [admin]              # Benutzer anlegen / Passwort setzen (optional als Admin)
+    CS_MEM=1 ./cs-team                                  # Demo ohne RustFS (RAM)
+
+Bitte hinter TLS-Proxy betreiben (Basic Auth).
+
+## Benutzerverwaltung
+
+`users/users.json`: `name -> {hash (bcrypt), admin, disabled, created}` (Altformat `name -> hash` wird gelesen).
+Der Start mit `CS_ADMIN_USER`/`CS_ADMIN_PASS` legt den ersten Admin an, aber nur wenn noch kein Benutzer existiert.
+Admins (Web-UI: "Benutzer"): anlegen, löschen (optional mit Kalendern), sperren, Admin-Rolle, Passwort zurücksetzen.
+Jeder Benutzer: eigenes Passwort ändern ("Konto"). Der letzte aktive Admin ist geschützt.
+Passwort 8..72 Bytes. 5 Fehlversuche je Benutzer+IP sperren 5 Minuten (429). `CS_TRUST_PROXY=1` wertet
+`X-Forwarded-For` aus (nur hinter eigenem Proxy). Gelöschte/gesperrte Benutzer verlieren den Zugriff sofort
+für neue Anfragen; bereits offene WebSockets laufen bis zum Verbindungsende.
+Dokumente eines gelöschten Benutzers bleiben; Admins können sie freigeben oder löschen.
+
+REST: `GET /api/me`, `POST /api/me/password`, `GET /api/users`, `POST /api/users`,
+`POST /api/users/<n>/password|flags`, `DELETE /api/users/<n>[?purge=1]`.
+
+## Oberfläche
+
+Oben die Hauptnavigation (Benutzer, Kalender, Calc, Text, Files), links je Bereich `add` / `sel` (Liste) / `del`,
+rechts der Inhalt. Mess (Benachrichtigungen wie cs-send) folgt.
+
+## Files und WebDAV
+
+Flache Ablage pro Benutzer (`files/<owner>/<name>`, Metadaten unter `filesmeta/`). Upload wird gestreamt
+(`CS_MAX_UPLOAD_MB`, Standard 100). Gleicher Name ersetzt die ganze Datei (kein Merge; für gemeinsames
+Bearbeiten Calc/Text verwenden).
+Teilen pro Datei: ausgewählte Benutzer (lesen / schreiben), **Team** (alle angemeldeten Benutzer, technisch `"*"`
+in der Lese-/Schreibliste; gilt auch für Calc/Text) und optional ein öffentlicher Link `/pub/<token>` (nur lesen,
+widerrufbar). PDF, Bilder und Text werden im Browser angezeigt, alles andere (HTML, SVG, ...) nur als Download.
+
+WebDAV: `https://host/webdav/` (Basic Auth, dieselben Rechte wie im Browser). Root = eigene Dateien,
+`shared/<besitzer>/` = mit mir geteilt. Keine Ordner (MKCOL = 403). COPY/MOVE nur innerhalb der eigenen Dateien.
+Getestet mit dem Protokoll; im Windows-Explorer ist WebDAV wählerisch (HTTPS nötig, kein LOCK) - rclone, WinSCP,
+Cyberduck oder macOS-Finder funktionieren zuverlässiger.
+
+REST: `GET/POST /api/files`, `GET/DELETE /api/files/<owner>/<name>`, `POST .../share`, `GET /pub/<token>`;
+Kalender: `GET/POST /api/cal`, `DELETE /api/cal/<id>`, `GET/POST /api/cal/<id>/events`, `DELETE .../events/<file>`.
+
+## Export / Import (Text und Calc <-> Files)
+
+Nur Go-Standardbibliothek (package `conv`). Übernommen werden Text bzw. Zellwerte und Formeln, keine Formatierung
+(keine Schriftarten, kein Fett, keine Zellformate, Diagramme oder Makros).
+
+| Typ | Export | Import |
+|-----|--------|--------|
+| Text | `.txt` `.rtf` `.docx` `.cstext` | `.txt` `.docx` `.cstext` |
+| Calc | `.csv` `.xlsx` `.cscalc` | `.csv` (`,` oder `;`, UTF-8/Latin-1) `.xlsx` (erstes Blatt) `.cscalc` |
+
+`.cstext` / `.cscalc` sind das eigene Format (JSON, `"format":"cs-team/text"` bzw. `"cs-team/calc"`) und ermöglichen
+die eindeutige Zuordnung in der Ablage. UI: im Dokument `Export: [Format] [Download] [-> Files]`, beim Anlegen
+`Aus Files importieren`. REST: `GET /api/docs/<id>/export?format=`, `POST /api/docs/<id>/tofiles?format=`,
+`POST /api/docs/import {"owner","file","name"}` (Quelle: eigene oder mit dem Benutzer geteilte Datei; das neue
+Dokument gehört dem Benutzer).
+
+## Gruppen, Rechte, Speicher (0.5.0)
+
+- Jeder Benutzer gehoert mindestens einer Gruppe an (Standard `users`); Rechte = Vereinigung der Gruppen.
+- Gruppe schaltet Bereiche frei: cal, calc, text, files. Globale Admins duerfen alles verwalten, Gruppen-Admins
+  die Mitglieder ihrer Gruppe. Freigaben von Dokumenten/Dateien: `g:<gruppe>`, `*` (alle) oder Benutzername.
+- Gruppenordner (Files): `folder` = `ro` (Mitglieder lesen, Gruppen-Admins schreiben) oder `rw`; WebDAV `/webdav/groups/<gruppe>/`.
+- Kalender: persoenlich, global (`_global`, Admins schreiben) oder Gruppe (`@<gruppe>`); UI blendet alle uebereinander ein.
+- CSV: `POST /api/users/import` (`name;passwort;gruppe1,gruppe2`), `GET /api/users/export`, `GET /api/groups/export`.
+- Speicher: `S3_*` (RustFS/S3-Bucket) oder `CS_DIR=/pfad` (Ordner/ZFS-Dataset, Daten in `/pfad/.csteam`, ein Prozess je Ordner).
+  Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
+
+## Sprachen (0.6.0)
+Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr und ar (rechts-nach-links). Die Auswahl steht oben rechts und wird im
+Benutzerkonto gespeichert; ohne Auswahl gilt die Browsersprache, sonst `CS_LANG` (Standard de).
+
+Weitere Sprachen, z.B. für Schüler mit anderem Sprachhintergrund: `CS_LANGDIR=/pfad/lang` setzen und dort `<code>.json`
+ablegen (z.B. `fa.json`, `uk.json`). Die Datei erscheint sofort in der Auswahl (Name aus `"_name"`). Aufbau: ein JSON-Objekt,
+Schlüssel = deutscher Text, Wert = Übersetzung; fehlende Einträge fallen auf Deutsch zurück. Als Vorlage dient
+`web/lang/_template.json`: Datei einer KI geben ("übersetze die Werte nach Ukrainisch, Platzhalter {0} {1} und Leerzeichen am
+Rand behalten, `_name` ergänzen"). Dateien in `CS_LANGDIR` überschreiben gleichnamige eingebaute Texte, so lassen sich auch
+einzelne Begriffe anpassen (z.B. "Gruppe" → "Klasse"). Rechts-nach-links-Schrift wird für ar, he, fa, ur automatisch gesetzt.
+
+## Layout im Bucket
+
+    users/users.json                     name -> bcrypt
+    cal/<user>/<kalender>/_meta.json     Name, Beschreibung
+    cal/<user>/<kalender>/<uid>.ics      ein Termin = ein Objekt
+    doc/<id>/meta.json                   Name, Typ (sheet|text), Owner, Read[], Write[]
+    doc/<id>/snapshot.json               {"items":{key:{v,pos,ts,by,del}}}
+    files/<owner>/<name>                 Dateiinhalt
+    filesmeta/<owner>/<name>.json        Größe, Typ, Freigaben, Token
+    filestok/<token>                     "<owner>/<name>" (öffentlicher Link)
+
+## CalDAV
+
+URL: `https://host/dav/` (auch `/.well-known/caldav`). Thunderbird, DAVx5, iOS, macOS.
+Schreiben mit `If-Match` / `If-None-Match: *` wird auf S3-ETags abgebildet (412 bei Konflikt).
+
+## Calc und Text (LWW)
+
+Beide sind dieselbe Map key -> Item. Der Server vergibt pro Änderung einen monotonen Zeitstempel,
+der neuere gewinnt: bei Calc pro Zelle (`A1`), bei Text pro Absatz (Reihenfolge über `pos`, Fließkomma).
+Löschen = Tombstone. Snapshot wird 2 s nach der letzten Änderung geschrieben (ETag-Update, bei
+Konflikt LWW-Merge). WebSocket: `/ws/<id>`, Nachrichten `{"t":"set","k":"A1","v":"=A2*2"}` / `{"t":"del","k":..}`.
+Formeln (+ - * / SUM(A1:B3)) rechnet der Browser.
+
+REST: `GET/POST /api/docs`, `POST /api/docs/<id>/share {"read":[],"write":[]}`,
+`GET /api/docs/<id>/export` (CSV / Text), `DELETE /api/docs/<id>`.
+
+## Chat und Nachricht (0.8.0)
+
+Hauptmenü **Chat**: je Gruppe ein Chat mit Kanälen (`#allgemein` immer; weitere anlegen je nach Gruppeneinstellung), Live per WebSocket,
+Anhänge (max. `CS_CHAT_MAX_MB`, Standard 10), @Name, Reaktionen, Bearbeiten/Löschen, Ungelesen-Markierung. Hauptmenü **Nachricht**: Text
+an alle Mitglieder einer Gruppe per E-Mail, externe Chat-Adresse (Webhook) und/oder Gruppen-Chat. Je Gruppe einstellbar: Chat (Mitglieder
+schreiben / nur Admins schreiben / aus), Kanäle anlegen (nur Admins / jedes Mitglied / niemand), Nachricht senden (nur Admins / jedes
+Mitglied / aus; Standard nur Admins). Benutzer pflegen E-Mail und Chat-Adresse im Konto (Admins auch bei anderen).
+
+Einstellungen (Mail/SMTP, öffentliche Adresse, Webhooks in private Netze): Klick auf den Titel „cs-team“ (nur globale Admins), gespeichert in
+`settings.json` im Speicher, wirksam ohne Neustart. Die Umgebungsvariablen `CS_SMTP_HOST`, `CS_SMTP_PORT` (587), `CS_SMTP_TLS` (`starttls`|`ssl`|`none`),
+`CS_SMTP_USER`, `CS_SMTP_PASS`, `CS_SMTP_FROM` und `CS_CHAT_ALLOW_PRIVATE=1` gelten nur als Vorgabe, solange dort nichts gespeichert ist.
+Webhooks in private Netze sind sonst gesperrt (SSRF-Schutz). Start-Parameter (Port, Speicher, HTTPS, Admin) bleiben im Dienst/Menü.
+Webhook-Formate: Slack (`{"text"}`), Discord (`{"content"}`), Telegram (`text=`), sonst text/plain (z.B. ntfy).
+
+## Handy (0.10.0)
+
+Bis 760 px Breite zeigt cs-team Liste und Inhalt nacheinander (Pfeil links oben = zurueck). Ohne Installation im Browser nutzbar; Calc ist per Touch eingeschraenkt.
+
+## Aufgaben (0.9.0)
+
+Hauptmenü **Aufgaben**: Ticketsystem light. Eine Aufgabe hat Auftraggeber, optional eine Gruppe, einen Bearbeiter (leer = „Bitte bearbeiten“,
+jedes Gruppenmitglied kann übernehmen), Beteiligte, Priorität, Fälligkeit, Meilensteine (Text + Datum) und einen Verlauf aus Kommentaren und
+Systemzeilen. Status: Offen → In Arbeit → Erledigt → Abgenommen. Nur Auftraggeber, Gruppen-Admin und globale Admins ändern Stammdaten, nehmen ab
+und löschen; der Bearbeiter setzt „In Arbeit“/„Erledigt“, hakt Meilensteine ab und kommentiert. **Wiederholung** (täglich/wöchentlich/monatlich/
+jährlich, braucht ein Fälligkeitsdatum): mit der Abnahme entsteht genau eine Folgeaufgabe, Fälligkeit und Meilensteine rücken weiter (nie in die
+Vergangenheit). E-Mail/Webhook (SMTP und Chat-Adresse wie bei Nachricht) bei Zuweisung, Übernahme, Erledigt, Abnahme, Kommentar und Fälligkeit
+(stündliche Prüfung). Rechte: Gruppen-Einstellung „Aufgaben anlegen“ (jedes Mitglied/nur Admins/aus); Aufgaben ohne Gruppe darf jeder anlegen,
+sichtbar für Auftraggeber, Bearbeiter, Beteiligte und Admins. Speicherung: `tasks/<id>.json`.
+
+## Grenzen / TODO
+
+- Soft-Locks (Zelle/Absatz sperren) und Freigabe-Dialog in der UI fehlen noch.
+- Kalender-Freigaben (ACL) fehlen noch, nur eigener Kalender (siehe `parse()` in cal/caldav.go).
+- ListCalendarObjects liest je Termin ein Objekt (N x Get); ab einigen tausend Terminen Index/Cache.
+- Änderungen anderer Server-Instanzen werden beim Persist gemerged, aber nicht live gebroadcastet.
+- Tombstones werden nicht kompaktiert. Gleichzeitiges Tippen im selben Absatz: letzter Schreiber gewinnt.
+- RustFS: bedingte Writes (If-Match / If-None-Match) vor Produktivbetrieb gegen die eigene Version testen.
+
+## Build
+
+    go test ./... && go build -o cs-team .
+    GOOS=illumos GOARCH=amd64 go build -o cs-team .     # OmniOS
+
+
+## Dateizugriff von aussen
+Per WebDAV: `http(s)://host:9004/webdav/` (rclone Typ webdav, WinSCP WebDAV, Finder, Windows Netzlaufwerk nur mit HTTPS).
+Nicht direkt auf den Basisordner (`.csteam`, SMB) oder den S3-Bucket schreiben: dort liegt die interne Ablage
+(Metadaten, Rechte, Freigaben getrennt). SMB/S3-Tools nur lesend fuer Backup/Snapshots.
+
+## HTTPS
+`CS_TLS_CERT=/pfad/cert.pem` (und `CS_TLS_KEY=/pfad/key.pem`, falls der Key nicht im selben PEM steht) schaltet HTTPS ein.
+Erneuerte Zertifikate werden ohne Neustart uebernommen. Mit HTTPS funktioniert auch das Windows-Netzlaufwerk (WebDAV).
