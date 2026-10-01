@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.13.5"
+const version = "0.13.6"
 
 var started = time.Now()
 

@@ -204,6 +204,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
  #list .xdel,.chs .cc .x{visibility:visible}
 }
 /* KI-Assistent */
+.aipop{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}.aipopb{background:#fff;border-radius:6px;padding:16px 20px;width:440px;max-width:calc(100vw - 24px);box-shadow:0 4px 24px rgba(0,0,0,.3)}.aipopb h4{margin:0 0 8px}
 #aib{position:fixed;right:16px;bottom:16px;z-index:60;width:48px;height:48px;border-radius:50%;border:0;background:#2b6fd4;color:#fff;font:600 15px system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);display:none}
 #aip{position:fixed;right:16px;bottom:72px;z-index:60;width:400px;max-width:calc(100vw - 24px);height:min(600px,calc(100vh - 96px));display:none;flex-direction:column;background:#fff;border:1px solid #bbb;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
 #aip.open{display:flex}
@@ -2012,40 +2013,91 @@ function tkForm(x){
 
 let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
 const AIDEF={anthropic:'Anthropic',openai:'OpenAI',ollama:'Ollama (local)'};
-function aiProvRow(p,v){   // eine Anbieterzeile: Vorlage, Protokoll, Adresse, Modell (mit Liste vom Anbieter), Schlüssel; p = '' oder '2'
+function aiProvRow(p,v){   // eine Anbieter-Einheit: Anbieter wählen (Popup fragt den Schlüssel), Modell wählen, Rest unter "Erweitert"; p = '' oder '2'
   const prov=v.provider||(p?'openai':'anthropic');
   const lh=e=>{try{const u=new URL(e);return /^(\d{1,3}\.){3}\d{1,3}$|^localhost$|^\[/.test(u.hostname)?u:null;}catch(x){return null;}};   // eigener Rechner im Netz: IP/localhost
-  const pre=AIP.find(q=>v.endpoint&&q.endpoint==v.endpoint)||(!v.endpoint&&AIP.find(q=>q.name==AIDEF[prov]))||
+  const pre=AIP.find(q=>v.endpoint&&q.endpoint==v.endpoint)||(!v.endpoint&&v.model&&AIP.find(q=>q.name==AIDEF[prov]))||
     (lh(v.endpoint)&&AIP.find(q=>q.local&&q.protocol==prov&&new URL(q.endpoint).pathname==lh(v.endpoint).pathname))||null;
   const ipv=lh(v.endpoint)&&pre&&pre.local?lh(v.endpoint).host:'';
-  return '<div class="row">'+modeSel('aipre'+p,pre?pre.name:'',[['','(eigene Angaben)']].concat(AIP.map(q=>[q.name,q.name])),false)+' '+
-    modeSel('aip_'+p,prov,[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+'</div>'+
+  const conf=!!(pre||v.model||v.endpoint);
+  return '<div class="row">'+t('Anbieter')+': '+modeSel('aipre'+p,pre?pre.name:'',[['',conf?'(eigene Angaben)':'– Anbieter wählen –']].concat(AIP.map(q=>[q.name,q.name])),false)+
+    ' <span id="aisum'+p+'" class="muted"></span> <button type="button" id="aikb'+p+'" style="'+(conf?'':'display:none')+'">'+t('Schlüssel ändern …')+'</button></div>'+
+   '<div class="row">'+t('Modell')+': <select id="aimods'+p+'"></select> <input id="aimod'+p+'" style="width:240px;display:none" placeholder="'+t('Modell')+'" value="'+esc(v.model||'')+'" autocomplete="off"> '+
+    '<button type="button" id="aild'+p+'">'+t('Modelle laden')+'</button> <small class="muted" id="aims'+p+'"></small></div>'+
+   '<details id="aiadv'+p+'"><summary>'+t('Erweitert')+'</summary>'+
+   '<div class="row">'+modeSel('aip_'+p,prov,[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+'</div>'+
    '<div class="row"><input id="aiep'+p+'" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+(v.def?': '+esc(v.def):'')+'" value="'+esc(v.endpoint||'')+'"> '+
     '<span id="aiipw'+p+'" style="'+(pre&&pre.local?'':'display:none')+'"><input id="aiip'+p+'" style="width:170px" placeholder="IP:Port" value="'+esc(ipv)+'"> <small class="muted">'+t('Adresse des Rechners (IP:Port)')+'</small></span></div>'+
-   '<div class="row"><input id="aimod'+p+'" list="aiml'+p+'" style="width:260px" placeholder="'+t('Modell')+'" value="'+esc(v.model||'')+'" autocomplete="off"><datalist id="aiml'+p+'"></datalist> '+
-    '<button type="button" id="aild'+p+'">'+t('Modelle laden')+'</button> <small class="muted" id="aims'+p+'"></small></div>'+
    '<div class="row"><input id="aikey'+p+'" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(v.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(v.keySet?' <label><input type="checkbox" id="aikx'+p+'"> '+t('Schlüssel löschen')+'</label>':'')+
-    ' <small class="muted">'+t('Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.')+'</small></div>';
+    ' <small class="muted">'+t('Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.')+'</small></div></details>';
+}
+function aiSum(p,txt){$('#aisum'+p).textContent=txt;}
+function aiSetModels(p,l){   // Modell-Auswahl: Liste vom Anbieter + "Eigenes Modell"; ohne Liste direkt das Eingabefeld
+  const s=$('#aimods'+p),m=$('#aimod'+p),cur=m.value.trim(),has=l.some(x=>x.id==cur);
+  s.innerHTML='<option value="">'+esc(t('Modell wählen …'))+'</option>'+l.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.id)+(x.vision?' (vision)':'')+'</option>').join('')+'<option value="__custom__">'+esc(t('Eigenes Modell eingeben …'))+'</option>';
+  s.value=has?cur:(cur?'__custom__':'');
+  m.style.display=(s.value=='__custom__'||!l.length)?'':'none';
+}
+async function aiLoad(p){   // Modell-Liste vom Anbieter (Server holt sie mit dem gemerkten bzw. eingegebenen Schlüssel); liefert {ok,msg}
+  const g=id=>$('#'+id+p),st=g('aims');st.textContent=t('lade …');
+  let r;try{r=await fetch('/api/ai/models',{method:'POST',body:JSON.stringify({provider:g('aip_').value,endpoint:g('aiep').value.trim(),key:g('aikey').value,private:$('#aipriv').checked})});}
+  catch(e){st.textContent='';return {ok:false,msg:String(e)};}
+  if(!r.ok){const m=(await r.text()).trim()||String(r.status);st.textContent=t('Modelle nicht abrufbar: {0}',m);return {ok:false,msg:m};}
+  const l=((await r.json()).models)||[];aiSetModels(p,l);st.textContent=t('{0} Modelle',l.length);return {ok:true,n:l.length};
+}
+function aiPopup(p,q){   // Abfrage des Schlüssels (bei eigenen Rechnern IP:Port); true = geprüft bzw. bewusst ohne Prüfung übernommen
+  return new Promise(res=>{
+    const g=id=>$('#'+id+p),hostOf=u=>{try{return new URL(u).host;}catch(e){return '';}};
+    const snap={prov:g('aip_').value,ep:g('aiep').value,ip:g('aiip').value,key:g('aikey').value,priv:$('#aipriv').checked,ipw:g('aiipw').style.display,
+      opts:g('aimods').innerHTML,sel:g('aimods').value,mod:g('aimod').value,modd:g('aimod').style.display,sum:$('#aisum'+p).textContent,kb:g('aikb').style.display,ms:g('aims').textContent};
+    const o=document.createElement('div');o.className='aipop';
+    o.innerHTML='<div class="aipopb"><h4>'+esc(t('Anbieter einrichten: {0}',q.name))+'</h4>'+
+      (q.local?'<div class="row"><input id="apip" style="width:220px" placeholder="IP:Port" value="'+esc(hostOf(g('aiep').value||q.endpoint))+'"> <small class="muted">'+esc(t('Adresse des Rechners (IP:Port)'))+'</small></div>':'')+
+      '<div class="row"><input id="apkey" type="password" style="width:320px" autocomplete="new-password" placeholder="'+esc(q.local?t('Schlüssel (nur falls nötig)'):t('API-Schlüssel'))+'"></div>'+
+      '<div class="muted">'+esc(t('Bleibt das Feld leer, wird ein bereits gemerkter Schlüssel für diesen Rechner verwendet.'))+'</div>'+
+      '<div class="row" id="apmsg"></div><div class="row"><button id="apok">'+esc(t('Prüfen und weiter'))+'</button> <button id="apskip" style="display:none">'+esc(t('Ohne Prüfung übernehmen'))+'</button> <button id="apno">'+esc(t('Abbrechen'))+'</button></div></div>';
+    document.body.appendChild(o);
+    const done=ok=>{document.removeEventListener('keydown',esc_);o.remove();res(ok);};
+    const cancel=()=>{g('aip_').value=snap.prov;g('aiep').value=snap.ep;g('aiip').value=snap.ip;g('aikey').value=snap.key;$('#aipriv').checked=snap.priv;g('aiipw').style.display=snap.ipw;
+      g('aimods').innerHTML=snap.opts;g('aimods').value=snap.sel;g('aimod').value=snap.mod;g('aimod').style.display=snap.modd;$('#aisum'+p).textContent=snap.sum;g('aikb').style.display=snap.kb;g('aims').textContent=snap.ms;done(false);};
+    const esc_=e=>{if(e.key=='Escape')cancel();};document.addEventListener('keydown',esc_);
+    const apply=()=>{
+      if(q.protocol)g('aip_').value=q.protocol;
+      let ep=q.endpoint||'';
+      if(q.local){let h=$('#apip').value.trim();if(/^https?:\/\//.test(h)){try{h=new URL(h).host;}catch(e){}}
+        if(h&&ep){try{const u=new URL(ep);u.host=h;ep=u.href;}catch(e){}}g('aiip').value=h;$('#aipriv').checked=true;}
+      if(ep)g('aiep').value=ep;
+      g('aiipw').style.display=q.local?'':'none';g('aikey').value=$('#apkey').value;if(!q.keep){g('aimod').value='';aiSetModels(p,[]);}
+    };
+    const msg=$('#apmsg');setTimeout(()=>$(q.local?'#apip':'#apkey').focus(),0);
+    $('#apno').onclick=cancel;
+    $('#apok').onclick=async()=>{apply();msg.textContent=t('prüfe …');$('#apok').disabled=true;
+      const r=await aiLoad(p);$('#apok').disabled=false;
+      if(r.ok){aiSum(p,'✓ '+t('Schlüssel geprüft'));g('aikb').style.display='';done(true);return;}
+      msg.innerHTML='<span style="color:#c5221f">'+esc(t('Prüfung fehlgeschlagen: {0}',r.msg))+'</span>';
+      if(!/HTTP 40[13]/.test(r.msg))$('#apskip').style.display='';};
+    $('#apskip').onclick=()=>{apply();aiSum(p,t('Schlüssel nicht geprüft'));g('aikb').style.display='';aiSetModels(p,[]);done(true);};
+    o.addEventListener('keydown',e=>{if(e.key=='Enter'&&e.target.tagName=='INPUT')$('#apok').click();});
+  });
 }
 function aiProvBind(p){
-  const $$=id=>$('#'+id+p);
-  const hostOf=u=>{try{return new URL(u).host;}catch(e){return '';}};
-  $$('aipre').onchange=()=>{const q=AIP.find(x=>x.name==$$('aipre').value);if(!q)return;
-    $$('aip_').value=q.protocol;$$('aiep').value=q.endpoint;$$('aiipw').style.display=q.local?'':'none';$$('aiip').value=hostOf(q.endpoint);
-    if(q.local&&$('#aipriv'))$('#aipriv').checked=true;$$('aimod').value='';aiLoad(p);};
-  $$('aiip').onchange=()=>{let h=$$('aiip').value.trim();if(!h)return;let u;try{u=new URL($$('aiep').value||AIP.find(x=>x.name==$$('aipre').value)?.endpoint||'http://x/v1/chat/completions');}catch(e){return;}
+  const g=id=>$('#'+id+p),hostOf=u=>{try{return new URL(u).host;}catch(e){return '';}};
+  let prev=g('aipre').value;
+  aiSetModels(p,[]);
+  if(g('aikx'))aiSum(p,'✓ '+t('Schlüssel gesetzt'));
+  g('aipre').onchange=async()=>{const q=AIP.find(x=>x.name==g('aipre').value);
+    if(!q){if(g('aikb').style.display!='none')g('aiadv').open=true;prev='';return;}
+    if(await aiPopup(p,q))prev=q.name;else g('aipre').value=prev;};
+  g('aikb').onclick=()=>{const q=AIP.find(x=>x.name==g('aipre').value);
+    aiPopup(p,q?Object.assign({},q,{keep:true,endpoint:g('aiep').value||q.endpoint}):{name:t('(eigene Angaben)'),protocol:g('aip_').value,endpoint:g('aiep').value,local:false,keep:true});};
+  g('aimods').onchange=()=>{const v=g('aimods').value;
+    if(v=='__custom__'){g('aimod').style.display='';g('aimod').focus();}else{g('aimod').value=v;g('aimod').style.display='none';}};
+  g('aiip').onchange=()=>{let h=g('aiip').value.trim();if(!h)return;let u;try{u=new URL(g('aiep').value||AIP.find(x=>x.name==g('aipre').value)?.endpoint||'http://x/v1/chat/completions');}catch(e){return;}
     if(/^https?:\/\//.test(h)){try{h=new URL(h).host;}catch(e){return;}}
-    u.host=h;$$('aiep').value=u.href;if($('#aipriv'))$('#aipriv').checked=true;aiLoad(p);};
-  $$('aild').onclick=()=>aiLoad(p);
-  const q=AIP.find(x=>x.endpoint==$$('aiep').value);if(q&&q.local)$$('aiip').value=hostOf(q.endpoint);
-}
-async function aiLoad(p){   // Modell-Liste vom Anbieter (Server holt sie mit dem gemerkten bzw. eingegebenen Schlüssel)
-  const g=id=>$('#'+id+p),st=g('aims');st.textContent=t('lade …');
-  const r=await fetch('/api/ai/models',{method:'POST',body:JSON.stringify({provider:g('aip_').value,endpoint:g('aiep').value.trim(),key:g('aikey').value,private:$('#aipriv').checked})});
-  if(!r.ok){st.textContent=t('Modelle nicht abrufbar: {0}',(await r.text()).trim()||r.status);return;}
-  const j=await r.json(),l=j.models||[];
-  g('aiml').innerHTML=l.map(m=>'<option value="'+esc(m.id)+'">'+(m.vision?esc(m.id)+' (vision)':'')+'</option>').join('');
-  st.textContent=t('{0} Modelle',l.length);
+    u.host=h;g('aiep').value=u.href;if($('#aipriv'))$('#aipriv').checked=true;aiLoad(p);};
+  g('aild').onclick=()=>aiLoad(p);
+  const q=AIP.find(x=>x.endpoint==g('aiep').value);if(q&&q.local)g('aiip').value=hostOf(q.endpoint);
+  if(g('aimod').value&&(g('aikx')||(q&&q.local)))aiLoad(p);   // gespeicherte Konfiguration: Liste still nachladen
 }
 /* ---------- Einstellungen (Titel "cs-team", nur globale Admins) ---------- */
 S.set={
@@ -2065,7 +2117,7 @@ S.set={
        (c.passSet?' <label><input type="checkbox" id="swx"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
      '<div class="row"><input id="sf" style="width:300px" placeholder="'+t('Absender')+' (cs-team@example.org)" value="'+v('from')+'"></div></div>'+
      '<div class="panel"><b>'+t('KI-Assistent (für alle)')+'</b> <small class="muted">'+t('Anbieter, Schlüssel und Modell gelten zentral für alle Benutzer. Der Schlüssel bleibt auf dem Server. Fragen und die Daten der Knöpfe (Aufgaben, Termine …) gehen an diesen Anbieter.')+'</small>'+
-     '<div class="row">'+modeSel('aimo',a.mode||'off',[['off',t('aus')],['provider',t('Anbieter')]],false)+'</div>'+
+     '<div class="row">'+modeSel('aimo',a.mode||'off',[['off','KI aus'],['provider','KI ein']],false)+'</div>'+
      aiProvRow('',{provider:a.provider,endpoint:a.endpoint,model:a.model,keySet:a.keySet,def:a.defaultEndpoint})+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
      '<div class="row"><input id="aihis" style="width:55px" value="'+(a.history||11)+'"> '+t('Nachrichten Verlauf')+' &nbsp; <input id="aictx" style="width:75px" value="'+(a.context||12000)+'"> '+t('Zeichen je Nachricht (höchstens)')+'</div>'+
@@ -2081,6 +2133,7 @@ S.set={
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
+      if($('#aimo').value=='provider'&&!$('#aimod').value.trim()){alert(t('Bitte ein Modell wählen.'));return false;}
       const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value.trim(),endpoint:$('#aiep').value,history:+$('#aihis').value||11,context:+$('#aictx').value||12000,altProvider:$('#aip_2').value,altEndpoint:$('#aiep2').value,altModel:$('#aimod2').value.trim(),vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if($('#aikx2')&&$('#aikx2').checked)ab.altKey='';else if($('#aikey2').value)ab.altKey=$('#aikey2').value;

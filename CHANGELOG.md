@@ -1,5 +1,14 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.6 KI-Einstellungen vereinfacht: gefuehrter Ablauf statt vieler Felder. Schalter "KI aus / KI ein"; Anbieter aus der Liste waehlen, ein Popup fragt
+                   den API-Schluessel (bei Ollama/Inhouse stattdessen IP:Port, Schluessel optional) und prueft ihn sofort ueber die Modell-Liste des Anbieters:
+                   falscher Schluessel -> Meldung im Popup, Popup bleibt offen; gueltig -> Auswahlliste der Modelle (Bilderkennung markiert) mit "Eigenes Modell
+                   eingeben ..." als Ausweg; ohne Pruefmoeglichkeit "Ohne Pruefung uebernehmen"; "Abbrechen" stellt den alten Stand wieder her. Kurzzeile
+                   "Anbieter [..] Schluessel geprueft [Schluessel aendern ...]"; Protokoll, Endpunkt, IP:Port und Schluesselfeld stehen eingeklappt unter
+                   "Erweitert"; gespeicherte Konfiguration laedt die Modell-Liste still nach; Speichern ohne Modell wird abgelehnt. Zweiter Anbieter mit demselben
+                   Ablauf. Nur Oberflaeche (web/index.html, 18 neue Texte in allen Sprachen); Server und Schnittstellen unveraendert. Handbuch (de/en) mit neuem
+                   Ablauf und Popup-Bild. TODO: Videochat im Chat als Option vorgemerkt (Jitsi, MiroTalk, eigene URL, eingebautes WebRTC, spaeter BigBlueButton).
+
 2026-10-01  0.13.5 KI liest PDF-Dateien: PDFs aus der Dateiablage lassen sich im KI-Widget wie andere Dateien zur Auswertung waehlen. Der Text wird im Server
                    gelesen (eigener Leser, nur Go-Standardbibliothek, keine neue Abhaengigkeit, kein OCR): Flate/ASCIIHex/ASCII85, Objektstroeme, Schriften
                    mit ToUnicode-Tabelle (Chrome/Word/LibreOffice/reportlab), WinAnsi-Einzelbyteschriften, Ligaturen aufgeloest, Seiten durch Leerzeilen
