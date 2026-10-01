@@ -140,6 +140,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .cm .ct .me{background:#fde68a;border-radius:3px;padding:0 2px}
 .cm.mn{background:#fffbe6;border-left:3px solid #f59e0b}
 .cm .ed{color:#999;font-size:11px}.cm .dl{color:#999;font-style:italic}
+.vcard{display:inline-block;border:1px solid #b9cdea;border-radius:6px;padding:6px 10px;background:#f2f7ff;margin:2px 0}.vcard.old{opacity:.6;background:#f5f5f5;border-color:#ccc}.vcard button{margin-left:8px}
 .cm .cimg{max-width:320px;max-height:240px;border-radius:6px;display:block;margin:3px 0}
 .cm .att{display:inline-block;border:1px solid #ddd;border-radius:6px;padding:4px 8px;margin:3px 0;background:#fff;text-decoration:none;color:#1a5fd0}
 .cm .acts{position:absolute;right:6px;top:-10px;background:#fff;border:1px solid #ddd;border-radius:6px;display:none;padding:0 2px}
@@ -1709,12 +1710,14 @@ function chList(toEnd){
     else{
       if(m.att){const u=chUrl(CH.g,CH.c,'file/'+encodeURIComponent(m.att.id));
         body+=/^image\/(png|jpeg|gif|webp)$/.test(m.att.type)?'<a href="'+u+'" target="_blank" rel="noopener"><img class="cimg" loading="lazy" src="'+u+'" alt="'+esc(m.att.name)+'"></a>':'<a class="att" href="'+u+'" download="'+esc(m.att.name)+'">📎 '+esc(m.att.name)+' <small>('+fmtSize(m.att.size)+')</small></a>';}
-      if(m.t)body+='<div class="ct">'+chFmt(m.t)+(m.ed?' <span class="ed">('+t('bearbeitet')+')</span>':'')+'</div>';
+      if(m.vid){const old=m.vid.exp&&Date.now()>m.vid.exp;
+        body+='<div class="vcard'+(old?' old':'')+'">📹 <b>'+esc(t('Videochat'))+': '+esc(m.vid.name)+'</b> <small class="muted">'+esc(m.vid.mode=='group'?t('Fester Raum'):(old?t('abgelaufen'):t('gültig bis {0}',new Date(m.vid.exp).toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'}))))+'</small>'+(old?'':'<button data-a="vjoin">'+esc(t('Beitreten'))+'</button>')+'</div>';}
+      else if(m.t)body+='<div class="ct">'+chFmt(m.t)+(m.ed?' <span class="ed">('+t('bearbeitet')+')</span>':'')+'</div>';
       const re=Object.entries(m.re||{});
       if(re.length)body+='<div class="rx">'+re.map(([e,us])=>'<button data-a="re" data-e="'+e+'" class="'+(us.includes(me.name)?'mine':'')+'" title="'+esc(us.join(', '))+'">'+e+' '+us.length+'</button>').join('')+'</div>';
     }
     const tm=pad2(d.getHours())+':'+pad2(d.getMinutes());
-    const acts=m.del?'':'<div class="acts">'+(o.w?'<button data-a="pick" title="'+t('Reaktion')+'">😀</button>':'')+(m.by==me.name&&m.t?'<button data-a="edit" title="'+t('bearbeiten')+'">✎</button>':'')+((m.by==me.name||o.adm)?'<button data-a="del" title="'+t('löschen')+'">🗑</button>':'')+'</div>';
+    const acts=m.del?'':'<div class="acts">'+(o.w?'<button data-a="pick" title="'+t('Reaktion')+'">😀</button>':'')+(m.by==me.name&&m.t&&!m.vid?'<button data-a="edit" title="'+t('bearbeiten')+'">✎</button>':'')+((m.by==me.name||o.adm)?'<button data-a="del" title="'+t('löschen')+'">🗑</button>':'')+'</div>';
     h+='<div class="cm'+(mn?' mn':'')+'" data-id="'+m.id+'">'+(head?'<div class="av" style="background:'+avCol(m.by)+'">'+esc(m.by.slice(0,1).toUpperCase())+'</div>':'<div class="gap">'+tm+'</div>')+
        '<div class="bd">'+(head?'<div class="hd">'+esc(m.by)+'<small>'+tm+'</small></div>':'')+body+'</div>'+acts+'</div>';
     prev=m;
@@ -1725,6 +1728,15 @@ function chList(toEnd){
   if(toEnd&&(near||!el.dataset.init)){el.scrollTop=el.scrollHeight;el.dataset.init=1;}
   el.querySelectorAll('img.cimg').forEach(i=>i.onload=()=>{if(near)el.scrollTop=el.scrollHeight;});
 }
+async function chOpenRoom(w,r){   // Raum im neuen Tab öffnen (Tab vorher synchron geöffnet: Popup-Blocker)
+  if(!r.ok){if(w)w.close();const m=(await r.text()).trim();chErr(r.status==410?t('Die Einladung ist abgelaufen.'):m||String(r.status));if(r.status==410)chList(false);return;}
+  const u=(await r.json()).url;
+  if(w){w.opener=null;w.location.href=u;}else prompt(t('Das Fenster wurde blockiert. Adresse kopieren:'),u);
+}
+function chVideo(slot){const w=window.open('about:blank','_blank');
+  fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
+function chJoin(id){const w=window.open('about:blank','_blank');
+  fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
 function chClick(e){
   const pk=e.target.closest('[data-pk]'),pcm=pk&&pk.closest('.cm');
   document.querySelectorAll('.pick').forEach(x=>x.remove());
@@ -1733,6 +1745,7 @@ function chClick(e){
   const cm=b.closest('.cm'),id=+cm.dataset.id,a=b.dataset.a;
   if(a=='re')chSend({t:'react',g:CH.g,c:CH.c,id,e:b.dataset.e});
   else if(a=='pick'){const p=document.createElement('div');p.className='pick';p.innerHTML=CH.rx.map(x=>'<button data-pk="'+x+'">'+x+'</button>').join('');cm.append(p);e.stopPropagation();}
+  else if(a=='vjoin')chJoin(id);
   else if(a=='del'){if(confirm(t('Nachricht löschen?')))chSend({t:'del',g:CH.g,c:CH.c,id});}
   else if(a=='edit'){
     const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id),ct=cm.querySelector('.ct');if(!m||!ct)return;
@@ -1746,14 +1759,19 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){chMark();
 S.chat={
   items:[],
   canAdd:()=>false,
-  mk(){return CH.groups.map(g=>{const n=chUnG(g.name);return {k:g.name,label:g.name,sub:n?'● '+n:''};});},
+  mk(){const l=CH.groups.map(g=>{const n=chUnG(g.name);return {k:g.name,label:g.name,sub:n?'● '+n:''};});
+    const o=CH.g&&chGrp(CH.g),vs=((o&&o.video)||[]).filter(v=>v.can);
+    if(vs.length){l.push({head:t('Videochat')+' · '+CH.g});
+      for(const v of vs)l.push({k:'vid:'+v.slot,label:'📹 '+t(v.slot==0?'Fester Raum':v.slot==1?'Ad-hoc (Admin)':'Ad-hoc')+' · '+v.name});}
+    return l;},
   async load(){this.items=this.mk();setList(this.items);},
   home(){
     $('#main').className='';
     if(!CH.groups.length){$('#main').innerHTML='<h3>'+t('Chat')+'</h3><div class="muted">'+t('Kein Gruppen-Chat verfügbar.')+'</div>';return;}
     const g=(CH.g&&chGrp(CH.g))?CH.g:CH.groups[0].name;this.select(g);
   },
-  select(k){sel=k;CH.g=k;const o=chGrp(k);if(!o)return;setList(this.items=this.mk());upd();
+  select(k){if(String(k).startsWith('vid:')){chVideo(+k.slice(4));return;}
+    sel=k;CH.g=k;const o=chGrp(k);if(!o)return;setList(this.items=this.mk());upd();
     const c=(CH.c&&o.chans.some(x=>x.name==CH.c)&&CH.g==k)?CH.c:'allgemein';$('#main').className='chat';chShell();chOpen(k,c);}
 };
 
@@ -2011,6 +2029,22 @@ function tkForm(x){
   };
 }
 
+/* Videochat-Optionen (Einstellungen): je Platz Anbieter wählen -> Adresse-Vorlage mit {room} */
+const VDKIND=['Option 1: fester Raum je Gruppe (alle Mitglieder)','Option 2: Ad-hoc-Raum (nur Gruppen-Admins)','Option 3: Ad-hoc-Raum (alle mit Schreibrecht im Kanal; Einladung gilt 24 Stunden)'];
+function vdSplit(u){   // gespeicherte Vorlage -> [Anbieter, Server]
+  if(!u)return ['',''];let m=u.match(/^(https?:\/\/[^/]+)\/join\/\{room\}$/);if(m)return ['mirotalk',m[1]];
+  m=u.match(/^(https?:\/\/[^/]+)\/\{room\}$/);if(m)return ['jitsi',m[1]];return ['custom',u];}
+function vdRow(i,v){const [pv,sv]=vdSplit(v.url||'');
+  return '<div class="row"><b>'+esc(t(VDKIND[i]))+'</b></div><div class="row">'+modeSel('vdp'+i,pv,[['','aus'],['jitsi','Jitsi'],['mirotalk','MiroTalk'],['custom','Eigene Adresse']],false)+
+   ' <input id="vdu'+i+'" style="width:380px'+(pv?'':';display:none')+'" value="'+esc(sv)+'" placeholder="'+esc(pv=='custom'?t('Adresse mit {room}, z.B. https://video.example.org/r/{room}'):t('Server-Adresse, z.B. https://meet.example.org'))+'"></div>';}
+function vdBind(i){const p=$('#vdp'+i),u=$('#vdu'+i);
+  p.onchange=()=>{u.style.display=p.value?'':'none';u.placeholder=p.value=='custom'?t('Adresse mit {room}, z.B. https://video.example.org/r/{room}'):t('Server-Adresse, z.B. https://meet.example.org');};}
+function vdCollect(){const out=[];
+  for(let i=0;i<3;i++){const pv=$('#vdp'+i).value,sv=$('#vdu'+i).value.trim().replace(pv=='custom'?/$^/:/\/+$/,'');
+    if(!pv){out.push({name:'',url:''});continue;}
+    if(!sv){alert(t('Server-Adresse fehlt (Videochat Option {0}).',i+1));return null;}
+    out.push(pv=='jitsi'?{name:'Jitsi',url:sv+'/{room}'}:pv=='mirotalk'?{name:'MiroTalk',url:sv+'/join/{room}'}:{name:'',url:sv});}
+  return out;}
 let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
 const AIDEF={anthropic:'Anthropic',openai:'OpenAI',ollama:'Ollama (local)'};
 function aiProvRow(p,v){   // eine Anbieter-Einheit: Anbieter wählen (Popup fragt den Schlüssel), Modell wählen, Rest unter "Erweitert"; p = '' oder '2'
@@ -2125,11 +2159,13 @@ S.set={
      '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div>'+
      '<div class="row"><label><input type="checkbox" id="airv"'+(a.review=='yes'?' checked':'')+'> '+t('Globale Admins dürfen Chat-Vorfälle mit KI auswerten (die Nachrichten gehen an den Anbieter; Standard: aus)')+'</label></div>'+
      '<div class="row"><label><input type="checkbox" id="aicr"'+(a.create=='yes'?' checked':'')+'> '+t('KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit "KI für Mitglieder". Standard: aus)')+'</label></div></div>'+
+     '<div class="panel"><b>'+t('Videochat (externe Server)')+'</b> <small class="muted">'+t('Die Videochat-Server laufen außerhalb von cs-team. cs-team legt nur den Raum fest und lädt im Chat mit einem Link ein. Je Option einen Anbieter wählen oder abschalten.')+'</small>'+
+     [0,1,2].map(i=>vdRow(i,(c.video||[])[i]||{})).join('')+'</div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
      '<div class="row"><button id="ssave">'+t('Speichern')+'</button> <button id="stest">'+t('Speichern + Testmail an mich')+'</button> <button id="aitest">'+t('Speichern + KI testen')+'</button></div>';
-    aiProvBind('');aiProvBind('2');
+    aiProvBind('');aiProvBind('2');[0,1,2].forEach(vdBind);
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
@@ -2137,6 +2173,8 @@ S.set={
       const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value.trim(),endpoint:$('#aiep').value,history:+$('#aihis').value||11,context:+$('#aictx').value||12000,altProvider:$('#aip_2').value,altEndpoint:$('#aiep2').value,altModel:$('#aimod2').value.trim(),vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if($('#aikx2')&&$('#aikx2').checked)ab.altKey='';else if($('#aikey2').value)ab.altKey=$('#aikey2').value;
+      const vo=vdCollect();if(!vo)return false;
+      if(!await api('POST','/api/settings/video',{options:vo}))return false;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};

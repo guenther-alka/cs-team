@@ -1,5 +1,16 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.7 Videochat im Chat ueber externe Server (Schritt 1). In den Einstellungen (Panel "Videochat") drei Optionen, je Option Anbieter waehlen (Jitsi,
+                   MiroTalk oder eigene Adresse mit {room}) und Server eintragen oder abschalten: 1 fester Raum je Gruppe (alle Mitglieder), 2 Ad-hoc-Raum nur
+                   fuer Gruppen-Admins, 3 Ad-hoc-Raum fuer alle mit Schreibrecht im Kanal. Im Chat erscheint links unter der Gruppenliste der Abschnitt
+                   "Videochat" mit den erlaubten Optionen; Klick oeffnet den Raum im neuen Tab und stellt eine Einladung (Karte mit "Beitreten") in den Kanal.
+                   Ad-hoc-Einladungen gelten 24 Stunden (danach 410/abgelaufen), zweiter Klick innerhalb 1 Minute (Ad-hoc) bzw. 30 Minuten (fester Raum) erzeugt keine
+                   zweite Einladung. Raumname = Gruppe + HMAC aus einem Server-Geheimnis (nicht erratbar), steht nie in der Nachricht und wird beim Beitritt neu
+                   berechnet (Leserecht + Ablaufpruefung). cs-team ruft die Videoserver nie auf. Adresse muss http(s) mit genau einem {room} sein, keine
+                   Zugangsdaten. Neu: POST /api/settings/video (Admin), POST /api/chat/{g}/{c}/video, GET /api/chat/{g}/{c}/video/{id}; Nachrichten und
+                   Gruppenliste tragen "vid" bzw. "video". Einladungen sind nicht bearbeitbar. 16 neue Texte in allen Sprachen. Test: video_test.go. Handbuch
+                   (de/en): Chat 4.9 und Einstellungen 4.11. Offen: Platz 4 eingebautes Ad-hoc-WebRTC (4-6 Nutzer), BigBlueButton (siehe TODO.md).
+
 2026-10-01  0.13.6 KI-Einstellungen vereinfacht: gefuehrter Ablauf statt vieler Felder. Schalter "KI aus / KI ein"; Anbieter aus der Liste waehlen, ein Popup fragt
                    den API-Schluessel (bei Ollama/Inhouse stattdessen IP:Port, Schluessel optional) und prueft ihn sofort ueber die Modell-Liste des Anbieters:
                    falscher Schluessel -> Meldung im Popup, Popup bleibt offen; gueltig -> Auswahlliste der Modelle (Bilderkennung markiert) mit "Eigenes Modell

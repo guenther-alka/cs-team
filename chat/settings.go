@@ -29,14 +29,16 @@ type Settings struct {
 }
 
 type stored struct {
-	Host    string `json:"host,omitempty"`
-	Port    string `json:"port,omitempty"`
-	User    string `json:"user,omitempty"`
-	Pass    string `json:"pass,omitempty"`
-	From    string `json:"from,omitempty"`
-	TLS     string `json:"tls,omitempty"`
-	Public  string `json:"public,omitempty"`
-	Private *bool  `json:"private,omitempty"`
+	Host    string     `json:"host,omitempty"`
+	Port    string     `json:"port,omitempty"`
+	User    string     `json:"user,omitempty"`
+	Pass    string     `json:"pass,omitempty"`
+	From    string     `json:"from,omitempty"`
+	TLS     string     `json:"tls,omitempty"`
+	Public  string     `json:"public,omitempty"`
+	Private *bool      `json:"private,omitempty"`
+	Video   []VideoOpt `json:"video,omitempty"`   // Videochat-Server (bis zu 3)
+	VSecret string     `json:"vsecret,omitempty"` // Geheimnis für Raumnamen
 }
 
 const settingsKey = "settings.json"
@@ -161,7 +163,18 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			"host": c.Host, "port": c.Port, "user": c.User, "from": c.From, "tls": c.TLS, "passSet": c.Pass != "",
 			"public": own.Public, "private": s.AllowPrivate(), "enabled": c.Enabled(),
 			"envHost": s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
+			"video":   s.Video(),
 		})
+	}))
+	mux.Handle("POST /api/settings/video", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Options []VideoOpt }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setVideo(in.Options); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
 	}))
 	mux.Handle("POST /api/settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		var in settingsIn

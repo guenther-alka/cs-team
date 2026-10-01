@@ -53,6 +53,7 @@ type Msg struct {
 	Att *Att                `json:"att,omitempty"`
 	Re  map[string][]string `json:"re,omitempty"`
 	Del bool                `json:"del,omitempty"`
+	Vid *Vid                `json:"vid,omitempty"` // Einladung zu einem Videochat (siehe video.go)
 }
 
 type channel struct {
@@ -83,6 +84,8 @@ type Svc struct {
 	rate  map[string][]time.Time
 	// AIReview: ist die KI-Auswertung für Chat-Vorfälle freigegeben? (wird von main gesetzt; nil = nein)
 	AIReview func() bool
+	// Cfg: Einstellungen (Videochat-Server); nil = kein Videochat
+	Cfg *Settings
 }
 
 func New(st store.Store) *Svc {
@@ -229,6 +232,10 @@ func clean(t string) string { return strings.TrimSpace(strings.ReplaceAll(t, "\r
 
 // Post legt eine Nachricht an (auch für "Nachricht senden -> Gruppen-Chat": Kanal allgemein).
 func (s *Svc) Post(ctx context.Context, user, g, cn, text string, att *Att) (*Msg, error) {
+	return s.post(ctx, user, g, cn, text, att, nil)
+}
+
+func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid *Vid) (*Msg, error) {
 	text = clean(text)
 	if _, w := access(user, g); !w {
 		if r, _ := access(user, g); r {
@@ -252,7 +259,7 @@ func (s *Svc) Post(ctx context.Context, user, g, cn, text string, att *Att) (*Ms
 		id = c.last + 1
 	}
 	c.last = id
-	m := Msg{ID: id, By: user, T: text, Att: att}
+	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid}
 	c.msgs = append(c.msgs, m)
 	s.save(ctx, c)
 	c.mu.Unlock()
@@ -309,7 +316,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 			return errors.New("bad text")
 		}
 		return s.change(ctx, user, m.G, m.C, m.ID, func(x *Msg) bool {
-			if x.By != user {
+			if x.By != user || x.Vid != nil {
 				return false
 			}
 			x.T, x.Ed = text, true
@@ -322,7 +329,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 				return false
 			}
 			att = x.Att
-			x.T, x.Att, x.Re, x.Del = "", nil, nil, true
+			x.T, x.Att, x.Re, x.Vid, x.Del = "", nil, nil, nil, true
 			return true
 		})
 		if err == nil && att != nil {
@@ -439,18 +446,19 @@ func (s *Svc) chanRows(ctx context.Context, g string) []chanRow {
 }
 
 type groupRow struct {
-	Name  string    `json:"name"`
-	W     bool      `json:"w"`    // darf schreiben
-	Adm   bool      `json:"adm"`  // Gruppen-Admin (darf alles löschen)
-	Make  bool      `json:"make"` // darf Kanäle anlegen
-	Chans []chanRow `json:"chans"`
+	Name  string     `json:"name"`
+	W     bool       `json:"w"`    // darf schreiben
+	Adm   bool       `json:"adm"`  // Gruppen-Admin (darf alles löschen)
+	Make  bool       `json:"make"` // darf Kanäle anlegen
+	Chans []chanRow  `json:"chans"`
+	Video []videoRow `json:"video,omitempty"` // Videochat-Einträge dieser Gruppe
 }
 
 func (s *Svc) groupsOf(ctx context.Context, user string) []groupRow {
 	out := []groupRow{}
 	for _, g := range auth.GroupsOf(user) {
 		if r, w := access(user, g); r {
-			out = append(out, groupRow{g, w, auth.IsGroupAdmin(user, g), canMake(user, g), s.chanRows(ctx, g)})
+			out = append(out, groupRow{g, w, auth.IsGroupAdmin(user, g), canMake(user, g), s.chanRows(ctx, g), s.videoFor(user, g, w)})
 		}
 	}
 	return out
@@ -557,6 +565,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	}))
 	mux.Handle("GET /api/chat/ws", h(s.ws))
 	s.auditRoutes(mux, wrap)
+	s.videoRoutes(mux, wrap)
 }
 
 func urlEnc(s string) string {
