@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -69,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.12.0"
+const version = "0.12.1"
 
 var started = time.Now()
 
@@ -101,6 +102,7 @@ func main() {
 	}
 	a := auth.New(st)
 	ctx := context.Background()
+	setupSnapshot(os.Getenv("CS_DIR"))
 
 	a.TrustProxy = os.Getenv("CS_TRUST_PROXY") == "1"
 	if err := a.Migrate(ctx); err != nil { // Standardgruppe "users" -> "alluser"
@@ -209,6 +211,15 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	ts.Base = cfg.PublicURL
 	ts.Routes(mux, a.Wrap)
 	ts.Start(context.Background())
+	auth.RenameHooks = []auth.RenameHook{ // Jahrgangswechsel im Modus "Gruppe wird umbenannt": jedes Modul benennt seine Daten um
+		{Name: "files", Rename: fsvc.RenameGroup, Used: fsvc.FolderUsed},
+		{Name: "file shares", Rename: fsvc.RenameShares},
+		{Name: "document shares", Rename: hub.RenameShares},
+		{Name: "calendar", Area: "cal", Rename: cb.RenameGroup, Used: cb.CalUsed, Drop: cb.DropGroup},
+		{Name: "chat", Area: "chat", Rename: cs.RenameGroup, Used: cs.ChatUsed},
+		{Name: "tasks", Area: "tasks", Rename: ts.RenameGroup, Used: ts.TasksUsed},
+	}
+	auth.GroupCalMode = cb.GroupCalMode
 	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
 	aiSvc.H = mux
 	aiSvc.LangName = func(code string) string { return langList()[code] }
@@ -227,4 +238,34 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	mux.Handle("GET /lang/", a.Wrap(http.HandlerFunc(langHandler)))
 	mux.Handle("/", a.Wrap(http.FileServerFS(web)))
 	return mux
+}
+
+// setupSnapshot: vor jeder globalen Aktion (Jahrgangswechsel ...) wird nach Möglichkeit ein ZFS-Snapshot angelegt.
+// CS_SNAPSHOT_CMD = eigener Befehl ({id} = Lauf-ID), CS_SNAPSHOT=off = ausschalten; sonst wird bei Ordner-Speicher
+// (CS_DIR) das ZFS-Dataset erkannt und "zfs snapshot <dataset>@cs-team-<id>" verwendet. Bei S3/RustFS: CS_SNAPSHOT_CMD setzen.
+func setupSnapshot(dir string) {
+	if c := os.Getenv("CS_SNAPSHOT_CMD"); c != "" {
+		auth.SnapshotCmd = c
+		log.Println("snapshot before global actions: custom command")
+		return
+	}
+	if os.Getenv("CS_SNAPSHOT") == "off" || dir == "" {
+		return
+	}
+	zfs, err := exec.LookPath("zfs")
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, zfs, "list", "-H", "-o", "name", dir).Output()
+	ds := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
+	if err != nil || ds == "" || strings.ContainsAny(ds, " '\"\\$`;&|<>") {
+		log.Println("snapshot: no ZFS dataset found for", dir, "- global actions run without snapshot unless confirmed")
+		return
+	}
+	auth.SnapshotCmd = "'" + zfs + "' snapshot '" + ds + "@cs-team-{id}'"
+	auth.SnapshotAuto = true
+	auth.SnapshotInfo = ds
+	log.Println("snapshot before global actions: zfs snapshot", ds+"@cs-team-<id>")
 }

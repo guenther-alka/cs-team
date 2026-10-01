@@ -1,5 +1,14 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.12.1 Jahrgangswechsel, Modus "Gruppe wird umbenannt" (Gruppen als Klassen): 5a heisst danach 6a und nimmt Mitglieder, Gruppenordner (Dateien),
+                   Freigaben an die Gruppe, Gruppen-Admins und - einzeln waehlbar - Kalender, Chat und Aufgaben mit; darunter entsteht eine neue leere
+                   Gruppe 5a (Einstellungen kopiert, Wiederholer wechseln dorthin), die oberste Stufe wird umbenannt (ehem-7a-2026) oder bleibt (dann sind
+                   die Stufen darunter blockiert). Vorschau/Passwort/Pruefsumme/Sicherung wie beim Mitglieder-Wechsel; Rueckgaengig benennt in umgekehrter
+                   Reihenfolge zurueck, solange die neuen Gruppen leer sind (sonst Hinweis auf den Snapshot). Snapshot vor jeder globalen Aktion:
+                   bei Ordner-Speicher (CS_DIR) wird das ZFS-Dataset erkannt (zfs snapshot <dataset>@cs-team-<id>), sonst CS_SNAPSHOT_CMD (z.B. mit
+                   cs-freeze4snap; {id} = Lauf-ID), CS_SNAPSHOT=off schaltet aus. Schlaegt der Snapshot fehl, wird nichts geaendert; ist keiner moeglich,
+                   muss der Admin den Lauf ausdruecklich ohne Snapshot bestaetigen.
+
 2026-10-01  0.12.0 Assistent fuer globale Aktionen (Vollbild): Gruppen > "Assistent: Jahrgangswechsel...". Verschiebt die Mitglieder jeder Gruppe mit Zahl
                    im Namen in die Folgegruppe (5a -> 6a, 9b -> 10b, 09 -> 10). Abgaenger (Gruppen ohne Folgegruppe): unveraendert lassen, in eine Gruppe
                    verschieben (wird angelegt), Konten sperren oder nur aus der Gruppe entfernen. Wiederholer: je Gruppe eine Merkliste, die der

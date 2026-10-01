@@ -30,6 +30,18 @@ type YearParams struct {
 	Leave   string              `json:"leave"`   // Gruppen ohne Folgegruppe: ""/"keep" unverändert | "archive" | "disable" | "remove"
 	Archive string              `json:"archive"` // Zielgruppe für Abgänger (leave=archive), wird bei Bedarf angelegt
 	Stay    map[string][]string `json:"stay"`    // je Gruppe die bleibenden Benutzer (fehlt = Merkliste der Gruppe)
+
+	Mode      string `json:"mode"`      // ""/"members": Mitglieder wechseln | "rename": Gruppe wird umbenannt (Daten wandern mit)
+	Carry     Carry  `json:"carry"`     // Modus rename: was neben dem Gruppenordner mitwandert
+	NewAdmins bool   `json:"newAdmins"` // Modus rename: Gruppen-Admins auch in die neu angelegte Gruppe
+	Pattern   string `json:"pattern"`   // Modus rename: Name der Abgangsgruppe, {name} und {year}
+}
+
+// Carry: Bereiche, die beim Umbenennen mit der Gruppe wandern (Gruppenordner und Freigaben immer).
+type Carry struct {
+	Cal   bool `json:"cal"`
+	Chat  bool `json:"chat"`
+	Tasks bool `json:"tasks"`
 }
 
 type PlanItem struct {
@@ -42,8 +54,9 @@ type PlanItem struct {
 type PlanGroup struct {
 	Group  string     `json:"group"`
 	To     string     `json:"to,omitempty"`
-	Kind   string     `json:"kind"` // move | leave | skip
+	Kind   string     `json:"kind"` // move | leave | skip | rename | blocked
 	Exists bool       `json:"exists"`
+	Note   string     `json:"note,omitempty"`
 	Items  []PlanItem `json:"items,omitempty"`
 	Move   int        `json:"move"`
 	Stay   int        `json:"stay"`
@@ -59,7 +72,19 @@ type Plan struct {
 	Warnings []string    `json:"warnings,omitempty"`
 	Moves    int         `json:"moves"`
 	Hash     string      `json:"hash"`
+	Mode     string      `json:"mode,omitempty"`
+	Carry    Carry       `json:"carry"`
+	Pairs    []Pair      `json:"pairs,omitempty"`
+	Repeat   int         `json:"repeat,omitempty"`
 	effects  map[string]effect
+	newRec   map[string]Group
+}
+
+// Pair: Gruppe "From" heißt danach "To" (Reihenfolge = Ausführungsreihenfolge, höchste Stufe zuerst).
+type Pair struct {
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Archive bool   `json:"archive,omitempty"`
 }
 
 type effect struct {
@@ -92,6 +117,12 @@ func sortKey(n string) (string, int, string) {
 
 // planYear berechnet die Vorschau aus dem aktuellen Stand; verändert nichts.
 func (a *Auth) planYear(ctx context.Context, p YearParams) (*Plan, error) {
+	if p.Mode == "rename" {
+		return a.planRename(ctx, p)
+	}
+	if p.Mode != "" && p.Mode != "members" {
+		return nil, errors.New("mode: members | rename")
+	}
 	a.refresh(ctx)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -270,9 +301,15 @@ type LogEntry struct {
 	Summary string    `json:"summary"`
 	Moved   int       `json:"moved"`
 	Undone  bool      `json:"undone,omitempty"`
+	Mode    string    `json:"mode,omitempty"`
+	Pairs   []Pair    `json:"pairs,omitempty"`
+	Created []string  `json:"created,omitempty"`
+	Carry   Carry     `json:"carry"`
+	Partial bool      `json:"partial,omitempty"`
 }
 
 type backup struct {
+	Mode    string               `json:"mode,omitempty"`
 	Users   map[string]userState `json:"users"`
 	Stay    map[string][]string  `json:"stay"`
 	Created []string             `json:"created,omitempty"`
@@ -297,6 +334,12 @@ func (a *Auth) applyYear(ctx context.Context, admin string, pl *Plan) (*LogEntry
 		return nil, errors.New("nothing to do")
 	}
 	id := time.Now().Format("20060102-150405")
+	if err := runSnapshot(id); err != nil {
+		return nil, fmt.Errorf("snapshot command failed, nothing was changed: %w", err)
+	}
+	if pl.Mode == "rename" {
+		return a.applyRename(ctx, admin, pl, id)
+	}
 	bk := backup{Users: map[string]userState{}, Stay: map[string][]string{}, Created: pl.Create}
 	a.refresh(ctx)
 	a.mu.Lock()
@@ -351,7 +394,11 @@ func (a *Auth) applyYear(ctx context.Context, admin string, pl *Plan) (*LogEntry
 	}
 	en := LogEntry{ID: id, Time: time.Now(), Admin: admin, Routine: pl.Routine, Moved: pl.Moves,
 		Summary: fmt.Sprintf("%d groups, %d accounts changed, leave=%s", len(pl.Groups), pl.Moves, pl.Leave)}
-	err := store.Update(ctx, a.st, logKey, func(cur []byte) ([]byte, error) {
+	return &en, a.appendLog(ctx, en)
+}
+
+func (a *Auth) appendLog(ctx context.Context, en LogEntry) error {
+	return store.Update(ctx, a.st, logKey, func(cur []byte) ([]byte, error) {
 		var l []LogEntry
 		if cur != nil {
 			json.Unmarshal(cur, &l)
@@ -362,7 +409,6 @@ func (a *Auth) applyYear(ctx context.Context, admin string, pl *Plan) (*LogEntry
 		}
 		return json.Marshal(l)
 	})
-	return &en, err
 }
 
 var errUndo = errors.New("only the latest routine that is not undone can be reverted")
@@ -387,6 +433,9 @@ func (a *Auth) undo(ctx context.Context, id string) error {
 	var bk backup
 	if json.Unmarshal(b, &bk) != nil {
 		return errors.New("backup unreadable")
+	}
+	if l[idx].Mode == "rename" {
+		return a.undoRename(ctx, l[idx], bk)
 	}
 	a.refresh(ctx)
 	a.mu.Lock()
@@ -477,8 +526,13 @@ func (a *Auth) routineRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http
 			Params   YearParams `json:"params"`
 			Hash     string     `json:"hash"`
 			Password string     `json:"password"`
+			NoSnap   bool       `json:"noSnapshot"`
 		}
 		if !dec(w, r, &in) {
+			return
+		}
+		if SnapshotMode() == "none" && !in.NoSnap {
+			http.Error(w, "no snapshot possible - confirm to run without snapshot (noSnapshot) or set CS_SNAPSHOT_CMD", http.StatusBadRequest)
 			return
 		}
 		if code, msg := a.confirm(r, in.Password); code != 0 {
@@ -501,6 +555,9 @@ func (a *Auth) routineRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http
 		}
 		log.Printf("routine: yearchange by %s: %d accounts, backup %s", en.Admin, en.Moved, en.ID)
 		json.NewEncoder(w).Encode(en)
+	}))
+	mux.Handle("GET /api/routines/info", adm(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"snapshot": SnapshotMode(), "dataset": SnapshotInfo})
 	}))
 	mux.Handle("GET /api/routines/log", adm(func(w http.ResponseWriter, r *http.Request) {
 		l := a.log(r.Context())
