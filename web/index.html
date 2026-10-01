@@ -225,6 +225,13 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 #aichips{display:flex;flex-wrap:wrap;gap:4px;padding:2px 8px}#aichips:empty{display:none}#aichips span{background:#e6edf8;border-radius:10px;padding:1px 8px;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#aichips a{margin-left:4px;text-decoration:none}
 #aifl{display:none;max-height:190px;overflow:auto;border-top:1px solid #e3e3e3;padding:4px 8px;font-size:13px}#aifl.open{display:block}#aifl label{display:block;padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#aifl h5{margin:6px 0 2px;font-size:12px;color:#667}
 #aihint{padding:0 10px 6px;font-size:11.5px;color:#889}
+#wiz{position:fixed;inset:0;z-index:80;background:#f6f7f9;display:none;flex-direction:column}#wiz.open{display:flex}
+#wizh{display:flex;align-items:center;gap:16px;padding:10px 16px;background:#243447;color:#fff}#wizh b{font-size:17px}#wizh .st{flex:1;display:flex;gap:6px}#wizh .st span{padding:2px 10px;border-radius:12px;background:#3a4d63;font-size:13px}#wizh .st span.on{background:#2b6fd4}#wizx{background:none;border:0;color:#fff;font-size:26px;cursor:pointer}
+#wizb{flex:1;overflow:auto;padding:16px;max-width:1100px;width:100%;box-sizing:border-box;margin:0 auto}
+#wizb .wg{background:#fff;border:1px solid #d6d9de;border-radius:8px;margin:0 0 10px;padding:8px 12px}#wizb .wg.off{opacity:.5}#wizb .wg h4{margin:0 0 4px;font-size:15px}
+#wizb .wm{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;margin-top:4px}#wizb .wm label{white-space:nowrap}#wizb .wm .stay{color:#a35a00}#wizb .wm .fx{color:#889}
+#wizb .wsum{background:#e8f1fd;border-radius:8px;padding:8px 12px;margin:0 0 10px}#wizb .wwarn{background:#fff4e0;border-radius:8px;padding:6px 12px;margin:0 0 10px;font-size:13px}
+#wizf{display:flex;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid #d6d9de;background:#fff}#wizf button{padding:7px 16px}#wizf .pr{background:#2b6fd4;color:#fff;border:1px solid #2b6fd4;border-radius:6px;cursor:pointer}
 @media(max-width:760px){#aip{left:8px;right:8px;width:auto;bottom:70px}}
 </style></head><body>
 <div id="top"><button id="mback" title="Zurück">←</button><b id="brand">cs-team</b>
@@ -243,6 +250,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
  </div>
  <div id="main"></div>
 </div>
+<div id="wiz"><div id="wizh"><b id="wizt"></b><div class="st" id="wizs"></div><button id="wizx">&times;</button></div><div id="wizb"></div><div id="wizf"></div></div>
 <button id="aib" title="KI fragen">KI</button>
 <div id="aip"><div id="aih"><b id="aitt"></b><button id="ainew"></button><button id="aicl">&times;</button></div>
 <div id="ait"></div><div id="aiy"></div><div id="aichips"></div><div id="aim"></div><div id="aiimgs"></div>
@@ -490,7 +498,8 @@ S.groups={
   },
   home(){
     $('#main').innerHTML='<h3>'+t('Gruppen')+'</h3><div class="muted">'+t('Jeder Benutzer gehört mindestens einer Gruppe an. Die Gruppe legt fest, welche Bereiche (Kalender, Calc, Text, Files) ihre Mitglieder nutzen dürfen (bei mehreren Gruppen gilt die Vereinigung), und dient als Ziel für Freigaben. Gruppen-Admins verwalten die Mitglieder ihrer Gruppe. Globale Admins dürfen alles. Links Filter benutzen.')+'</div>'+
-     '<div class="row muted">'+allGroups.length+' '+t('Gruppen')+(me.admin?', '+allUsers.length+' '+t('Benutzer'):'')+'</div>'+(me.admin?'<div class="row"><a href="/api/groups/export">'+t('Gruppen als CSV exportieren')+'</a></div>':'');
+     '<div class="row muted">'+allGroups.length+' '+t('Gruppen')+(me.admin?', '+allUsers.length+' '+t('Benutzer'):'')+'</div>'+(me.admin?'<div class="row"><a href="/api/groups/export">'+t('Gruppen als CSV exportieren')+'</a></div><div class="row"><button id="wzo">'+t('Assistent: Jahrgangswechsel…')+'</button></div>':'');
+    if(me.admin)$('#wzo').onclick=wzOpen;
   },
   add(){
     $('#main').innerHTML='<h3>'+t('Gruppe anlegen')+'</h3><div class="row"><input id="gn" placeholder="'+t('name (a-z 0-9 . _ -)')+'"></div>'+
@@ -521,6 +530,8 @@ S.groups={
     if(g.manage){
       h+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Eine Namensliste (Komma, Leerzeichen oder Zeilenumbruch). Hinzugefügte müssen existieren; Entfernte behalten mindestens eine andere Gruppe.')+'</div>'+
        '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box">'+esc((g.members||[]).join('\n'))+'</textarea><div class="row"><button id="gms">'+t('Mitglieder speichern')+'</button></div></div>';
+      if(g.name!='alluser')h+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
+       '<textarea id="gst" rows="3" style="width:100%;box-sizing:border-box">'+esc((g.stay||[]).join('\n'))+'</textarea><div class="row"><button id="gsts">'+t('Merkliste speichern')+'</button></div></div>';
     }else h+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
     $('#main').innerHTML=h;
     if(me.admin){
@@ -529,6 +540,7 @@ S.groups={
       $('#gus').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{units:names($('#gun').value)})){await this.load();this.select(k);}};
       if($('#gas'))$('#gas').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/admins',{admins:names($('#gad').value)})){await this.load();this.select(k);}};
     }
+    if(g.manage&&$('#gsts'))$('#gsts').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/stay',{stay:names($('#gst').value)})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(g.manage)$('#gms').onclick=async()=>{
       const nu=new Set($('#gm').value.split(/[\s,;]+/).filter(x=>x)),old=new Set(g.members||[]);
       const add=[...nu].filter(x=>!old.has(x)),remove=[...old].filter(x=>!nu.has(x));
@@ -540,6 +552,72 @@ S.groups={
     if(await api('DELETE','/api/groups/'+encodeURIComponent(k))){sel=null;await this.load();this.home();upd();}
   }
 };
+
+/* ---------- Assistent für globale Aktionen (Jahrgangswechsel) ----------
+   Server rechnet die Vorschau (ändert nichts); Ausführen nur mit Passwort und der Prüfsumme der Vorschau; vorher Sicherung; Rückgängig im Verlauf. */
+const WZ={step:1,P:{leave:'keep',archive:'ehemalige',stay:{},groups:null},plan:null,all:null,off:{}};
+function wzOpen(){WZ.step=1;WZ.P={leave:'keep',archive:'ehemalige',stay:{},groups:null};WZ.plan=null;WZ.all=null;WZ.off={};$('#wiz').classList.add('open');wzDraw();}
+function wzSteps(){$('#wizt').textContent=t('Jahrgangswechsel');$('#wizs').innerHTML=[['Regeln'],['Vorschau'],['Ausführen']].map((x,i)=>'<span'+(WZ.step==i+1?' class="on"':'')+'>'+(i+1)+' '+esc(t(x[0]))+'</span>').join('');}
+async function wzPreview(){
+  const P={...WZ.P,groups:WZ.all?WZ.all.filter(g=>!WZ.off[g]):undefined};
+  const r=await J('POST','/api/routines/yearchange/preview',P);if(!r)return false;
+  WZ.plan=r;if(!WZ.all)WZ.all=r.groups.map(g=>g.group);return true;}
+function wzKind(g){
+  if(g.kind=='move')return esc(g.group)+' &rarr; <b>'+esc(g.to)+'</b>';
+  if(g.kind=='leave')return esc(g.group)+' &rarr; '+esc(WZ.P.leave=='archive'?t('Abgang')+': '+g.to:WZ.P.leave=='disable'?t('Abgang')+': '+t('Konten sperren'):t('Abgang')+': '+t('nur aus der Gruppe entfernen'));
+  return esc(g.group)+' &nbsp;<span class="muted">'+esc(t('keine Folgegruppe – bleibt unverändert'))+'</span>';}
+async function wzDraw(){
+  wzSteps();const b=$('#wizb'),f=$('#wizf');
+  if(WZ.step==1){
+    const log=await J('GET','/api/routines/log')||[];const last=[...log].reverse().find(x=>!x.undone);
+    b.innerHTML='<p>'+esc(t('Verschiebt die Mitglieder jeder Gruppe mit Zahl im Namen in die Folgegruppe (5a → 6a, 9b → 10b). Wiederholer bleiben, Gruppen-Admins und globale Admins werden nie verschoben. Es wird erst nach Vorschau, Passwort und Sicherung etwas geändert.'))+'</p>'+
+     '<h4>'+esc(t('Gruppen ohne Folgegruppe (Abgänger)'))+'</h4>'+
+     [['keep','unverändert lassen'],['archive','in eine Gruppe verschieben:'],['disable','Konten sperren'],['remove','nur aus der Gruppe entfernen']].map(x=>'<div class="row"><label><input type="radio" name="wl" value="'+x[0]+'"'+(WZ.P.leave==x[0]?' checked':'')+'> '+esc(t(x[1]))+'</label>'+(x[0]=='archive'?' <input id="wla" value="'+esc(WZ.P.archive)+'" style="width:160px">':'')+'</div>').join('')+
+     '<h4>'+esc(t('Verlauf'))+'</h4>'+(log.length?log.slice().reverse().slice(0,8).map(x=>'<div class="row">'+esc(fmtDT(x.time))+' &middot; '+esc(x.admin)+' &middot; '+esc(x.summary)+(x.undone?' <span class="muted">('+esc(t('rückgängig gemacht'))+')</span>':(last&&last.id==x.id?' <a href="#" data-u="'+esc(x.id)+'">'+esc(t('Rückgängig'))+'</a>':''))+'</div>').join(''):'<div class="muted">-</div>');
+    b.querySelectorAll('input[name=wl]').forEach(i=>i.onchange=()=>{WZ.P.leave=i.value;});
+    b.querySelectorAll('a[data-u]').forEach(a=>a.onclick=async e=>{e.preventDefault();
+      const pw=prompt(t('Rückgängig machen? Änderungen an diesen Konten seit dem Wechsel gehen verloren.')+'\n\n'+t('Passwort zur Bestätigung'));if(!pw)return;
+      if(await api('POST','/api/routines/undo/'+encodeURIComponent(a.dataset.u),{password:pw})){await S.groups.load();wzDraw();}});
+    f.innerHTML='<span style="flex:1"></span><button class="pr" id="wzn">'+esc(t('Vorschau berechnen'))+'</button>';
+    $('#wzn').onclick=async()=>{WZ.P.archive=($('#wla')?$('#wla').value:WZ.P.archive).trim();WZ.all=null;WZ.off={};WZ.P.stay={};if(await wzPreview()){WZ.step=2;wzDraw();}};
+  }else if(WZ.step==2){
+    const pl=WZ.plan,gm={};pl.groups.forEach(g=>gm[g.group]=g);
+    let h='<div class="wsum">'+esc(t('{0} Konten wechseln.',pl.moves))+(pl.create&&pl.create.length?' '+esc(t('Wird angelegt: {0}',pl.create.join(', '))):'')+'</div>'+(pl.warnings&&pl.warnings.length?'<div class="wwarn">'+pl.warnings.map(esc).join('<br>')+'</div>':'');
+    if(!WZ.all.length)h+='<p>'+esc(t('Keine Gruppen mit Zahl im Namen gefunden.'))+'</p>';
+    for(const n of WZ.all){const g=gm[n],off=WZ.off[n];
+      h+='<div class="wg'+(off?' off':'')+'"><h4><label><input type="checkbox" data-g="'+esc(n)+'"'+(off?'':' checked')+'> '+(g?wzKind(g):esc(n))+'</label>'+(g&&g.kind!='skip'?' &nbsp;<span class="muted">'+esc(t('{0} wechseln, {1} bleiben',g.move,g.stay))+'</span>':'')+'</h4>';
+      if(g&&g.kind!='skip'&&!off){
+        h+='<div class="muted"><a href="#" data-all="'+esc(n)+'" data-v="0">'+esc(t('alle bleiben'))+'</a> &middot; <a href="#" data-all="'+esc(n)+'" data-v="1">'+esc(t('alle wechseln'))+'</a></div><div class="wm">'+
+          g.items.map(it=>'<label class="'+(it.fixed?'fx':it.stay?'stay':'')+'"><input type="checkbox" data-m="'+esc(n)+'" data-u="'+esc(it.user)+'"'+(it.stay?'':' checked')+(it.fixed?' disabled':'')+'> '+esc(it.user)+(it.note?' <small>('+esc(it.note=='admin'?t('Globaler Admin'):it.note=='group admin'?t('Gruppen-Admin'):it.note.replace('disabled',t('gesperrt')))+')</small>':'')+'</label>').join('')+'</div>';
+      }
+      h+='</div>';}
+    $('#wizb').innerHTML=h+'<p class="muted">'+esc(t('Haken = wechselt, kein Haken = bleibt (Wiederholer). Die Merkliste der Gruppen-Admins ist vorausgewählt.'))+'</p>';
+    const redo=async()=>{if(await wzPreview())wzDraw();};
+    const setStay=(n,fn)=>{const g=gm[n];WZ.P.stay[n]=g.items.filter(it=>!it.fixed||it.stay).filter(it=>fn(it)).map(it=>it.user);};
+    $('#wizb').querySelectorAll('input[data-g]').forEach(c=>c.onchange=()=>{WZ.off[c.dataset.g]=!c.checked;redo();});
+    $('#wizb').querySelectorAll('input[data-m]').forEach(c=>c.onchange=()=>{const n=c.dataset.m,u=c.dataset.u;
+      setStay(n,it=>it.fixed?true:it.user==u?!c.checked:it.stay);redo();});
+    $('#wizb').querySelectorAll('a[data-all]').forEach(a=>a.onclick=e=>{e.preventDefault();const v=a.dataset.v=='1';setStay(a.dataset.all,it=>it.fixed?true:!v);redo();});
+    f.innerHTML='<button id="wzb">'+esc(t('Zurück'))+'</button><span style="flex:1"></span><button class="pr" id="wzn"'+(pl.moves?'':' disabled')+'>'+esc(t('Weiter'))+'</button>';
+    $('#wzb').onclick=()=>{WZ.step=1;wzDraw();};$('#wzn').onclick=()=>{WZ.step=3;wzDraw();};
+  }else{
+    const pl=WZ.plan;
+    b.innerHTML='<div class="wsum">'+esc(t('{0} Konten wechseln.',pl.moves))+'</div>'+
+     pl.groups.filter(g=>g.kind!='skip').map(g=>'<div class="row">'+wzKind(g)+' &nbsp;<span class="muted">'+esc(t('{0} wechseln, {1} bleiben',g.move,g.stay))+'</span></div>').join('')+
+     '<p class="muted">'+esc(t('Vor dem Ausführen wird eine Sicherung der betroffenen Konten und Merklisten angelegt. Rückgängig ist danach im Verlauf möglich.'))+'</p>'+
+     '<div class="row"><input id="wzp" type="password" autocomplete="current-password" placeholder="'+esc(t('Passwort zur Bestätigung'))+'" style="width:260px"></div><div id="wzr"></div>';
+    f.innerHTML='<button id="wzb">'+esc(t('Zurück'))+'</button><span style="flex:1"></span><button class="pr" id="wzn">'+esc(t('Jetzt ausführen'))+'</button>';
+    $('#wzb').onclick=()=>{WZ.step=2;wzDraw();};
+    $('#wzn').onclick=async()=>{const pw=$('#wzp').value;if(!pw)return;$('#wzn').disabled=true;
+      const P={...WZ.P,groups:WZ.all.filter(g=>!WZ.off[g])};
+      const r=await J('POST','/api/routines/yearchange/run',{params:P,hash:pl.hash,password:pw});
+      if(!r){$('#wzn').disabled=false;return;}
+      $('#wzr').innerHTML='<div class="wsum">'+esc(t('Fertig: {0} Konten geändert. Sicherung: {1}',r.moved,r.id))+'</div>';
+      $('#wzn').style.display='none';$('#wzb').style.display='none';$('#wzp').style.display='none';
+      await S.groups.load();S.groups.home();upd();};
+  }
+}
+$('#wizx').onclick=()=>$('#wiz').classList.remove('open');
 
 /* ---------- Kalender ---------- */
 const lsGet=(k,def)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}};

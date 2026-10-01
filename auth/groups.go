@@ -57,6 +57,7 @@ type Group struct {
 	Tasks  string   `json:"tasks,omitempty"`  // wer Aufgaben der Gruppe anlegen darf: "" = member, "admin", "off"
 	Chans  string   `json:"chans,omitempty"`  // wer weitere Chat-Kanäle anlegen darf: "" = admin, "member", "off" (niemand)
 	Units  []string `json:"units,omitempty"`  // Organisationen (leer = "all")
+	Stay   []string `json:"stay,omitempty"`   // Wiederholer: bleiben beim nächsten Jahrgangswechsel in der Gruppe (wird danach geleert)
 	Folder string   `json:"folder,omitempty"` // Gruppenordner: "" keiner, "ro" Mitglieder lesen (Gruppen-Admins schreiben), "rw" Mitglieder lesen+schreiben
 }
 
@@ -438,6 +439,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Chans   string   `json:"chans"`
 			Tasks   string   `json:"tasks"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
+			Stay    []string `json:"stay,omitempty"`    // Wiederholer (nur für Verwalter der Gruppe)
 			Manage  bool     `json:"manage,omitempty"`
 		}
 		a.mu.Lock()
@@ -463,6 +465,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 					}
 				}
 				sort.Strings(rw.Members)
+				rw.Stay = append([]string{}, g.Stay...)
 			}
 			out = append(out, rw)
 		}

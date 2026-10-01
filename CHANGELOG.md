@@ -1,5 +1,13 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.12.0 Assistent fuer globale Aktionen (Vollbild): Gruppen > "Assistent: Jahrgangswechsel...". Verschiebt die Mitglieder jeder Gruppe mit Zahl
+                   im Namen in die Folgegruppe (5a -> 6a, 9b -> 10b, 09 -> 10). Abgaenger (Gruppen ohne Folgegruppe): unveraendert lassen, in eine Gruppe
+                   verschieben (wird angelegt), Konten sperren oder nur aus der Gruppe entfernen. Wiederholer: je Gruppe eine Merkliste, die der
+                   Gruppen-Admin (Lehrer) selbst pflegt; in der Vorschau je Konto Haken "wechselt/bleibt", Gruppen einzeln abwaehlbar. Globale Admins
+                   und Gruppen-Admins werden nie verschoben. Ablauf: Vorschau (aendert nichts) -> Ausfuehren nur mit erneuter Passworteingabe und Pruefsumme
+                   der Vorschau (Datenstand geaendert = abgelehnt) -> Sicherung der betroffenen Konten -> Protokoll/Verlauf mit "Rueckgaengig".
+                   Chats, Gruppenordner, Kalender und Aufgaben gehoeren zur Gruppe und werden nicht mitgenommen. Nur globale Admins.
+
 2026-10-01  0.11.1 KI-Assistent: Dateien und Dokumente lesen und auswerten. Neuer Knopf im Widget waehlt bis zu 4 eigene oder mit dem Benutzer geteilte
                    Dateien (auch Gruppenordner) und Calc-/Text-Dokumente aus; die KI fasst zusammen, analysiert, rechnet oder uebersetzt. Unterstuetzt:
                    Text/CSV/JSON/Code, DOCX, XLSX, Calc, Text-Dokumente, Bilder (bei Bilderkennung); PDF noch nicht. Der Server liest die Auswahl mit den
