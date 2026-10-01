@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.13.0"
+const version = "0.13.1"
 
 var started = time.Now()
 
@@ -245,6 +245,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 // setupSnapshot: vor jeder globalen Aktion (Jahrgangswechsel ...) wird nach Möglichkeit ein ZFS-Snapshot angelegt.
 // CS_SNAPSHOT_CMD = eigener Befehl ({id} = Lauf-ID), CS_SNAPSHOT=off = ausschalten; sonst wird bei Ordner-Speicher
 // (CS_DIR) das ZFS-Dataset erkannt und "zfs snapshot <dataset>@cs-team-<id>" verwendet. Bei S3/RustFS: CS_SNAPSHOT_CMD setzen.
+// CS_SNAPSHOT_DATASET = Dataset fest vorgeben (statt Erkennung).
 func setupSnapshot(dir string) {
 	if c := os.Getenv("CS_SNAPSHOT_CMD"); c != "" {
 		auth.SnapshotCmd = c
@@ -258,7 +259,14 @@ func setupSnapshot(dir string) {
 	if err != nil {
 		return
 	}
-	ds := zfsDataset(zfs, dir)
+	ds := strings.TrimSpace(os.Getenv("CS_SNAPSHOT_DATASET"))
+	if ds != "" && strings.ContainsAny(ds, " '\"\\$`;&|<>@") {
+		log.Println("snapshot: CS_SNAPSHOT_DATASET invalid, ignored:", ds)
+		ds = ""
+	}
+	if ds == "" {
+		ds = zfsDataset(zfs, dir)
+	}
 	if ds == "" {
 		log.Println("snapshot: no ZFS dataset found for", dir, "- global actions run without snapshot unless confirmed")
 		return
@@ -286,6 +294,15 @@ func zfsDataset(zfs, dir string) string {
 			return n
 		}
 	}
+	if len(dir) >= 2 && dir[1] == ':' {
+		// Windows (OpenZFS on Windows): Laufwerk = Pool (Datenträgerbezeichnung), Unterordner/Junctions = Datasets
+		if abs, err := filepath.Abs(dir); err == nil {
+			dir = abs
+		}
+		if n := winDataset(dir, volLabel(dir), strings.Split(run("list", "-H", "-o", "name", "-t", "filesystem"), "\n")); n != "" && okName(n) {
+			return n
+		}
+	}
 	norm := func(p string) string {
 		p = strings.ToLower(strings.ReplaceAll(p, "\\", "/"))
 		return strings.TrimRight(p, "/") + "/"
@@ -305,4 +322,54 @@ func zfsDataset(zfs, dir string) string {
 		}
 	}
 	return name
+}
+
+// volLabel: Datenträgerbezeichnung des Laufwerks (Windows; sonst leer). In Tests ersetzbar.
+var volLabel = volumeLabel
+
+// winDataset: ermittelt aus Windows-Pfad (D:\data\x), Laufwerksbezeichnung (= Pool) und der Dataset-Liste das
+// zuständige Dataset: längster Pfad-Präfix unterhalb des Pools, der als Dataset existiert (D:\data -> winpool/data).
+// Passt die Bezeichnung zu keinem Pool, wird bei genau einem Pool dieser genommen.
+func winDataset(path, label string, names []string) string {
+	p := strings.ReplaceAll(path, "\\", "/")
+	if len(p) < 2 || p[1] != ':' {
+		return ""
+	}
+	have := map[string]string{}
+	var pools []string
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" {
+			continue
+		}
+		have[strings.ToLower(n)] = n
+		if !strings.Contains(n, "/") {
+			pools = append(pools, n)
+		}
+	}
+	pool := ""
+	for _, n := range pools {
+		if label != "" && strings.EqualFold(n, label) {
+			pool = n
+		}
+	}
+	if pool == "" && len(pools) == 1 {
+		pool = pools[0]
+	}
+	if pool == "" {
+		return ""
+	}
+	var comps []string
+	for _, c := range strings.Split(p[2:], "/") {
+		if c != "" && c != "." {
+			comps = append(comps, c)
+		}
+	}
+	for i := len(comps); i >= 0; i-- {
+		cand := strings.ToLower(strings.Join(append([]string{pool}, comps[:i]...), "/"))
+		if n, ok := have[cand]; ok {
+			return n
+		}
+	}
+	return ""
 }

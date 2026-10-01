@@ -31,3 +31,25 @@ esac
 		t.Fatalf("Wurzel: %q", got)
 	}
 }
+
+func TestWinDataset(t *testing.T) {
+	names := []string{"winpool", "winpool/2", "winpool/2/data", "winpool/data", "winpool/data/data", "winpool/test"}
+	cases := []struct{ path, label, want string }{
+		{`D:\data`, "winpool", "winpool/data"},
+		{`D:\data\.csteam\x`, "winpool", "winpool/data"},
+		{`d:\DATA\data\sub`, "winpool", "winpool/data/data"},
+		{`D:\2\data`, "WinPool", "winpool/2/data"},
+		{`D:\nirgends\x`, "winpool", "winpool"},
+		{`D:\`, "winpool", "winpool"},
+		{`E:\data`, "", "winpool/data"}, // genau ein Pool
+		{`/unix/x`, "winpool", ""},
+	}
+	for _, c := range cases {
+		if got := winDataset(c.path, c.label, names); got != c.want {
+			t.Errorf("%s (%s): %q, want %q", c.path, c.label, got, c.want)
+		}
+	}
+	if got := winDataset(`D:\data`, "x", append(names, "other")); got != "" {
+		t.Errorf("mehrere Pools, Label passt nicht: %q", got)
+	}
+}

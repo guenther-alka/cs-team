@@ -1,5 +1,9 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.1 Snapshot-Erkennung unter Windows (OpenZFS on Windows): Laufwerksbuchstabe -> Datentraegerbezeichnung = Pool, Ordner/Junctions darunter = Datasets
+                   (D:\data -> winpool/data, laengster passender Dataset-Pfad). Neu: CS_SNAPSHOT_DATASET legt das Dataset fest. Fix: doppelte Element-ID
+                   in den KI-Einstellungen (Modus-Auswahl ueberschrieb die Meldungsanzeige).
+
 2026-10-01  0.13.0 Assistent fuer globale Aktionen: Vorlagenwahl + neue Vorlage "Chat-Auswertung" (nur globale Admins; Mobbing-Vorfaelle, Loeschanforderungen).
                    Suche ueber alle oder gewaehlte Gruppen/Kanaele nach Autor, Zeitraum und Suchbegriffen (alle/einer), mit Zusammenhang +-n Nachrichten.
                    Jede Aktion verlangt einen Anlass (Aktenzeichen) und wird ohne Nachrichteninhalt protokolliert (chat/_audit.json: Admin, Zeit, Filter,

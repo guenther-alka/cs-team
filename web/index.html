@@ -2014,7 +2014,7 @@ S.set={
        (c.passSet?' <label><input type="checkbox" id="swx"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
      '<div class="row"><input id="sf" style="width:300px" placeholder="'+t('Absender')+' (cs-team@example.org)" value="'+v('from')+'"></div></div>'+
      '<div class="panel"><b>'+t('KI-Assistent (für alle)')+'</b> <small class="muted">'+t('Anbieter, Schlüssel und Modell gelten zentral für alle Benutzer. Der Schlüssel bleibt auf dem Server. Fragen und die Daten der Knöpfe (Aufgaben, Termine …) gehen an diesen Anbieter.')+'</small>'+
-     '<div class="row">'+modeSel('aim',a.mode||'off',[['off',t('aus')],['provider',t('Anbieter')]],false)+' '+modeSel('aip_',a.provider||'anthropic',[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+' <input id="aimod" style="width:200px" placeholder="'+t('Modell')+'" value="'+esc(a.model||'')+'"></div>'+
+     '<div class="row">'+modeSel('aimo',a.mode||'off',[['off',t('aus')],['provider',t('Anbieter')]],false)+' '+modeSel('aip_',a.provider||'anthropic',[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+' <input id="aimod" style="width:200px" placeholder="'+t('Modell')+'" value="'+esc(a.model||'')+'"></div>'+
      '<div class="row"><input id="aiep" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+': '+esc(a.defaultEndpoint||'')+'" value="'+esc(a.endpoint||'')+'"></div>'+
      '<div class="row"><input id="aikey" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(a.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(a.keySet?' <label><input type="checkbox" id="aikx"> '+t('Schlüssel löschen')+'</label>':'')+'</div>'+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
@@ -2027,7 +2027,7 @@ S.set={
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
-      const ab={mode:$('#aim').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no'};
+      const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
