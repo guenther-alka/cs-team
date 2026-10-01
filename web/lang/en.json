@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "No snapshot is possible: the data will be gone for good.",
  "Vorher wird ein Snapshot angelegt.": "A snapshot is created first.",
  "Zur Bestätigung dein Passwort eingeben:": "Enter your password to confirm:",
- "Ohne Snapshot löschen?": "Delete without snapshot?"
+ "Ohne Snapshot löschen?": "Delete without snapshot?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "AI may propose documents (text, calc); they are only created after the user confirms. Admins and group admins always, members only in groups with \"AI for members\". Default: off)",
+ "KI für Mitglieder": "AI for members",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "The AI assistant may propose documents for members of this group; they are only created after the member confirms. Group admins may always do this. Applies only if AI documents are enabled in the settings. Default: off.",
+ "ein": "on",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… shortened, everything will be created ({0} rows)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… shortened, everything will be created ({0} paragraphs)",
+ "Vorschlag nicht möglich: {0}": "Proposal not possible: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "AI proposal – not saved yet",
+ "Calc-Tabelle": "Calc sheet",
+ "Text-Dokument": "Text document",
+ "Verwerfen": "Discard",
+ "Angelegt: {0}": "Created: {0}",
+ "Nicht möglich: {0}": "Not possible: {0}",
+ "Vorschlag:": "Proposal:"
 }

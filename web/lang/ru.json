@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Снимок невозможен: данные будут удалены безвозвратно.",
  "Vorher wird ein Snapshot angelegt.": "Предварительно создаётся снимок.",
  "Zur Bestätigung dein Passwort eingeben:": "Введите свой пароль для подтверждения:",
- "Ohne Snapshot löschen?": "Удалить без снимка?"
+ "Ohne Snapshot löschen?": "Удалить без снимка?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "ИИ может предлагать документы (текст, таблицы); они создаются только после подтверждения пользователя. Админы и админы групп всегда, участники — только в группах с «ИИ для участников». По умолчанию: выкл.)",
+ "KI für Mitglieder": "ИИ для участников",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "ИИ-ассистент может предлагать документы участникам этой группы; они создаются только после их подтверждения. Админы группы могут всегда. Действует только если ИИ-документы разрешены в настройках. По умолчанию: выкл.",
+ "ein": "вкл.",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… сокращено, будет создано всё ({0} строк)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… сокращено, будет создано всё ({0} абзацев)",
+ "Vorschlag nicht möglich: {0}": "Предложение невозможно: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "Предложение ИИ – ещё не сохранено",
+ "Calc-Tabelle": "Таблица Calc",
+ "Text-Dokument": "Текстовый документ",
+ "Verwerfen": "Отклонить",
+ "Angelegt: {0}": "Создано: {0}",
+ "Nicht möglich: {0}": "Невозможно: {0}",
+ "Vorschlag:": "Предложение:"
 }

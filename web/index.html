@@ -215,6 +215,10 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 #aim{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:8px;min-height:0}
 .aib{max-width:92%;padding:6px 10px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.4}
 .aib.u{align-self:flex-end;background:#d3e4fa}.aib.a{align-self:flex-start;background:#f0f1f3}.aib.e{align-self:flex-start;background:#fde8e8;color:#8a1c1c}
+.aidoc{margin-top:6px;padding:6px 8px;border:1px solid #9ab;border-radius:6px;background:#fff;white-space:normal}
+.aidoc .aidp{max-height:180px;overflow:auto;border:1px solid #dde;padding:4px 6px;margin:4px 0;font-size:12px;white-space:pre-wrap}
+.aidoc table{border-collapse:collapse;font-size:12px}.aidoc td{border:1px solid #ccd;padding:1px 5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aidoc button{margin-right:6px}
 .aib pre{background:#222;color:#eee;padding:6px 8px;border-radius:4px;overflow:auto;margin:4px 0;white-space:pre}
 .aib code{background:#e6e8ee}.aib img{max-width:120px;max-height:90px;border-radius:4px;margin:2px 4px 2px 0;vertical-align:middle}
 #aiy{padding:2px 8px;font-size:12px;color:#667}#aiy:empty{display:none}
@@ -540,7 +544,10 @@ S.groups={
       if(g.name!='alluser')h+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
        '<textarea id="gst" rows="3" style="width:100%;box-sizing:border-box">'+esc((g.stay||[]).join('\n'))+'</textarea><div class="row"><button id="gsts">'+t('Merkliste speichern')+'</button></div></div>';
     }else h+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
+    if(g.manage)h+='<div class="panel"><b>'+t('KI für Mitglieder')+'</b> '+modeSel('gai',g.ai||'off',[['off','aus'],['member','ein']],false)+' <button id="gais">'+t('Speichern')+'</button>'+
+      '<div class="muted">'+t('Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.')+'</div></div>';
     $('#main').innerHTML=h;
+    if(g.manage)$('#gais').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/ai',{mode:$('#gai').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(me.admin){
       rightsBind('ge');modeBind('gfe');
       $('#gs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),...chatVals('gx')})){await this.load();this.select(k);}};
@@ -2026,7 +2033,8 @@ S.set={
      '<div class="row"><input id="aikey" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(a.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(a.keySet?' <label><input type="checkbox" id="aikx"> '+t('Schlüssel löschen')+'</label>':'')+'</div>'+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div>'+
-     '<div class="row"><label><input type="checkbox" id="airv"'+(a.review=='yes'?' checked':'')+'> '+t('Globale Admins dürfen Chat-Vorfälle mit KI auswerten (die Nachrichten gehen an den Anbieter; Standard: aus)')+'</label></div></div>'+
+     '<div class="row"><label><input type="checkbox" id="airv"'+(a.review=='yes'?' checked':'')+'> '+t('Globale Admins dürfen Chat-Vorfälle mit KI auswerten (die Nachrichten gehen an den Anbieter; Standard: aus)')+'</label></div>'+
+     '<div class="row"><label><input type="checkbox" id="aicr"'+(a.create=='yes'?' checked':'')+'> '+t('KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit "KI für Mitglieder". Standard: aus)')+'</label></div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -2034,7 +2042,7 @@ S.set={
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
-      const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no'};
+      const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
@@ -2105,9 +2113,37 @@ async function aiSend(text){
   const body={messages:msgs.map((m,i)=>({role:m.role,text:m.text,images:i==msgs.length-1&&imgs.length?imgs:undefined})),topic:AI.topic,lang:LANG,files:AI.files.length?AI.files:undefined,docs:AI.docs.length?AI.docs.map(d=>d.id):undefined};
   try{const r=await fetch('/api/ai/chat',{method:'POST',body:JSON.stringify(body)});
     if(!r.ok){w.className='aib e';w.textContent=t('Die KI ist nicht erreichbar: {0}',(await r.text()).trim()||r.status);AI.msgs.pop();}
-    else{const j=await r.json();AI.msgs.push({role:'assistant',text:j.reply});w.innerHTML=aiFmt(j.reply||'');}
+    else{const j=await r.json();AI.msgs.push({role:'assistant',text:j.reply});
+      const sp=AI.cfg&&AI.cfg.create?aiSplit(j.reply):{text:j.reply||''};w.innerHTML=aiFmt(sp.text||(sp.prop?t('Vorschlag:'):''));if(sp.prop)aiDocCard(w,sp.prop);}
   }catch(e){w.className='aib e';w.textContent=t('Die KI ist nicht erreichbar: {0}',e);AI.msgs.pop();}
   AI.busy=false;$('#aim').scrollTop=1e9;}
+/* KI Stufe 2: Vorschlag der KI (Block csdoc) -> Vorschau (vom Server geprüft) -> Anlegen erst nach Klick des Benutzers */
+function aiSplit(reply){
+  const m=/```csdoc\s*\n([\s\S]*?)```/.exec(reply||'');if(!m)return {text:reply||'',prop:null};
+  let prop=null;try{prop=JSON.parse(m[1]);}catch(e){}
+  return {text:(reply.slice(0,m.index)+reply.slice(m.index+m[0].length)).trim(),prop:prop&&typeof prop=='object'?prop:null,bad:!prop};
+}
+function aiPreviewHtml(p){
+  if(p.type=='sheet'){const rows=p.rows||[];
+    return '<div class="aidp"><table>'+rows.slice(0,10).map(r=>'<tr>'+r.slice(0,8).map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</table>'+
+      (rows.length>10||rows.some(r=>r.length>8)?'<div class="muted">'+esc(t('… gekürzt, angelegt wird alles ({0} Zeilen)',rows.length))+'</div>':'')+'</div>';}
+  const ps=p.paragraphs||[];
+  return '<div class="aidp">'+ps.slice(0,15).map(x=>esc(x)||'&nbsp;').join('\n')+(ps.length>15?'\n'+esc(t('… gekürzt, angelegt wird alles ({0} Absätze)',ps.length)):'')+'</div>';
+}
+async function aiDocCard(parent,prop){
+  const card=document.createElement('div');card.className='aidoc';parent.appendChild(card);
+  const post=async confirm=>{const r=await fetch('/api/ai/create',{method:'POST',body:JSON.stringify({...prop,confirm})});
+    if(!r.ok)throw new Error((await r.text()).trim()||r.status);return r.json();};
+  let p;try{p=(await post(false)).proposal;}catch(e){card.innerHTML='<span class="muted">'+esc(t('Vorschlag nicht möglich: {0}',e.message))+'</span>';return;}
+  card.innerHTML='<div class="muted">'+esc(t('Vorschlag der KI – noch nicht gespeichert'))+'</div><b>'+esc(p.name)+'</b> <span class="muted">('+esc(p.type=='sheet'?t('Calc-Tabelle'):t('Text-Dokument'))+')</span>'+aiPreviewHtml(p)+
+    '<div><button class="aidy">'+esc(t('Anlegen'))+'</button><button class="aidn">'+esc(t('Verwerfen'))+'</button></div>';
+  card.querySelector('.aidn').onclick=()=>card.remove();
+  card.querySelector('.aidy').onclick=async e=>{e.target.disabled=true;
+    try{const r=await post(true);const s=r.type=='sheet'?'calc':'text';
+      card.innerHTML='<div>'+esc(t('Angelegt: {0}',r.name))+'</div><button class="aido">'+esc(t('Öffnen'))+'</button>';
+      card.querySelector('.aido').onclick=async()=>{document.getElementById('aip').classList.remove('open');await go(s);S[s].select(r.id);};
+    }catch(err){e.target.disabled=false;card.insertAdjacentHTML('beforeend','<div class="muted">'+esc(t('Nicht möglich: {0}',err.message))+'</div>');}};
+}
 async function aiStart(){
   AI.cfg=await fetch('/api/ai/config').then(r=>r.ok?r.json():null).catch(()=>null);
   if(!AI.cfg||!AI.cfg.enabled)return;

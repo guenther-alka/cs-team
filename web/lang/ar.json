@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "لا يمكن إنشاء لقطة: ستُفقد البيانات نهائياً.",
  "Vorher wird ein Snapshot angelegt.": "يتم إنشاء لقطة أولاً.",
  "Zur Bestätigung dein Passwort eingeben:": "أدخل كلمة مرورك للتأكيد:",
- "Ohne Snapshot löschen?": "الحذف بدون لقطة؟"
+ "Ohne Snapshot löschen?": "الحذف بدون لقطة؟",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "يمكن للذكاء الاصطناعي اقتراح مستندات (نص، جداول)؛ لا يتم إنشاؤها إلا بعد تأكيد المستخدم. المسؤولون ومسؤولو المجموعات دائمًا، والأعضاء فقط في المجموعات التي فُعّل فيها «الذكاء الاصطناعي للأعضاء». الافتراضي: معطّل)",
+ "KI für Mitglieder": "الذكاء الاصطناعي للأعضاء",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "يمكن لمساعد الذكاء الاصطناعي اقتراح مستندات لأعضاء هذه المجموعة؛ لا يتم إنشاؤها إلا بعد تأكيدهم. يمكن لمسؤولي المجموعة ذلك دائمًا. ينطبق فقط إذا كانت مستندات الذكاء الاصطناعي مفعّلة في الإعدادات. الافتراضي: معطّل.",
+ "ein": "مفعّل",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… مختصر، سيتم إنشاء كل شيء ({0} صفوف)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… مختصر، سيتم إنشاء كل شيء ({0} فقرات)",
+ "Vorschlag nicht möglich: {0}": "الاقتراح غير ممكن: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "اقتراح الذكاء الاصطناعي – لم يُحفظ بعد",
+ "Calc-Tabelle": "جدول Calc",
+ "Text-Dokument": "مستند نصي",
+ "Verwerfen": "تجاهل",
+ "Angelegt: {0}": "تم الإنشاء: {0}",
+ "Nicht möglich: {0}": "غير ممكن: {0}",
+ "Vorschlag:": "اقتراح:"
 }

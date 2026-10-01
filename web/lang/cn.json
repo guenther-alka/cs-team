@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "无法创建快照：数据将永久丢失。",
  "Vorher wird ein Snapshot angelegt.": "事先会创建快照。",
  "Zur Bestätigung dein Passwort eingeben:": "请输入您的密码以确认：",
- "Ohne Snapshot löschen?": "不创建快照直接删除？"
+ "Ohne Snapshot löschen?": "不创建快照直接删除？",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "AI 可以建议文档（文本、表格）；只有在用户确认后才会创建。管理员和组管理员始终可用，成员仅限已开启\"成员可用 AI\"的组。默认：关闭）",
+ "KI für Mitglieder": "成员可用 AI",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "AI 助手可以向本组成员建议文档；只有成员确认后才会创建。组管理员始终可以。仅在设置中启用了 AI 文档时有效。默认：关闭。",
+ "ein": "开",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "…已缩略，将创建全部内容（{0} 行）",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "…已缩略，将创建全部内容（{0} 段）",
+ "Vorschlag nicht möglich: {0}": "无法提出建议：{0}",
+ "Vorschlag der KI – noch nicht gespeichert": "AI 建议 – 尚未保存",
+ "Calc-Tabelle": "Calc 表格",
+ "Text-Dokument": "文本文档",
+ "Verwerfen": "放弃",
+ "Angelegt: {0}": "已创建：{0}",
+ "Nicht möglich: {0}": "无法完成：{0}",
+ "Vorschlag:": "建议："
 }

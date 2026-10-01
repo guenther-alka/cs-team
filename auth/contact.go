@@ -46,6 +46,55 @@ func tasksMode(g Group) string {
 	}
 	return g.Tasks
 }
+
+// aiMode: KI-Dokumente für Mitglieder: "member" oder "off" (Vorgabe).
+func aiMode(g Group) string {
+	if g.AI == ModeMember {
+		return ModeMember
+	}
+	return ModeOff
+}
+
+// SetGroupAI: mode "member" | "off".
+func (a *Auth) SetGroupAI(ctx_ context.Context, group, mode string) error {
+	if mode != ModeMember && mode != ModeOff {
+		return ErrBadMode
+	}
+	return a.mutateGroups(ctx_, func(m map[string]Group) error {
+		g, ok := m[group]
+		if !ok {
+			return ErrNoGroup
+		}
+		g.AI = ""
+		if mode == ModeMember {
+			g.AI = ModeMember
+		}
+		m[group] = g
+		return nil
+	})
+}
+
+// AICreateOK: darf der Benutzer den KI-Assistenten Dokumente vorschlagen und anlegen lassen?
+// Globale Admins und Gruppen-Admins immer, Mitglieder nur, wenn eine ihrer Gruppen "KI für Mitglieder" eingeschaltet hat.
+func AICreateOK(ctx context.Context) bool {
+	if IsAdmin(ctx) || len(AdminOf(ctx)) > 0 {
+		return true
+	}
+	if std == nil {
+		return false
+	}
+	gs := GroupsOf(User(ctx))
+	std.refresh(ctx)
+	std.mu.Lock()
+	defer std.mu.Unlock()
+	for _, n := range gs {
+		if g, ok := std.groups[n]; ok && g.AI == ModeMember {
+			return true
+		}
+	}
+	return false
+}
+
 func msgMode(g Group) string {
 	if g.Msg == "" {
 		return ModeAdmin

@@ -1,5 +1,15 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.3 KI Stufe 2: Dokumente vorschlagen, Anlegen nur nach Bestaetigung. Die KI hat weiterhin keine Schreibrechte: sie darf in ihrer Antwort EINEN
+                   Vorschlag (Text-Dokument oder Calc-Tabelle) machen, der Browser zeigt eine Vorschau (vom Server geprueft), erst "Anlegen" speichert.
+                   Der Server legt ein NEUES Dokument im Besitz des Benutzers an (Recht Text/Calc des Benutzers, Rate-Limit); Vorhandenes wird nie
+                   geaendert oder geloescht. Grenzen: 300 Absaetze / 60000 Zeichen, 200 Zeilen x 26 Spalten, 3000 Zellen; Steuerzeichen werden entfernt;
+                   Formeln nur mit Zahlen/Zellbezuegen und der Calc-Funktionsliste (SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, PRODUCT, ROUND, ABS, SQRT, AND,
+                   OR, NOT, IF). Schalter: Einstellungen "KI darf Dokumente vorschlagen" (global, Standard aus) UND je Gruppe "KI fuer Mitglieder"
+                   (Gruppen-Admin oder globaler Admin schaltet, Standard aus); Admins und Gruppen-Admins duerfen immer, Mitglieder nur in einer
+                   freigeschalteten Gruppe. Die Anweisung an die KI erscheint nur fuer Berechtigte. Protokoll: nur Benutzer, Typ, Anzahl (nie Inhalte).
+                   Neu: POST /api/ai/create (confirm=false Vorschau, true anlegen), POST /api/groups/{name}/ai. Tests: ai_create_test.go.
+
 2026-10-01  0.13.2 Haertung nach Audit (S-03/S-04, S-06, S-07, S-08, S-10, K-02/C-10, K-03, C-06, F7, C-11): Anmelde-Schutz: bei CS_TRUST_PROXY=1 zaehlt nur das
                    LETZTE Element von X-Forwarded-For; zusaetzliche Sperre je Adresse (20 Fehlversuche, alle Namen) und je Benutzername (100, alle Adressen);
                    erfolgreiche Anmeldungen werden 45 s gemerkt (kein bcrypt je Anfrage; Passwortaenderung/Sperre wirken sofort); Bereinigung entfernt keine

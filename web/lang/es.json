@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "No es posible un snapshot: los datos se perderán definitivamente.",
  "Vorher wird ein Snapshot angelegt.": "Antes se crea un snapshot.",
  "Zur Bestätigung dein Passwort eingeben:": "Introduce tu contraseña para confirmar:",
- "Ohne Snapshot löschen?": "¿Eliminar sin snapshot?"
+ "Ohne Snapshot löschen?": "¿Eliminar sin snapshot?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "La IA puede proponer documentos (texto, hoja de cálculo); solo se crean tras la confirmación del usuario. Admins y admins de grupo siempre, miembros solo en grupos con «IA para miembros». Predeterminado: desactivado)",
+ "KI für Mitglieder": "IA para miembros",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "El asistente de IA puede proponer documentos a los miembros de este grupo; solo se crean tras su confirmación. Los admins de grupo siempre pueden. Solo se aplica si los documentos de IA están habilitados en los ajustes. Predeterminado: desactivado.",
+ "ein": "activado",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… abreviado, se creará todo ({0} filas)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… abreviado, se creará todo ({0} párrafos)",
+ "Vorschlag nicht möglich: {0}": "Propuesta no posible: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "Propuesta de la IA – aún sin guardar",
+ "Calc-Tabelle": "Hoja Calc",
+ "Text-Dokument": "Documento de texto",
+ "Verwerfen": "Descartar",
+ "Angelegt: {0}": "Creado: {0}",
+ "Nicht möglich: {0}": "No es posible: {0}",
+ "Vorschlag:": "Propuesta:"
 }

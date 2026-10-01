@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Aucun snapshot possible : les données seront définitivement perdues.",
  "Vorher wird ein Snapshot angelegt.": "Un snapshot est créé auparavant.",
  "Zur Bestätigung dein Passwort eingeben:": "Saisissez votre mot de passe pour confirmer :",
- "Ohne Snapshot löschen?": "Supprimer sans snapshot ?"
+ "Ohne Snapshot löschen?": "Supprimer sans snapshot ?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "L'IA peut proposer des documents (texte, tableur) ; ils ne sont créés qu'après confirmation de l'utilisateur. Admins et admins de groupe toujours, membres seulement dans les groupes avec « IA pour les membres ». Par défaut : désactivé)",
+ "KI für Mitglieder": "IA pour les membres",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "L'assistant IA peut proposer des documents aux membres de ce groupe ; ils ne sont créés qu'après leur confirmation. Les admins de groupe le peuvent toujours. Ne s'applique que si les documents IA sont activés dans les paramètres. Par défaut : désactivé.",
+ "ein": "activé",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… abrégé, tout sera créé ({0} lignes)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… abrégé, tout sera créé ({0} paragraphes)",
+ "Vorschlag nicht möglich: {0}": "Proposition impossible : {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "Proposition de l'IA – pas encore enregistrée",
+ "Calc-Tabelle": "Feuille Calc",
+ "Text-Dokument": "Document texte",
+ "Verwerfen": "Rejeter",
+ "Angelegt: {0}": "Créé : {0}",
+ "Nicht möglich: {0}": "Impossible : {0}",
+ "Vorschlag:": "Proposition :"
 }

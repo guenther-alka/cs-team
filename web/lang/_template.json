@@ -512,5 +512,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.",
  "Vorher wird ein Snapshot angelegt.": "Vorher wird ein Snapshot angelegt.",
  "Zur Bestätigung dein Passwort eingeben:": "Zur Bestätigung dein Passwort eingeben:",
- "Ohne Snapshot löschen?": "Ohne Snapshot löschen?"
+ "Ohne Snapshot löschen?": "Ohne Snapshot löschen?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)",
+ "KI für Mitglieder": "KI für Mitglieder",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.",
+ "ein": "ein",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… gekürzt, angelegt wird alles ({0} Zeilen)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… gekürzt, angelegt wird alles ({0} Absätze)",
+ "Vorschlag nicht möglich: {0}": "Vorschlag nicht möglich: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "Vorschlag der KI – noch nicht gespeichert",
+ "Calc-Tabelle": "Calc-Tabelle",
+ "Text-Dokument": "Text-Dokument",
+ "Verwerfen": "Verwerfen",
+ "Angelegt: {0}": "Angelegt: {0}",
+ "Nicht möglich: {0}": "Nicht möglich: {0}",
+ "Vorschlag:": "Vorschlag:"
 }

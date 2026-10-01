@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Nessuno snapshot possibile: i dati andranno persi definitivamente.",
  "Vorher wird ein Snapshot angelegt.": "Prima viene creato uno snapshot.",
  "Zur Bestätigung dein Passwort eingeben:": "Inserisci la tua password per confermare:",
- "Ohne Snapshot löschen?": "Eliminare senza snapshot?"
+ "Ohne Snapshot löschen?": "Eliminare senza snapshot?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "L'IA può proporre documenti (testo, foglio di calcolo); vengono creati solo dopo la conferma dell'utente. Admin e admin di gruppo sempre, membri solo nei gruppi con «IA per i membri». Predefinito: disattivato)",
+ "KI für Mitglieder": "IA per i membri",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "L'assistente IA può proporre documenti ai membri di questo gruppo; vengono creati solo dopo la loro conferma. Gli admin di gruppo possono sempre. Vale solo se i documenti IA sono abilitati nelle impostazioni. Predefinito: disattivato.",
+ "ein": "attivo",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… abbreviato, verrà creato tutto ({0} righe)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… abbreviato, verrà creato tutto ({0} paragrafi)",
+ "Vorschlag nicht möglich: {0}": "Proposta non possibile: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "Proposta dell'IA – non ancora salvata",
+ "Calc-Tabelle": "Foglio Calc",
+ "Text-Dokument": "Documento di testo",
+ "Verwerfen": "Scarta",
+ "Angelegt: {0}": "Creato: {0}",
+ "Nicht möglich: {0}": "Non possibile: {0}",
+ "Vorschlag:": "Proposta:"
 }

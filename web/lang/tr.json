@@ -513,5 +513,19 @@
  "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Anlık görüntü mümkün değil: veriler kalıcı olarak silinir.",
  "Vorher wird ein Snapshot angelegt.": "Önce bir anlık görüntü oluşturulur.",
  "Zur Bestätigung dein Passwort eingeben:": "Onaylamak için parolanızı girin:",
- "Ohne Snapshot löschen?": "Anlık görüntü olmadan silinsin mi?"
+ "Ohne Snapshot löschen?": "Anlık görüntü olmadan silinsin mi?",
+ "KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit \"KI für Mitglieder\". Standard: aus)": "Yapay zeka belge önerebilir (metin, hesap tablosu); belgeler yalnızca kullanıcı onayladıktan sonra oluşturulur. Yöneticiler ve grup yöneticileri her zaman, üyeler yalnızca \"Üyeler için YZ\" açık gruplarda. Varsayılan: kapalı)",
+ "KI für Mitglieder": "Üyeler için YZ",
+ "Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.": "YZ asistanı bu grubun üyelerine belge önerebilir; belgeler yalnızca üye onayladıktan sonra oluşturulur. Grup yöneticileri bunu her zaman yapabilir. Yalnızca ayarlarda YZ belgeleri etkinse geçerlidir. Varsayılan: kapalı.",
+ "ein": "açık",
+ "… gekürzt, angelegt wird alles ({0} Zeilen)": "… kısaltıldı, hepsi oluşturulacak ({0} satır)",
+ "… gekürzt, angelegt wird alles ({0} Absätze)": "… kısaltıldı, hepsi oluşturulacak ({0} paragraf)",
+ "Vorschlag nicht möglich: {0}": "Öneri yapılamıyor: {0}",
+ "Vorschlag der KI – noch nicht gespeichert": "YZ önerisi – henüz kaydedilmedi",
+ "Calc-Tabelle": "Calc tablosu",
+ "Text-Dokument": "Metin belgesi",
+ "Verwerfen": "Reddet",
+ "Angelegt: {0}": "Oluşturuldu: {0}",
+ "Nicht möglich: {0}": "Mümkün değil: {0}",
+ "Vorschlag:": "Öneri:"
 }

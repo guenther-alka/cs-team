@@ -58,6 +58,7 @@ type Group struct {
 	Chans  string   `json:"chans,omitempty"`  // wer weitere Chat-Kanäle anlegen darf: "" = admin, "member", "off" (niemand)
 	Units  []string `json:"units,omitempty"`  // Organisationen (leer = "all")
 	Stay   []string `json:"stay,omitempty"`   // Wiederholer: bleiben beim nächsten Jahrgangswechsel in der Gruppe (wird danach geleert)
+	AI     string   `json:"ai,omitempty"`     // KI-Assistent legt Dokumente an: "" = nur Admins, "member" = auch Mitglieder (Gruppen-Admin schaltet)
 	Folder string   `json:"folder,omitempty"` // Gruppenordner: "" keiner, "ro" Mitglieder lesen (Gruppen-Admins schreiben), "rw" Mitglieder lesen+schreiben
 }
 
@@ -441,6 +442,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Msg     string   `json:"msg"`
 			Chans   string   `json:"chans"`
 			Tasks   string   `json:"tasks"`
+			AI      string   `json:"ai"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
 			Stay    []string `json:"stay,omitempty"`    // Wiederholer (nur für Verwalter der Gruppe)
 			Manage  bool     `json:"manage,omitempty"`
@@ -448,7 +450,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		a.mu.Lock()
 		out := []row{}
 		for n, g := range a.groups {
-			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
+			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), AI: aiMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
 			if n == DefaultGroup { // Gruppen-Admins der Standardgruppe = globale Admins
 				rw.Admins = []string{}
 				for un, u := range a.users {
@@ -623,6 +625,21 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			fail_(w, err)
 		}
 	}))
+	// KI für Mitglieder: Gruppen-Admin (oder globaler Admin) der Gruppe schaltet; Standard aus
+	mux.Handle("POST /api/groups/{name}/ai", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !CanManage(r.Context(), r.PathValue("name")) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		var in struct{ Mode string }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		if err := a.SetGroupAI(r.Context(), r.PathValue("name"), in.Mode); err != nil {
+			fail_(w, err)
+		}
+	})))
 	mux.Handle("POST /api/groups/{name}/members", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !CanManage(r.Context(), r.PathValue("name")) {
 			http.Error(w, "forbidden", http.StatusForbidden)
