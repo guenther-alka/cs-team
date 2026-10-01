@@ -407,7 +407,7 @@
  "nein": "لا",
  "Datei oder Dokument zur Auswertung wählen": "اختر ملفًا أو مستندًا لتحليله",
  "Gewählte Dateien und Dokumente lesen und auswerten": "قراءة وتحليل الملفات والمستندات المختارة",
- "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "لم يُعثر على ما يمكن تحليله (نص، CSV، DOCX، XLSX، Calc، صور).",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).": "لم يُعثر على ما يمكن تحليله (نص، CSV، DOCX، XLSX, PDF، Calc، صور).",
  "Dokumente": "المستندات",
  "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "تُقرأ الملفات المختارة وتُرسَل إلى مزوّد الذكاء الاصطناعي.",
  "Maximal 4 Dateien oder Dokumente.": "حدٌّ أقصى 4 ملفات أو مستندات.",

@@ -1,5 +1,13 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.5 KI liest PDF-Dateien: PDFs aus der Dateiablage lassen sich im KI-Widget wie andere Dateien zur Auswertung waehlen. Der Text wird im Server
+                   gelesen (eigener Leser, nur Go-Standardbibliothek, keine neue Abhaengigkeit, kein OCR): Flate/ASCIIHex/ASCII85, Objektstroeme, Schriften
+                   mit ToUnicode-Tabelle (Chrome/Word/LibreOffice/reportlab), WinAnsi-Einzelbyteschriften, Ligaturen aufgeloest, Seiten durch Leerzeilen
+                   getrennt. Abgelehnt mit klarer Meldung: verschluesselte PDFs, gescannte PDFs ohne Text, beschaedigte Dateien. Grenzen wie bei anderen
+                   Dateien: 2 MB, 40000 Zeichen je Datei, 4 Elemente je Frage; Entpackgrenzen gegen Zip-Bomben (32 MB je Stream, 128 MB gesamt, 500 Seiten).
+                   Es wird nichts ausgefuehrt (kein JavaScript, keine Anhaenge, keine Formulare); Rechte wie bisher die des Fragenden. Tests: conv/pdf_test.go
+                   (inkl. Zip-Bombe, abgeschnittene/beschaedigte Dateien), TestAIFiles um PDF erweitert.
+
 2026-10-01  0.13.4 KI-Einstellungen wie beim napp-it AI Helpdesk: Anbieter-Vorlagen (15 Anbieter, Liste als Datei providers.txt im Datenspeicher, kuerzbar; fehlt
                    sie, gilt die eingebaute Liste), Modell-Liste live vom Anbieter ("Modelle laden", Server fragt mit dem gemerkten Schluessel, Modelle mit
                    Bilderkennung markiert), Adressfeld IP:Port fuer eigene Server (Ollama, Inhouse), Schluessel werden je Zielrechner gemerkt (beim Zurueckwechseln

@@ -407,7 +407,7 @@
  "nein": "no",
  "Datei oder Dokument zur Auswertung wählen": "Scegli un file o documento da analizzare",
  "Gewählte Dateien und Dokumente lesen und auswerten": "Leggi e analizza i file e i documenti scelti",
- "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Nessun contenuto analizzabile trovato (testo, CSV, DOCX, XLSX, Calc, immagini).",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).": "Nessun contenuto analizzabile trovato (testo, CSV, DOCX, XLSX, PDF, Calc, immagini).",
  "Dokumente": "Documenti",
  "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "I file scelti vengono letti e inviati al provider di IA.",
  "Maximal 4 Dateien oder Dokumente.": "Al massimo 4 file o documenti.",

@@ -66,7 +66,7 @@ var imgExt = map[string]string{".png": "image/png", ".jpg": "image/jpeg", ".jpeg
 func supported(name string) bool {
 	e := strings.ToLower(path.Ext(name))
 	switch e {
-	case ".docx", ".xlsx", ".cscalc", ".cstext":
+	case ".docx", ".xlsx", ".cscalc", ".cstext", ".pdf":
 		return true
 	}
 	return textExt[e] || imgExt[e] != ""
@@ -126,6 +126,17 @@ func (s *Svc) readFile(r *http.Request, f fileRef, vision bool) (*fileText, *ima
 			return nil, nil, errors.New("cannot read " + f.Name)
 		}
 		txt = strings.Join(ps, "\n")
+	case ".pdf":
+		t, err := conv.FromPDF(b)
+		switch {
+		case errors.Is(err, conv.ErrPDFEncrypted):
+			return nil, nil, errors.New("pdf is encrypted: " + f.Name)
+		case errors.Is(err, conv.ErrPDFNoText):
+			return nil, nil, errors.New("pdf has no readable text (scanned?): " + f.Name)
+		case err != nil:
+			return nil, nil, errors.New("cannot read " + f.Name)
+		}
+		txt = t
 	case ".cstext":
 		ps, err := conv.FromCSText(b)
 		if err != nil {

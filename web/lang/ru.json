@@ -407,7 +407,7 @@
  "nein": "нет",
  "Datei oder Dokument zur Auswertung wählen": "Выбрать файл или документ для анализа",
  "Gewählte Dateien und Dokumente lesen und auswerten": "Читать и анализировать выбранные файлы и документы",
- "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Ничего для анализа не найдено (текст, CSV, DOCX, XLSX, Calc, изображения).",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).": "Ничего для анализа не найдено (текст, CSV, DOCX, XLSX, PDF, Calc, изображения).",
  "Dokumente": "Документы",
  "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Выбранные файлы читаются и отправляются провайдеру ИИ.",
  "Maximal 4 Dateien oder Dokumente.": "Не более 4 файлов или документов.",

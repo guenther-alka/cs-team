@@ -407,7 +407,7 @@
  "nein": "否",
  "Datei oder Dokument zur Auswertung wählen": "选择要分析的文件或文档",
  "Gewählte Dateien und Dokumente lesen und auswerten": "读取并分析所选文件和文档",
- "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "未找到可分析的内容（文本、CSV、DOCX、XLSX、Calc、图片）。",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).": "未找到可分析的内容（文本、CSV、DOCX、XLSX, PDF、Calc、图片）。",
  "Dokumente": "文档",
  "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "所选文件将被读取并发送给 AI 提供商。",
  "Maximal 4 Dateien oder Dokumente.": "最多 4 个文件或文档。",

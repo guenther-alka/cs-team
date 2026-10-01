@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -263,18 +264,35 @@ func TestAIFiles(t *testing.T) {
 	}
 	// Quellenliste: nur auswertbare Typen
 	_, b := req(t, srv, "cara", "GET", "/api/ai/sources", "")
-	if !strings.Contains(b, "notiz.txt") || strings.Contains(b, "geheim.pdf") || strings.Contains(b, "zahlen.csv") {
+	if !strings.Contains(b, "notiz.txt") || strings.Contains(b, "zahlen.csv") {
 		t.Fatal("sources cara:", b)
 	}
 	_, b = req(t, srv, "bob", "GET", "/api/ai/sources", "")
-	if !strings.Contains(b, "zahlen.csv") || strings.Contains(b, "geheim.pdf") {
+	if !strings.Contains(b, "zahlen.csv") || !strings.Contains(b, "geheim.pdf") {
 		t.Fatal("sources bob:", b)
 	}
-	// PDF, Binärdatei, unbekannter Pfad, Pfadtricks
+	// kaputtes PDF, Binärdatei, unbekannter Pfad, Pfadtricks
 	for _, n := range []string{"geheim.pdf", "bin.txt", "gibtsnicht.txt", "../x.txt", "a/../../etc/passwd.txt"} {
 		if c, _, _ := ask("bob", []map[string]string{{"owner": "bob", "name": n}}, nil); c != 400 {
 			t.Fatal("muss abgelehnt werden:", n, c)
 		}
+	}
+	// echtes PDF: Text wird serverseitig gelesen; verschlüsselt und gescannt/leer werden abgelehnt
+	pdf, _ := os.ReadFile("conv/testdata/rl_std.pdf")
+	req(t, srv, "bob", "POST", "/api/files?name=brief.pdf", string(pdf))
+	if c, b, body := ask("bob", []map[string]string{{"owner": "bob", "name": "brief.pdf"}}, nil); c != 200 || !strings.Contains(body, "Schulfest am Samstag") || !strings.Contains(body, `<<<FILE name=\"bob/brief.pdf\"`) {
+		t.Fatal("PDF lesen:", c, b, body)
+	}
+	f.mu.Lock()
+	f.body = ""
+	f.mu.Unlock()
+	if c, _, body := ask("cara", []map[string]string{{"owner": "bob", "name": "brief.pdf"}}, nil); c != 400 || strings.Contains(body, "Schulfest") {
+		t.Fatal("fremdes PDF:", c, body)
+	}
+	enc, _ := os.ReadFile("conv/testdata/enc.pdf")
+	req(t, srv, "bob", "POST", "/api/files?name=zu.pdf", string(enc))
+	if c, b, _ := ask("bob", []map[string]string{{"owner": "bob", "name": "zu.pdf"}}, nil); c != 400 || !strings.Contains(b, "encrypted") {
+		t.Fatal("verschlüsseltes PDF:", c, b)
 	}
 	// Länge wird gekürzt
 	if c, _, body := ask("bob", []map[string]string{{"owner": "bob", "name": "aaaaa.md"}}, nil); c != 200 || !strings.Contains(body, "truncated") || len(body) > 60000 {

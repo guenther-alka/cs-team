@@ -2123,7 +2123,7 @@ async function aiPick(keep){   // Auswahlliste: nur Dateien und Dokumente, die d
   if(!l.classList.contains('open')&&keep)return;
   l.classList.add('open');l.textContent='…';
   const r=await fetch('/api/ai/sources').then(x=>x.ok?x.json():null).catch(()=>null);
-  if(!r||(!r.files.length&&!r.docs.length)){l.textContent=t('Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).');return;}
+  if(!r||(!r.files.length&&!r.docs.length)){l.textContent=t('Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).');return;}
   const n=()=>AI.files.length+AI.docs.length;
   const sel=(k)=>AI.files.some(f=>f.owner==k.owner&&f.name==k.name);
   l.innerHTML=(r.files.length?'<h5>'+esc(t('Dateien'))+'</h5>'+r.files.map((f,i)=>'<label><input type="checkbox" data-f="'+i+'"'+(sel(f)?' checked':'')+'> '+esc((f.owner==me.name?'':f.owner+'/')+f.name)+'</label>').join(''):'')+

@@ -406,7 +406,7 @@
  "nein": "nein",
  "Datei oder Dokument zur Auswertung wählen": "Datei oder Dokument zur Auswertung wählen",
  "Gewählte Dateien und Dokumente lesen und auswerten": "Gewählte Dateien und Dokumente lesen und auswerten",
- "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).": "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, PDF, Calc, Bilder).",
  "Dokumente": "Dokumente",
  "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.",
  "Maximal 4 Dateien oder Dokumente.": "Maximal 4 Dateien oder Dokumente.",
