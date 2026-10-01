@@ -1,5 +1,13 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.11.1 KI-Assistent: Dateien und Dokumente lesen und auswerten. Neuer Knopf im Widget waehlt bis zu 4 eigene oder mit dem Benutzer geteilte
+                   Dateien (auch Gruppenordner) und Calc-/Text-Dokumente aus; die KI fasst zusammen, analysiert, rechnet oder uebersetzt. Unterstuetzt:
+                   Text/CSV/JSON/Code, DOCX, XLSX, Calc, Text-Dokumente, Bilder (bei Bilderkennung); PDF noch nicht. Der Server liest die Auswahl mit den
+                   Rechten des Fragenden ueber die normalen Routen (fremde Dateien werden abgelehnt), max. 2 MB je Datei, 40000 Zeichen je Datei und
+                   80000 gesamt (sonst gekuerzt). Der Inhalt gilt fuer die KI als nicht vertrauenswuerdig (keine Anweisungen aus Dateien). Admin-Schalter
+                   in Einstellungen > KI-Assistent. Weiterhin nur lesend; Schreibaktionen (Text/Calc erzeugen, Aufgabenplanung, Semesterwechsel) folgen
+                   spaeter, Freigabe je Gruppe durch den Gruppen-Admin (Lehrer).
+
 2026-10-01  0.11.0 KI-Assistent: Chat-Widget (Knopf "KI" unten rechts) fuer alle Benutzer. Anbieter, Modell und API-Schluessel stehen zentral in
                    Einstellungen > "KI-Assistent (fuer alle)": Anthropic, OpenAI-kompatibel (OpenAI, OpenRouter, eigene Server) oder Ollama; Endpunkt im
                    lokalen Netz nur nach ausdruecklicher Freigabe. Sechs Status-Knoepfe (Aufgaben, Termine, Dateien, Chat, Gruppen, System/Mein Konto):

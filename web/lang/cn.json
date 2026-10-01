@@ -404,5 +404,11 @@
  "Wie ist der Systemstatus? Gibt es etwas, worum ich mich kümmern sollte?": "系统状态如何？有什么需要我处理的吗？",
  "automatisch": "自动",
  "ja": "是",
- "nein": "否"
+ "nein": "否",
+ "Datei oder Dokument zur Auswertung wählen": "选择要分析的文件或文档",
+ "Gewählte Dateien und Dokumente lesen und auswerten": "读取并分析所选文件和文档",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "未找到可分析的内容（文本、CSV、DOCX、XLSX、Calc、图片）。",
+ "Dokumente": "文档",
+ "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "所选文件将被读取并发送给 AI 提供商。",
+ "Maximal 4 Dateien oder Dokumente.": "最多 4 个文件或文档。"
 }

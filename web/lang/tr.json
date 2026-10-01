@@ -404,5 +404,11 @@
  "Wie ist der Systemstatus? Gibt es etwas, worum ich mich kümmern sollte?": "Sistem durumu nedir? İlgilenmem gereken bir şey var mı?",
  "automatisch": "otomatik",
  "ja": "evet",
- "nein": "hayır"
+ "nein": "hayır",
+ "Datei oder Dokument zur Auswertung wählen": "Analiz için dosya veya belge seç",
+ "Gewählte Dateien und Dokumente lesen und auswerten": "Seçilen dosya ve belgeleri oku ve analiz et",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Analiz edilecek bir şey bulunamadı (metin, CSV, DOCX, XLSX, Calc, görseller).",
+ "Dokumente": "Belgeler",
+ "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Seçilen dosyalar okunur ve yapay zekâ sağlayıcısına gönderilir.",
+ "Maximal 4 Dateien oder Dokumente.": "En fazla 4 dosya veya belge."
 }

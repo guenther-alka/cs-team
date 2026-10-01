@@ -222,6 +222,8 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 #aix{flex:1;font:inherit;padding:5px 8px;border:1px solid #bbb;border-radius:6px;resize:none;max-height:120px;min-height:34px}
 #aif button{padding:6px 10px;border:1px solid #bbb;border-radius:6px;background:#f6f7f9;cursor:pointer}#aif #aigo{background:#2b6fd4;color:#fff;border-color:#2b6fd4}
 #aip.drag{outline:3px dashed #2b6fd4}#aiimgs{display:flex;gap:4px;padding:0 8px}#aiimgs img{height:44px;border-radius:4px;border:1px solid #ccc}
+#aichips{display:flex;flex-wrap:wrap;gap:4px;padding:2px 8px}#aichips:empty{display:none}#aichips span{background:#e6edf8;border-radius:10px;padding:1px 8px;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#aichips a{margin-left:4px;text-decoration:none}
+#aifl{display:none;max-height:190px;overflow:auto;border-top:1px solid #e3e3e3;padding:4px 8px;font-size:13px}#aifl.open{display:block}#aifl label{display:block;padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#aifl h5{margin:6px 0 2px;font-size:12px;color:#667}
 #aihint{padding:0 10px 6px;font-size:11.5px;color:#889}
 @media(max-width:760px){#aip{left:8px;right:8px;width:auto;bottom:70px}}
 </style></head><body>
@@ -243,8 +245,8 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 </div>
 <button id="aib" title="KI fragen">KI</button>
 <div id="aip"><div id="aih"><b id="aitt"></b><button id="ainew"></button><button id="aicl">&times;</button></div>
-<div id="ait"></div><div id="aiy"></div><div id="aim"></div><div id="aiimgs"></div>
-<div id="aif"><button id="aiat" style="display:none">+</button><input type="file" id="aifile" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none"><textarea id="aix" rows="1"></textarea><button id="aigo"></button></div>
+<div id="ait"></div><div id="aiy"></div><div id="aichips"></div><div id="aim"></div><div id="aiimgs"></div>
+<div id="aifl"></div><div id="aif"><button id="aifb" style="display:none">&#128196;</button><button id="aiat" style="display:none">+</button><input type="file" id="aifile" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none"><textarea id="aix" rows="1"></textarea><button id="aigo"></button></div>
 <div id="aihint"></div></div>
 <script>
 const $=s=>document.querySelector(s);
@@ -1831,7 +1833,7 @@ S.set={
      '<div class="row"><input id="aiep" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+': '+esc(a.defaultEndpoint||'')+'" value="'+esc(a.endpoint||'')+'"></div>'+
      '<div class="row"><input id="aikey" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(a.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(a.keySet?' <label><input type="checkbox" id="aikx"> '+t('Schlüssel löschen')+'</label>':'')+'</div>'+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
-     '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label></div></div>'+
+     '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -1839,7 +1841,7 @@ S.set={
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
-      const ab={mode:$('#aim').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked};
+      const ab={mode:$('#aim').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
@@ -1851,7 +1853,7 @@ S.set={
 /* ---------- KI-Assistent (Widget) ----------
    Provider/Schlüssel stehen zentral in den Einstellungen. Die Status-Knöpfe liefern Daten, die der Server mit den Rechten
    des angemeldeten Benutzers holt. Antworten werden nur als Text angezeigt (kein HTML, keine Bilder aus der Antwort). */
-const AI={cfg:null,msgs:[],topic:'',imgs:[],busy:false};
+const AI={cfg:null,msgs:[],topic:'',imgs:[],files:[],docs:[],busy:false};
 const AITOP={   // Knopf: [Beschriftung, Frage]  (Schlüssel = deutscher Text, übersetzt über t())
   tasks:['Aufgaben','Fasse meine Aufgaben zusammen: Überfälliges und Dringendes zuerst.'],
   calendar:['Termine','Welche Termine habe ich in den nächsten 7 Tagen?'],
@@ -1872,7 +1874,25 @@ function aiTopics(){
   $('#ait').querySelectorAll('button').forEach(b=>b.onclick=()=>{aiReset();AI.topic=b.dataset.k;aiTopics();aiSend(t(AITOP[b.dataset.k][1]));});
   $('#aiy').innerHTML=AI.topic?esc(t('Daten')+': '+t(AITOP[AI.topic][0]))+' <a href="#" id="aiyx">&times;</a>':'';
   if($('#aiyx'))$('#aiyx').onclick=e=>{e.preventDefault();AI.topic='';aiTopics();};}
-function aiReset(){AI.msgs=[];AI.topic='';AI.imgs=[];$('#aim').innerHTML='';$('#aiimgs').innerHTML='';aiTopics();}
+function aiChips(){
+  $('#aichips').innerHTML=AI.files.map((f,i)=>'<span>'+esc(f.name)+'<a href="#" data-f="'+i+'">&times;</a></span>').join('')+AI.docs.map((d,i)=>'<span>'+esc(d.name)+'<a href="#" data-d="'+i+'">&times;</a></span>').join('');
+  $('#aichips').querySelectorAll('a').forEach(a=>a.onclick=e=>{e.preventDefault();if(a.dataset.f!=null)AI.files.splice(+a.dataset.f,1);else AI.docs.splice(+a.dataset.d,1);aiChips();aiPick(true);});}
+async function aiPick(keep){   // Auswahlliste: nur Dateien und Dokumente, die der Benutzer selbst sehen darf (der Server filtert nach Typ)
+  const l=$('#aifl');if(!keep&&l.classList.contains('open')){l.classList.remove('open');return;}
+  if(!l.classList.contains('open')&&keep)return;
+  l.classList.add('open');l.textContent='…';
+  const r=await fetch('/api/ai/sources').then(x=>x.ok?x.json():null).catch(()=>null);
+  if(!r||(!r.files.length&&!r.docs.length)){l.textContent=t('Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).');return;}
+  const n=()=>AI.files.length+AI.docs.length;
+  const sel=(k)=>AI.files.some(f=>f.owner==k.owner&&f.name==k.name);
+  l.innerHTML=(r.files.length?'<h5>'+esc(t('Dateien'))+'</h5>'+r.files.map((f,i)=>'<label><input type="checkbox" data-f="'+i+'"'+(sel(f)?' checked':'')+'> '+esc((f.owner==me.name?'':f.owner+'/')+f.name)+'</label>').join(''):'')+
+    (r.docs.length?'<h5>'+esc(t('Dokumente'))+'</h5>'+r.docs.map((d,i)=>'<label><input type="checkbox" data-d="'+i+'"'+(AI.docs.some(x=>x.id==d.id)?' checked':'')+'> '+esc(d.name)+' <span class="muted">('+(d.type=='sheet'?'Calc':'Text')+')</span></label>').join(''):'');
+  l.querySelectorAll('input').forEach(c=>c.onchange=()=>{
+    if(c.checked&&n()>=4){c.checked=false;alert(t('Maximal 4 Dateien oder Dokumente.'));return;}
+    if(c.dataset.f!=null){const f=r.files[+c.dataset.f];if(c.checked)AI.files.push({owner:f.owner,name:f.name});else AI.files=AI.files.filter(x=>!(x.owner==f.owner&&x.name==f.name));}
+    else{const d=r.docs[+c.dataset.d];if(c.checked)AI.docs.push({id:d.id,name:d.name});else AI.docs=AI.docs.filter(x=>x.id!=d.id);}
+    aiChips();});}
+function aiReset(){AI.msgs=[];AI.topic='';AI.imgs=[];AI.files=[];AI.docs=[];$('#aim').innerHTML='';$('#aiimgs').innerHTML='';$('#aifl').classList.remove('open');aiChips();aiTopics();}
 function aiThumbs(){$('#aiimgs').innerHTML=AI.imgs.map(d=>'<img src="'+d+'">').join('');}
 async function aiImage(file){   // verkleinern (max. 1568 px, JPEG): weniger Datenvolumen und Kosten, EXIF/Metadaten entfallen
   if(!/^image\/(png|jpeg|webp|gif)$/.test(file.type)||AI.imgs.length>=3)return;
@@ -1889,7 +1909,7 @@ async function aiSend(text){
   $('#aix').value='';$('#aix').style.height='';
   AI.busy=true;const w=aiBubble('a','<span class="muted">'+esc(t('Denke nach…'))+'</span>');
   let msgs=AI.msgs.slice(-11);while(msgs.length&&msgs[0].role!='user')msgs.shift();
-  const body={messages:msgs.map((m,i)=>({role:m.role,text:m.text,images:i==msgs.length-1&&imgs.length?imgs:undefined})),topic:AI.topic,lang:LANG};
+  const body={messages:msgs.map((m,i)=>({role:m.role,text:m.text,images:i==msgs.length-1&&imgs.length?imgs:undefined})),topic:AI.topic,lang:LANG,files:AI.files.length?AI.files:undefined,docs:AI.docs.length?AI.docs.map(d=>d.id):undefined};
   try{const r=await fetch('/api/ai/chat',{method:'POST',body:JSON.stringify(body)});
     if(!r.ok){w.className='aib e';w.textContent=t('Die KI ist nicht erreichbar: {0}',(await r.text()).trim()||r.status);AI.msgs.pop();}
     else{const j=await r.json();AI.msgs.push({role:'assistant',text:j.reply});w.innerHTML=aiFmt(j.reply||'');}
@@ -1914,6 +1934,8 @@ async function aiStart(){
     p.ondrop=async e=>{e.preventDefault();p.classList.remove('drag');for(const f of e.dataTransfer.files)await aiImage(f);};
     $('#aix').onpaste=async e=>{for(const it of e.clipboardData.items)if(it.kind=='file'&&it.type.startsWith('image/')){e.preventDefault();await aiImage(it.getAsFile());}};
   }
+  if(AI.cfg.files){const fb=$('#aifb');fb.style.display='';fb.title=t('Datei oder Dokument zur Auswertung wählen');fb.onclick=()=>aiPick(false);
+    $('#aihint').textContent+=' '+t('Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.');}
   aiTopics();}
 
 /* ---------- Start ---------- */

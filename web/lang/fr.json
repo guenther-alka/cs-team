@@ -404,5 +404,11 @@
  "Wie ist der Systemstatus? Gibt es etwas, worum ich mich kümmern sollte?": "Quel est l’état du système ? Y a-t-il quelque chose dont je devrais m’occuper ?",
  "automatisch": "automatique",
  "ja": "oui",
- "nein": "non"
+ "nein": "non",
+ "Datei oder Dokument zur Auswertung wählen": "Choisir un fichier ou un document à analyser",
+ "Gewählte Dateien und Dokumente lesen und auswerten": "Lire et analyser les fichiers et documents choisis",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Rien d’analysable trouvé (texte, CSV, DOCX, XLSX, Calc, images).",
+ "Dokumente": "Documents",
+ "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Les fichiers choisis sont lus et envoyés au fournisseur d’IA.",
+ "Maximal 4 Dateien oder Dokumente.": "4 fichiers ou documents au maximum."
 }

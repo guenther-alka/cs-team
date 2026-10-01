@@ -404,5 +404,11 @@
  "Wie ist der Systemstatus? Gibt es etwas, worum ich mich kümmern sollte?": "What is the system status? Is there anything I should take care of?",
  "automatisch": "automatic",
  "ja": "yes",
- "nein": "no"
+ "nein": "no",
+ "Datei oder Dokument zur Auswertung wählen": "Choose a file or document to analyze",
+ "Gewählte Dateien und Dokumente lesen und auswerten": "Read and analyze selected files and documents",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "Nothing to analyze found (text, CSV, DOCX, XLSX, Calc, images).",
+ "Dokumente": "Documents",
+ "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Selected files are read and sent to the AI provider.",
+ "Maximal 4 Dateien oder Dokumente.": "At most 4 files or documents."
 }

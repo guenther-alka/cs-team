@@ -404,5 +404,11 @@
  "Wie ist der Systemstatus? Gibt es etwas, worum ich mich kümmern sollte?": "¿Cuál es el estado del sistema? ¿Hay algo de lo que deba ocuparme?",
  "automatisch": "automático",
  "ja": "sí",
- "nein": "no"
+ "nein": "no",
+ "Datei oder Dokument zur Auswertung wählen": "Elegir un archivo o documento para analizar",
+ "Gewählte Dateien und Dokumente lesen und auswerten": "Leer y analizar los archivos y documentos elegidos",
+ "Nichts Auswertbares gefunden (Text, CSV, DOCX, XLSX, Calc, Bilder).": "No se encontró nada analizable (texto, CSV, DOCX, XLSX, Calc, imágenes).",
+ "Dokumente": "Documentos",
+ "Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.": "Los archivos elegidos se leen y se envían al proveedor de IA.",
+ "Maximal 4 Dateien oder Dokumente.": "Como máximo 4 archivos o documentos."
 }
