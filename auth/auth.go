@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -337,8 +338,32 @@ func (a *Auth) verify(ctx context.Context, name, pass string) (Account, bool) {
 	return u, bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(pass)) == nil
 }
 
+// sameOrigin: CSRF-Schutz für Basic Auth. Browser senden die Zugangsdaten auch von fremden Seiten mit.
+// Schreibende Methoden sind nur erlaubt, wenn der Browser "gleicher Ursprung" meldet (Sec-Fetch-Site) bzw. der
+// Origin-Header zum Host passt. Clients ohne diese Header (WebDAV/CalDAV-Apps, curl) sind keine Browser und bleiben erlaubt.
+func sameOrigin(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return true
+	}
+	if s := r.Header.Get("Sec-Fetch-Site"); s != "" {
+		return s == "same-origin" || s == "none"
+	}
+	if o := r.Header.Get("Origin"); o != "" && o != "null" {
+		u, err := url.Parse(o)
+		return err == nil && strings.EqualFold(u.Host, r.Host)
+	} else if o == "null" {
+		return false
+	}
+	return true
+}
+
 func (a *Auth) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !sameOrigin(r) {
+			http.Error(w, "cross-site request refused", http.StatusForbidden)
+			return
+		}
 		name, pass, ok := r.BasicAuth()
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)

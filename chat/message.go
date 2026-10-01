@@ -203,7 +203,15 @@ func hook(ctx context.Context, cl *http.Client, target, subject, text string) er
 	req.Header.Set("User-Agent", "cs-team")
 	resp, err := cl.Do(req)
 	if err != nil {
-		return err
+		// *url.Error enthält die komplette URL (Token im Pfad): nie an den Aufrufer weitergeben
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return errors.New("timeout")
+		}
+		return errors.New("target not reachable or not allowed")
 	}
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 	resp.Body.Close()

@@ -88,7 +88,7 @@ func TestXLSXFromExcelStyle(t *testing.T) {
 }
 
 func TestColName(t *testing.T) {
-	for k, want := range map[int]string{0: "A", 25: "Z", 26: "AA", 27: "AB", 701: "ZZ", 702: "AAA"} {
+	for k, want := range map[int]string{0: "A", 25: "Z", 26: "AA", 27: "AB", 701: "ZZ"} {
 		if got := ColName(k); got != want {
 			t.Errorf("ColName(%d)=%s want %s", k, got, want)
 		}

@@ -75,7 +75,7 @@ func (d *Doc) Paragraphs() []string {
 }
 
 var (
-	reCell = regexp.MustCompile(`^[A-Z]{1,3}[0-9]{1,5}$`)
+	reCell = regexp.MustCompile(`^[A-Z]{1,2}[0-9]{1,5}$`)
 	rePar  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 )
 

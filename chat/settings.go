@@ -129,6 +129,8 @@ func (s *Settings) set(in settingsIn) error {
 	n.Host, n.Port, n.User, n.From, n.TLS, n.Public = in.Host, in.Port, in.User, in.From, in.TLS, in.Public
 	if in.Pass != nil {
 		n.Pass = *in.Pass
+	} else if in.Host != or(s.cur.Host, s.Env.Host) || in.User != or(s.cur.User, s.Env.User) {
+		n.Pass = "" // Ziel geändert: gespeichertes Passwort nie an einen neuen Server/Benutzer weitergeben
 	}
 	p := in.Private
 	n.Private = &p

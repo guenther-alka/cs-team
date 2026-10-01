@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var cellRe = regexp.MustCompile(`^([A-Z]{1,3})([0-9]{1,5})$`)
+var cellRe = regexp.MustCompile(`^([A-Z]{1,2})([0-9]{1,5})$`) // höchstens ZZ (702 Spalten)
 
 // ColRow zerlegt "AB12" in (Spalte 0-basiert, Zeile 1-basiert).
 func ColRow(k string) (col, row int, ok bool) {
@@ -65,18 +65,26 @@ func sorted(cells map[string]string) (keys []string, ps map[string]pos, maxCol, 
 
 // ---------- .csv ----------
 
+// ToCSV schreibt zeilenweise (nie ein ganzes Gitter im Speicher): Zellen weit auseinander kosten nur leere Felder.
 func ToCSV(cells map[string]string) []byte {
 	_, ps, maxCol, maxRow := sorted(cells)
-	grid := make([][]string, maxRow)
-	for r := range grid {
-		grid[r] = make([]string, maxCol)
-	}
+	rows := map[int][]string{} // Zeile -> Schlüssel
 	for k, p := range ps {
-		grid[p.row-1][p.col] = cells[k]
+		rows[p.row] = append(rows[p.row], k)
 	}
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	w.WriteAll(grid)
+	rec := make([]string, maxCol)
+	for r := 1; r <= maxRow; r++ {
+		for i := range rec {
+			rec[i] = ""
+		}
+		for _, k := range rows[r] {
+			rec[ps[k].col] = cells[k]
+		}
+		w.Write(rec)
+	}
+	w.Flush()
 	return buf.Bytes()
 }
 
@@ -107,7 +115,7 @@ func FromCSV(b []byte) (map[string]string, error) {
 			return nil, ErrFormat
 		}
 		for c, v := range rec {
-			if v != "" && c < 18278 && row <= 99999 {
+			if v != "" && c < 702 && row <= 99999 {
 				out[Key(c, row)] = v
 			}
 		}

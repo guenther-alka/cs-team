@@ -435,8 +435,9 @@ func (s *Svc) Update(user, id string, m meta) error {
 		return err
 	}
 	old := t.Assignee
+	dueOld := t.Due
 	t.Title, t.Desc, t.Prio, t.Due, t.Repeat, t.Watch, t.Link = m.Title, m.Desc, m.Prio, m.Due, m.Repeat, m.Watch, m.Link
-	t.DueNt = t.DueNt && t.Due != ""
+	t.DueNt = t.DueNt && t.Due != "" && t.Due == dueOld // neues Datum: Fälligkeitsmeldung wieder möglich
 	// Meilensteine: vorhandene IDs behalten Erledigt/Meldung, neue bekommen eine ID
 	byID, next := map[int]Mile{}, 1
 	for _, o := range t.Miles {

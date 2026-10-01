@@ -391,8 +391,17 @@ func (b *Backend) DeleteCalendarObject(ctx context.Context, p string) error {
 	return b.St.Delete(ctx, key(ci.owner, ci.kal, obj))
 }
 
+// maxDAV: größter CalDAV-Body (PUT/REPORT); ein Termin ist wenige KB groß.
+const maxDAV = 1 << 20
+
 func Handler(st store.Store) http.Handler {
-	return &caldav.Handler{Backend: &Backend{St: st}, Prefix: Prefix}
+	h := &caldav.Handler{Backend: &Backend{St: st}, Prefix: Prefix}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil && r.Body != http.NoBody && r.ContentLength != 0 {
+			r.Body = http.MaxBytesReader(w, r.Body, maxDAV)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // NewGroupCalendar: legt den Gruppenkalender "gruppe" an (Vorlage bei neuer Gruppe); Fehler (z.B. existiert) sind unkritisch.

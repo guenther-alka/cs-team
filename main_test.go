@@ -695,8 +695,15 @@ func TestGroupAdminShareImport(t *testing.T) {
 	if c := reqp(t, srv, "anna", pa, "POST", "/api/groups/klasse5a/admins", `{"admins":["bob"]}`); c != 200 {
 		t.Fatalf("set admins: %d", c)
 	}
-	if c := reqp(t, srv, "bob", pb, "POST", "/api/groups/klasse5a/members", `{"add":["bob"]}`); c != 200 {
+	if c := reqp(t, srv, "bob", pb, "POST", "/api/groups/klasse5a/members", `{"add":["lisa"]}`); c != 200 {
 		t.Fatalf("bob members: %d", c)
+	}
+	// S-01: Gruppen-Admin darf keine Konten hinzufügen, die ausserhalb seiner Gruppen stehen (sonst Passwort-Reset = Übernahme)
+	if c := reqp(t, srv, "bob", pb, "POST", "/api/groups/klasse5a/members", `{"add":["anna"]}`); c != 403 {
+		t.Fatalf("bob adds admin: %d", c)
+	}
+	if c := reqp(t, srv, "anna", pa, "POST", "/api/groups/klasse5a/members", `{"add":["bob"]}`); c != 200 {
+		t.Fatalf("anna adds bob: %d", c)
 	}
 	// Gruppen-Admin: Passwort von Mitglied ja, von Fremden/Admin nein
 	if c := reqp(t, srv, "bob", pb, "POST", "/api/users/lisa/password", `{"password":"neuneuneu1"}`); c != 200 {
@@ -1815,11 +1822,18 @@ func TestSettingsAndImportContacts(t *testing.T) {
 		t.Fatal(b)
 	}
 	// Passwort bleibt, wenn es nicht mitgeschickt wird
-	req(t, srv, "anna", "POST", "/api/settings", `{"host":"`+host+`","port":"`+port+`","tls":"none","from":"cs-team@example.org","public":"https://team.example.org:9004"}`)
+	req(t, srv, "anna", "POST", "/api/settings", `{"host":"`+host+`","port":"`+port+`","tls":"none","from":"cs-team@example.org","user":"u","public":"https://team.example.org:9004"}`)
 	_, b = req(t, srv, "anna", "GET", "/api/settings", "")
 	if !strings.Contains(b, `"passSet":true`) {
 		t.Fatal("Passwort verloren", b)
 	}
+	// C-03: anderer Zielserver ohne neues Passwort = gespeichertes Passwort wird verworfen
+	req(t, srv, "anna", "POST", "/api/settings", `{"host":"mail.example.net","port":"`+port+`","tls":"none","from":"cs-team@example.org","user":"u","public":"https://team.example.org:9004"}`)
+	_, b = req(t, srv, "anna", "GET", "/api/settings", "")
+	if !strings.Contains(b, `"passSet":false`) {
+		t.Fatal("Passwort bei neuem Host nicht verworfen", b)
+	}
+	req(t, srv, "anna", "POST", "/api/settings", `{"host":"`+host+`","port":"`+port+`","tls":"none","from":"cs-team@example.org","user":"","pass":"geheim","public":"https://team.example.org:9004","private":true}`)
 	_, b = req(t, srv, "anna", "GET", "/api/message/groups", "")
 	if !strings.Contains(b, `"smtp":true`) {
 		t.Fatal(b)

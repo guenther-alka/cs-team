@@ -67,7 +67,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.10.3"
+const version = "0.10.4"
 
 func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "-v" || os.Args[1] == "--version") {
@@ -121,16 +121,28 @@ func main() {
 
 	addr := env("CS_LISTEN", ":8080")
 	log.Println("cs-team listening on", addr)
+	// Timeouts gegen Slowloris; kein Read-/WriteTimeout, weil WebSocket, Datei-Up-/Downloads und WebDAV lange laufen dürfen.
+	srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 	if cert := os.Getenv("CS_TLS_CERT"); cert != "" { // HTTPS mit PEM-Datei(en); Key-Datei optional, wenn im selben PEM
 		key := env("CS_TLS_KEY", cert)
 		if _, err := tls.LoadX509KeyPair(cert, key); err != nil {
 			log.Fatal("tls: ", err)
 		}
-		srv := &http.Server{Addr: addr, Handler: handler, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: certReloader(cert, key)}}
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: certReloader(cert, key)}
+		srv.Handler = hsts(handler)
 		log.Println("https, cert", cert)
 		log.Fatal(srv.ListenAndServeTLS("", ""))
 	}
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Println("WARNING: plain HTTP - passwords travel unencrypted; set CS_TLS_CERT or run behind a TLS proxy")
+	log.Fatal(srv.ListenAndServe())
+}
+
+// hsts: Strict-Transport-Security nur bei eigenem TLS.
+func hsts(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // certReloader: lädt das Zertifikat neu, wenn sich die PEM-Datei ändert (Erneuerung ohne Neustart).

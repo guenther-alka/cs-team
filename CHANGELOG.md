@@ -1,5 +1,14 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.10.4 Sicherheit (siehe AUDIT.md): CSRF-Schutz (schreibende Anfragen nur von gleichem Ursprung; DAV-/CalDAV-Apps und curl ohne Origin-Header
+                   funktionieren weiter), WebDAV liefert Dateien nur noch als Download (nosniff + CSP sandbox; kein Stored-XSS mehr), Gruppen-Admins
+                   duerfen nur Konten verwalten/hinzufuegen, die ausschliesslich in von ihnen verwalteten Gruppen sind (kein Konto-Uebernahme per
+                   Passwort-Reset), HTTP-Server mit Timeouts (Slowloris), Warnung bei HTTP ohne TLS, HSTS bei TLS, Webhook-Fehlermeldungen ohne URL,
+                   SMTP-Passwort wird bei neuem Server/Benutzer verworfen, Calc-CSV-Export speicherschonend (Spalten bis ZZ), CalDAV-Body max. 1 MB,
+                   Aufgabe: Faelligkeitsmeldung nach Datumsaenderung wieder moeglich.
+                   Aenderung im Verhalten: Gruppen-Admins koennen bestehende Benutzer, die in anderen Gruppen sind oder nur in alluser, nicht mehr selbst
+                   in ihre Gruppe holen (globaler Admin, oder neue Konten per Anlegen/CSV-Import).
+
 2026-10-01  0.10.3 Oeffentliches GitHub-Repository (BSD 2-Clause), Release-Build fuer 8 Varianten (build-all.ps1), cs-team version zeigt die Versionsnummer,
                    englische README (README.de.md = ausfuehrliche deutsche Beschreibung), Handbuch als PDF (de/en) auf napp-it.org.
 

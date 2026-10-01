@@ -627,6 +627,14 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			http.Error(w, "bad json", http.StatusBadRequest)
 			return
 		}
+		if !IsAdmin(r.Context()) { // Gruppen-Admin: nur Konten hinzufügen, die ausschließlich in verwalteten Gruppen sind
+			for _, n := range in.Add {
+				if !a.manages(r.Context(), n) {
+					http.Error(w, "forbidden: "+n+" belongs to groups you do not manage (ask a global admin)", http.StatusForbidden)
+					return
+				}
+			}
+		}
 		if err := a.SetMembers(r.Context(), r.PathValue("name"), in.Add, in.Remove); err != nil {
 			fail_(w, err)
 		}
@@ -668,7 +676,29 @@ func (a *Auth) manages(ctx context.Context, target string) bool {
 		return true
 	}
 	u, ok := a.get(ctx, target)
-	return ok && !u.Admin && shares(effGroups(u), AdminOf(ctx))
+	return ok && !u.Admin && shares(effGroups(u), AdminOf(ctx)) && within(own(effGroups(u)), AdminOf(ctx))
+}
+
+// own: ohne die Standardgruppe (alluser = jeder; sie zählt nicht als "fremde" Gruppe).
+func own(l []string) []string {
+	var out []string
+	for _, x := range l {
+		if x != DefaultGroup {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// within: sind ALLE Gruppen in "l" auch in "allowed"? (Gruppen-Admin darf ein Konto nur verwalten, wenn er jede
+// Gruppe des Kontos verwaltet - sonst käme er per Passwort-Reset an die Daten fremder Gruppen.)
+func within(l, allowed []string) bool {
+	for _, x := range l {
+		if !contains(allowed, x) {
+			return false
+		}
+	}
+	return true
 }
 
 // SetMembers: Mitglieder einer Gruppe ändern (add/remove); jeder Benutzer behält mindestens eine Gruppe.

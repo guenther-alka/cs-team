@@ -23,7 +23,19 @@ import (
 //	/webdav/groups/<gruppe>/<pfad>       Gruppenordner (lesen; schreiben je nach Gruppeneinstellung)
 type davFS struct{ s *Svc }
 
-func (s *Svc) WebDAV() http.Handler { return &webdav.Handler{FileSystem: &davFS{s}} }
+func (s *Svc) WebDAV() http.Handler {
+	h := &webdav.Handler{FileSystem: &davFS{s}}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Stored-XSS-Schutz: ein im Browser geöffnetes /webdav/x.html darf nie als Seite im App-Ursprung laufen.
+		hd := w.Header()
+		hd.Set("X-Content-Type-Options", "nosniff")
+		hd.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			hd.Set("Content-Disposition", "attachment")
+		}
+		h.ServeHTTP(w, r)
+	})
+}
 
 const davPrefix = "/webdav"
 
