@@ -1,5 +1,15 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.0 Assistent fuer globale Aktionen: Vorlagenwahl + neue Vorlage "Chat-Auswertung" (nur globale Admins; Mobbing-Vorfaelle, Loeschanforderungen).
+                   Suche ueber alle oder gewaehlte Gruppen/Kanaele nach Autor, Zeitraum und Suchbegriffen (alle/einer), mit Zusammenhang +-n Nachrichten.
+                   Jede Aktion verlangt einen Anlass (Aktenzeichen) und wird ohne Nachrichteninhalt protokolliert (chat/_audit.json: Admin, Zeit, Filter,
+                   Anzahl, Pruefsumme, Snapshot). Beweissicherung: ZIP mit messages.csv/json, Anhaengen und manifest.txt (SHA-256 je Datei); SHA-256 des
+                   ZIP wird angezeigt (Header X-Content-SHA256) und protokolliert; Passwort noetig. Loeschen: Auswahl -> Vorschau mit Pruefsumme -> Passwort
+                   -> Snapshot (oder ausdruecklich ohne) -> Nachrichten samt Anhaengen loeschen, wahlweise mit Hinweis "geloescht" (Autor/Zeit bleiben)
+                   oder Eintrag ganz entfernen; Hinweis, dass ein Snapshot die Inhalte bis zu seiner Vernichtung enthaelt. Optional KI-Auswertung
+                   (Einstellung "Globale Admins duerfen Chat-Vorfaelle mit KI auswerten", Standard aus, Bestaetigung je Auswertung, Server holt die
+                   Nachrichten selbst, Nachrichten gelten als nicht vertrauenswuerdig; nur Anzahl/Anlass im Protokoll).
+
 2026-10-01  0.12.2 Snapshot-Erkennung robuster: ohne Shell (kein Quoting-Problem unter Windows), Dataset notfalls ueber den laengsten passenden Mountpoint
                    (z.B. OpenZFS on Windows, wo "zfs list <pfad>" nicht geht). Testet mit Attrappe (snapshot_test.go).
 

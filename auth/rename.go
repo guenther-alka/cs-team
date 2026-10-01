@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"runtime"
 	"sort"
@@ -496,3 +497,14 @@ func (a *Auth) undoRename(ctx context.Context, en LogEntry, bk backup) error {
 		return nil
 	})
 }
+
+// Confirm: Passwort des angemeldeten Admins erneut prüfen (für Vorlagen anderer Module, mit Sperre gegen Raten).
+func Confirm(r *http.Request, pass string) (int, string) {
+	if std == nil {
+		return http.StatusInternalServerError, "not ready"
+	}
+	return std.confirm(r, pass)
+}
+
+// RunSnapshot: Snapshot vor einer globalen Aktion (id wird im Namen verwendet); nil, wenn kein Snapshot konfiguriert ist.
+func RunSnapshot(id string) error { return runSnapshot(id) }

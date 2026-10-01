@@ -498,7 +498,7 @@ S.groups={
   },
   home(){
     $('#main').innerHTML='<h3>'+t('Gruppen')+'</h3><div class="muted">'+t('Jeder Benutzer gehört mindestens einer Gruppe an. Die Gruppe legt fest, welche Bereiche (Kalender, Calc, Text, Files) ihre Mitglieder nutzen dürfen (bei mehreren Gruppen gilt die Vereinigung), und dient als Ziel für Freigaben. Gruppen-Admins verwalten die Mitglieder ihrer Gruppe. Globale Admins dürfen alles. Links Filter benutzen.')+'</div>'+
-     '<div class="row muted">'+allGroups.length+' '+t('Gruppen')+(me.admin?', '+allUsers.length+' '+t('Benutzer'):'')+'</div>'+(me.admin?'<div class="row"><a href="/api/groups/export">'+t('Gruppen als CSV exportieren')+'</a></div><div class="row"><button id="wzo">'+t('Assistent: Jahrgangswechsel…')+'</button></div>':'');
+     '<div class="row muted">'+allGroups.length+' '+t('Gruppen')+(me.admin?', '+allUsers.length+' '+t('Benutzer'):'')+'</div>'+(me.admin?'<div class="row"><a href="/api/groups/export">'+t('Gruppen als CSV exportieren')+'</a></div><div class="row"><button id="wzo">'+t('Assistent: globale Aktionen…')+'</button></div>':'');
     if(me.admin)$('#wzo').onclick=wzOpen;
   },
   add(){
@@ -556,9 +556,9 @@ S.groups={
 /* ---------- Assistent für globale Aktionen (Jahrgangswechsel) ----------
    Server rechnet die Vorschau (ändert nichts); Ausführen nur mit Passwort und der Prüfsumme der Vorschau; vorher Sicherung; Rückgängig im Verlauf. */
 const WZ0=()=>({leave:'keep',archive:'ehemalige',stay:{},groups:null,mode:'members',carry:{cal:false,chat:false,tasks:false},newAdmins:false,pattern:'ehem-{name}-{year}'});
-const WZ={step:1,P:WZ0(),plan:null,all:null,off:{},info:{}};
-function wzOpen(){WZ.step=1;WZ.P=WZ0();WZ.plan=null;WZ.all=null;WZ.off={};$('#wiz').classList.add('open');wzDraw();}
-function wzSteps(){$('#wizt').textContent=t('Jahrgangswechsel');$('#wizs').innerHTML=[['Regeln'],['Vorschau'],['Ausführen']].map((x,i)=>'<span'+(WZ.step==i+1?' class="on"':'')+'>'+(i+1)+' '+esc(t(x[0]))+'</span>').join('');}
+const WZ={tpl:null,step:1,P:WZ0(),plan:null,all:null,off:{},info:{}};
+function wzOpen(){WZ.tpl=null;WZ.step=1;WZ.P=WZ0();WZ.plan=null;WZ.all=null;WZ.off={};$('#wiz').classList.add('open');wzDraw();}
+function wzSteps(){$('#wizt').textContent=WZ.tpl=='chat'?t('Chat-Auswertung'):WZ.tpl?t('Jahrgangswechsel'):t('Globale Aktionen');if(WZ.tpl!='year'){$('#wizs').innerHTML='';return;}$('#wizs').innerHTML=[['Regeln'],['Vorschau'],['Ausführen']].map((x,i)=>'<span'+(WZ.step==i+1?' class="on"':'')+'>'+(i+1)+' '+esc(t(x[0]))+'</span>').join('');}
 async function wzPreview(){
   const P={...WZ.P,groups:WZ.all?WZ.all.filter(g=>!WZ.off[g]):undefined};
   const r=await J('POST','/api/routines/yearchange/preview',P);if(!r)return false;
@@ -571,6 +571,12 @@ function wzKind(g){
   return esc(g.group)+' &nbsp;<span class="muted">'+esc(t('keine Folgegruppe – bleibt unverändert'))+'</span>';}
 async function wzDraw(){
   wzSteps();const b=$('#wizb'),f=$('#wizf');
+  if(!WZ.tpl){
+    b.innerHTML='<p>'+esc(t('Vorlagen für Routine-Aufgaben globaler Admins. Jede Aktion zeigt erst eine Vorschau, verlangt das Passwort und legt vorher einen Snapshot an.'))+'</p>'+
+     '<div class="wg"><h4>'+esc(t('Jahrgangswechsel'))+'</h4><div class="muted">'+esc(t('Gruppen mit Zahl im Namen auf die Folgestufe setzen (Mitglieder wechseln oder Gruppe wird umbenannt), Wiederholer bleiben.'))+'</div><div class="row"><button class="pr" id="wzty">'+esc(t('Öffnen'))+'</button></div></div>'+
+     '<div class="wg"><h4>'+esc(t('Chat-Auswertung'))+'</h4><div class="muted">'+esc(t('Chats nach Benutzer, Zeitraum und Inhalt durchsuchen (z.B. Mobbing-Vorfälle), als Beweis sichern und auf Anforderung löschen. Jede Aktion braucht einen Anlass und wird ohne Inhalte protokolliert.'))+'</div><div class="row"><button class="pr" id="wztc">'+esc(t('Öffnen'))+'</button></div></div>';
+    f.innerHTML='';$('#wzty').onclick=()=>{WZ.tpl='year';wzDraw();};$('#wztc').onclick=()=>{WZ.tpl='chat';CT.info=null;CT.res=null;ctDraw();wzSteps();};return;}
+  if(WZ.tpl=='chat'){return ctDraw();}
   if(WZ.step==1){
     const log=await J('GET','/api/routines/log')||[];const last=[...log].reverse().find(x=>!x.undone);
     b.innerHTML='<p>'+esc(t('Verschiebt die Mitglieder jeder Gruppe mit Zahl im Namen in die Folgegruppe (5a → 6a, 9b → 10b). Wiederholer bleiben, Gruppen-Admins und globale Admins werden nie verschoben. Es wird erst nach Vorschau, Passwort und Sicherung etwas geändert.'))+'</p>'+
@@ -588,7 +594,8 @@ async function wzDraw(){
     b.querySelectorAll('a[data-u]').forEach(a=>a.onclick=async e=>{e.preventDefault();
       const pw=prompt(t('Rückgängig machen? Änderungen an diesen Konten seit dem Wechsel gehen verloren.')+'\n\n'+t('Passwort zur Bestätigung'));if(!pw)return;
       if(await api('POST','/api/routines/undo/'+encodeURIComponent(a.dataset.u),{password:pw})){await S.groups.load();wzDraw();}});
-    f.innerHTML='<span style="flex:1"></span><button class="pr" id="wzn">'+esc(t('Vorschau berechnen'))+'</button>';
+    f.innerHTML='<button id="wzt0">'+esc(t('Vorlagen'))+'</button><span style="flex:1"></span><button class="pr" id="wzn">'+esc(t('Vorschau berechnen'))+'</button>';
+    $('#wzt0').onclick=()=>{WZ.tpl=null;wzDraw();};
     $('#wzn').onclick=async()=>{rd();WZ.all=null;WZ.off={};WZ.P.stay={};if(await wzPreview()){WZ.step=2;wzDraw();}};
   }else if(WZ.step==2){
     const pl=WZ.plan,gm={};pl.groups.forEach(g=>gm[g.group]=g);
@@ -629,6 +636,94 @@ async function wzDraw(){
       await S.groups.load();S.groups.home();upd();};
   }
 }
+
+/* ---------- Vorlage Chat-Auswertung (Suche, Beweissicherung, Löschen; nur globale Admins) ---------- */
+const CT={info:null,res:null,sel:{},reason:'',del:null};
+const ctKey=h=>h.g+'|'+h.c+'|'+h.id;
+function ctRead(){const v=i=>($(i)?$(i).value:'').trim();
+  CT.reason=v('#ctr');
+  return {groups:[...($('#ctg')?$('#ctg').selectedOptions:[])].map(o=>o.value),channel:v('#ctc'),users:names(v('#ctu')),from:v('#ctf'),to:v('#ctt'),
+    words:v('#ctw').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean),all:$('#cta')&&$('#cta').checked,ctx:Math.max(0,Math.min(10,+v('#ctx')||0))};}
+function ctRefs(){return CT.res.hits.filter(h=>!h.ctx&&CT.sel[ctKey(h)]).map(h=>({g:h.g,c:h.c,id:h.id}));}
+function ctCtxRefs(){const n=CT.res.hits,out=[];n.forEach((h,i)=>{if(!h.ctx)return;
+  for(let j=Math.max(0,i-10);j<=Math.min(n.length-1,i+10);j++){const m=n[j];if(!m.ctx&&m.g==h.g&&m.c==h.c&&CT.sel[ctKey(m)]){out.push({g:h.g,c:h.c,id:h.id});break;}}});return out;}
+async function ctLog(){const log=await J('GET','/api/routines/chat/log')||[];let h='<h4>'+esc(t('Protokoll'))+'</h4>'+(log.length?log.slice(0,25).map(x=>'<div class="row" style="font-size:13px">'+esc(fmtDT(new Date(x.t*1000).toISOString()))+' &middot; '+esc(x.admin)+' &middot; <b>'+esc(t({search:'Suche',export:'Export',delete:'Löschung',ai:'KI-Auswertung'}[x.action]||x.action))+'</b> &middot; '+esc(x.reason)+' &middot; '+esc(t('{0} Nachrichten',x.count))+(x.hash&&x.action=='export'?' &middot; <code title="SHA-256">'+esc(x.hash.slice(0,16))+'…</code>':'')+(x.action=='delete'?' &middot; '+esc(t('Snapshot'))+': '+esc(x.snapshot):'')+'</div>').join(''):'<div class="muted">-</div>');
+  if($('#ctlog'))$('#ctlog').innerHTML=h;}
+async function ctDraw(){
+  const b=$('#wizb'),f=$('#wizf');
+  f.innerHTML='<button id="ct0">'+esc(t('Vorlagen'))+'</button><span style="flex:1"></span>';$('#ct0').onclick=()=>{WZ.tpl=null;wzDraw();};
+  if(!CT.info)CT.info=await J('GET','/api/routines/chat/info')||{groups:[]};
+  const gs=CT.info.groups||[];
+  b.innerHTML='<div class="wwarn">'+esc(t('Nur für begründete Fälle (Vorfall, Löschanforderung). Jede Suche, jeder Export und jede Löschung wird mit Anlass, Zeit und Administrator protokolliert – ohne Nachrichteninhalt.'))+'</div>'+
+   '<div class="wg"><div class="row"><input id="ctr" style="width:100%;box-sizing:border-box" maxlength="500" placeholder="'+esc(t('Anlass / Aktenzeichen (Pflicht)'))+'" value="'+esc(CT.reason)+'"></div>'+
+   '<div class="row">'+esc(t('Gruppen'))+': <select id="ctg" multiple size="4" style="min-width:160px;vertical-align:top">'+gs.map(g=>'<option value="'+esc(g.g)+'">'+esc(g.g)+'</option>').join('')+'</select> <span class="muted">'+esc(t('keine Auswahl = alle'))+'</span> &nbsp; '+esc(t('Kanal'))+': <input id="ctc" style="width:110px" placeholder="allgemein"></div>'+
+   '<div class="row">'+esc(t('Autoren'))+': <input id="ctu" style="width:240px" placeholder="bob, carl"> &nbsp; '+esc(t('von'))+' <input id="ctf" type="date"> '+esc(t('bis'))+' <input id="ctt" type="date"></div>'+
+   '<div class="row">'+esc(t('Suchbegriffe'))+': <input id="ctw" style="width:300px" placeholder="'+esc(t('mit Komma getrennt'))+'"> <label><input type="checkbox" id="cta"> '+esc(t('alle Begriffe'))+'</label> &nbsp; '+esc(t('Zusammenhang ± Nachrichten'))+': <input id="ctx" type="number" min="0" max="10" value="2" style="width:50px"></div>'+
+   '<div class="row"><button class="pr" id="cts" style="padding:7px 16px;background:#2b6fd4;color:#fff;border:1px solid #2b6fd4;border-radius:6px;cursor:pointer">'+esc(t('Suchen'))+'</button></div></div>'+
+   '<div id="ctres"></div>'+
+   '<div id="ctlog"></div>';
+  ctLog();
+  if(CT.res)ctShow();
+  $('#cts').onclick=async()=>{const F=ctRead();if(CT.reason.length<5){alert(t('Anlass / Aktenzeichen (Pflicht)'));return;}
+    const r=await J('POST','/api/routines/chat/search',{filter:F,reason:CT.reason});if(!r)return;
+    CT.res=r;CT.sel={};CT.del=null;r.hits.forEach(h=>{if(!h.ctx)CT.sel[ctKey(h)]=true;});CT.F=F;ctShow();ctLog();};
+}
+function ctShow(){
+  const r=CT.res,box=$('#ctres');if(!r)return;
+  const nsel=ctRefs().length;
+  let h='<div class="wsum">'+esc(t('{0} Treffer',r.total))+(r.truncated?' ('+esc(t('{0} angezeigt – Filter enger setzen',r.shown))+')':'')+' &middot; '+Object.keys(r.users).sort().map(u=>esc(u)+' '+r.users[u]).join(', ')+'</div>';
+  if(r.hits.length){
+    h+='<div class="muted"><a href="#" data-sa="1">'+esc(t('alle markieren'))+'</a> &middot; <a href="#" data-sa="0">'+esc(t('keine'))+'</a>'+Object.keys(r.users).sort().map(u=>' &middot; <a href="#" data-su="'+esc(u)+'">'+esc(t('nur {0}',u))+'</a>').join('')+'</div>';
+    let last='';
+    r.hits.forEach(x=>{const k=x.g+'/'+x.c;if(k!=last){h+='<h4 style="margin:10px 0 4px">'+esc(k)+'</h4>';last=k;}
+      h+='<div class="row" style="display:flex;gap:8px;align-items:flex-start;'+(x.ctx?'color:#889':'')+'">'+(x.ctx?'<span style="width:16px"></span>':'<input type="checkbox" data-h="'+esc(ctKey(x))+'"'+(CT.sel[ctKey(x)]?' checked':'')+'>')+
+        '<span style="white-space:nowrap;font-size:12px">'+esc(new Date(x.time).toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'}))+'</span><b>'+esc(x.by)+'</b><span style="white-space:pre-wrap;word-break:break-word">'+esc(x.t||'')+(x.att?' <span class="muted">&#128206; '+esc(x.att.name)+'</span>':'')+'</span></div>';});
+    h+='<div class="wg" style="margin-top:12px"><b>'+esc(t('{0} Nachrichten ausgewählt',nsel))+'</b>'+
+      '<div class="row"><input id="ctp" type="password" autocomplete="current-password" placeholder="'+esc(t('Passwort zur Bestätigung'))+'" style="width:240px"> '+
+      '<button id="ctex"'+(nsel?'':' disabled')+'>'+esc(t('Beweis sichern (ZIP)'))+'</button> '+(CT.info.ai?'<button id="ctai"'+(nsel?'':' disabled')+'>'+esc(t('KI-Auswertung…'))+'</button> ':'')+'<button id="ctdl"'+(nsel?'':' disabled')+' style="color:#b00020">'+esc(t('Löschen…'))+'</button></div>'+
+      '<div id="ctout"></div></div>';
+  }
+  box.innerHTML=h;
+  box.querySelectorAll('input[data-h]').forEach(c=>c.onchange=()=>{CT.sel[c.dataset.h]=c.checked;CT.del=null;ctShow();});
+  box.querySelectorAll('a[data-sa]').forEach(a=>a.onclick=e=>{e.preventDefault();CT.res.hits.forEach(x=>{if(!x.ctx)CT.sel[ctKey(x)]=a.dataset.sa=='1';});CT.del=null;ctShow();});
+  box.querySelectorAll('a[data-su]').forEach(a=>a.onclick=e=>{e.preventDefault();CT.res.hits.forEach(x=>{if(!x.ctx)CT.sel[ctKey(x)]=x.by==a.dataset.su;});CT.del=null;ctShow();});
+  if($('#ctex'))$('#ctex').onclick=ctExport;
+  if($('#ctai'))$('#ctai').onclick=ctAI;
+  if($('#ctdl'))$('#ctdl').onclick=ctDelete;
+}
+async function ctExport(){
+  const pw=$('#ctp').value;if(!pw){alert(t('Passwort zur Bestätigung'));return;}
+  const r=await fetch('/api/routines/chat/export',{method:'POST',body:JSON.stringify({reason:CT.reason,refs:ctRefs(),ctx:ctCtxRefs(),password:pw})}).catch(e=>null);
+  if(!r||!r.ok){alert(r?(await r.text()).trim():'error');return;}
+  const sum=r.headers.get('X-Content-SHA256')||'',blob=await r.blob(),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='chat-evidence-'+new Date().toISOString().slice(0,10)+'.zip';document.body.appendChild(a);a.click();a.remove();
+  $('#ctout').innerHTML='<div class="wsum">'+esc(t('Beweispaket gespeichert. SHA-256 der ZIP-Datei (auch im Protokoll):'))+'<br><code style="word-break:break-all">'+esc(sum)+'</code></div>';
+  ctLog();}
+function ctAI(){
+  $('#ctout').innerHTML='<div class="row">'+esc(t('Frage (leer = neutrale Zusammenfassung und Hinweise auf Mobbing)'))+'<br><textarea id="ctq" rows="2" style="width:100%;box-sizing:border-box"></textarea></div>'+
+   '<div class="wwarn"><label><input type="checkbox" id="ctqc"> '+esc(t('Ich bestätige: die ausgewählten Nachrichten werden an den eingestellten KI-Anbieter gesendet. Die KI liefert nur eine Einschätzung, keine Entscheidung.'))+'</label></div>'+
+   '<div class="row"><button id="ctqg">'+esc(t('Auswerten'))+'</button></div><pre id="ctqr" style="white-space:pre-wrap;background:#fff;border:1px solid #d6d9de;border-radius:8px;padding:8px 12px;display:none"></pre>';
+  $('#ctqg').onclick=async()=>{if(!$('#ctqc').checked){alert(t('Bitte bestätigen.'));return;}$('#ctqg').disabled=true;
+    const r=await J('POST','/api/ai/review',{reason:CT.reason,refs:ctRefs(),question:$('#ctq').value,confirm:true,lang:(typeof LOC!='undefined'?LOC:'de').slice(0,2)});$('#ctqg').disabled=false;
+    if(r){const p=$('#ctqr');p.style.display='block';p.textContent=r.reply;ctLog();}};}
+function ctDelete(){
+  const n=ctRefs().length;
+  $('#ctout').innerHTML='<h4 style="margin:8px 0 4px">'+esc(t('Löschen'))+'</h4>'+
+   '<div class="row"><label><input type="radio" name="ctm" value="clear" checked> '+esc(t('Inhalt und Anhang löschen, Hinweis „gelöscht“ bleibt im Chat (Autor und Zeit bleiben erhalten)'))+'</label></div>'+
+   '<div class="row"><label><input type="radio" name="ctm" value="remove"> '+esc(t('Eintrag vollständig entfernen (auch Autor und Zeit)'))+'</label></div>'+
+   '<div class="row"><button id="ctpv">'+esc(t('Vorschau berechnen'))+'</button></div><div id="ctdp"></div>';
+  $('#ctpv').onclick=async()=>{const mode=document.querySelector('input[name=ctm]:checked').value;
+    const P={refs:ctRefs(),mode,reason:CT.reason};const pl=await J('POST','/api/routines/chat/delete/preview',P);if(!pl)return;
+    const none=CT.info.snapshot=='none';
+    $('#ctdp').innerHTML='<div class="wsum">'+esc(t('{0} Nachrichten werden gelöscht, davon {1} mit Anhang.',pl.count,pl.atts))+' '+Object.keys(pl.users).sort().map(u=>esc(u)+' '+pl.users[u]).join(', ')+'</div>'+
+      '<div class="wwarn">'+esc(t('Nicht rückgängig zu machen. Sichern Sie vorher bei Bedarf den Beweis (ZIP). Ein Snapshot enthält die gelöschten Nachrichten, bis er vernichtet wird.'))+'<br><label><input type="checkbox" id="ctns"> '+esc(none?t('Ohne Snapshot ausführen (auf eigene Verantwortung)'):t('Ohne Snapshot ausführen (die Inhalte sollen nirgends verbleiben)'))+'</label>'+(none?'':'<br><span class="muted">'+esc(t('Sonst wird vorher ein Snapshot angelegt: {0}',CT.info.dataset||''))+'</span>')+'</div>'+
+      '<div class="row"><button id="ctgo" style="color:#fff;background:#b00020;border:1px solid #b00020;border-radius:6px;padding:7px 16px;cursor:pointer">'+esc(t('Jetzt endgültig löschen'))+'</button></div>';
+    $('#ctgo').onclick=async()=>{const pw=$('#ctp').value;if(!pw){alert(t('Passwort zur Bestätigung'));return;}
+      const ns=$('#ctns').checked;if(none&&!ns){alert(t('Kein Snapshot möglich (kein ZFS-Dataset erkannt und CS_SNAPSHOT_CMD nicht gesetzt).'));return;}
+      $('#ctgo').disabled=true;const r=await J('POST','/api/routines/chat/delete/run',{...P,hash:pl.hash,password:pw,noSnapshot:ns});
+      if(!r){$('#ctgo').disabled=false;return;}
+      const gone=new Set(P.refs.map(x=>x.g+'|'+x.c+'|'+x.id));CT.res.hits=CT.res.hits.filter(h=>!gone.has(ctKey(h)));CT.res.total-=r.deleted;CT.res.users={};CT.res.hits.forEach(h=>{if(!h.ctx)CT.res.users[h.by]=(CT.res.users[h.by]||0)+1;});
+      ctShow();ctLog();$('#ctout').innerHTML='<div class="wsum">'+esc(t('Gelöscht: {0} Nachrichten. Snapshot: {1}',r.deleted,r.snapshot=='none'?t('keiner'):r.snapshot))+(r.snapshot!='none'?'<br>'+esc(t('Der Snapshot enthält die gelöschten Inhalte noch, bis er vernichtet wird.')):'')+'</div>';};};}
 $('#wizx').onclick=()=>$('#wiz').classList.remove('open');
 
 /* ---------- Kalender ---------- */
@@ -1923,7 +2018,8 @@ S.set={
      '<div class="row"><input id="aiep" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+': '+esc(a.defaultEndpoint||'')+'" value="'+esc(a.endpoint||'')+'"></div>'+
      '<div class="row"><input id="aikey" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(a.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(a.keySet?' <label><input type="checkbox" id="aikx"> '+t('Schlüssel löschen')+'</label>':'')+'</div>'+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
-     '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div></div>'+
+     '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div>'+
+     '<div class="row"><label><input type="checkbox" id="airv"'+(a.review=='yes'?' checked':'')+'> '+t('Globale Admins dürfen Chat-Vorfälle mit KI auswerten (die Nachrichten gehen an den Anbieter; Standard: aus)')+'</label></div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -1931,7 +2027,7 @@ S.set={
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
-      const ab={mode:$('#aim').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no'};
+      const ab={mode:$('#aim').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};

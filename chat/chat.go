@@ -80,6 +80,8 @@ type Svc struct {
 	lists map[string]map[string]chanInfo // Gruppe -> zusätzliche Kanäle
 	conns map[*client]bool
 	rate  map[string][]time.Time
+	// AIReview: ist die KI-Auswertung für Chat-Vorfälle freigegeben? (wird von main gesetzt; nil = nein)
+	AIReview func() bool
 }
 
 func New(st store.Store) *Svc {
@@ -552,6 +554,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		io.Copy(w, rc)
 	}))
 	mux.Handle("GET /api/chat/ws", h(s.ws))
+	s.auditRoutes(mux, wrap)
 }
 
 func urlEnc(s string) string {

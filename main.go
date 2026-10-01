@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.12.2"
+const version = "0.13.0"
 
 var started = time.Now()
 
@@ -222,6 +222,8 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	auth.GroupCalMode = cb.GroupCalMode
 	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
 	aiSvc.H = mux
+	aiSvc.Chat = cs
+	cs.AIReview = aiSvc.ReviewEnabled
 	aiSvc.LangName = func(code string) string { return langList()[code] }
 	aiSvc.Info = func() map[string]string {
 		store := "s3 bucket " + env("S3_BUCKET", "cs-team")

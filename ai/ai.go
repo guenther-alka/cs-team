@@ -45,10 +45,12 @@ type Config struct {
 	Rate      int    `json:"rate"`    // Anfragen pro Minute und Benutzer
 	Private   bool   `json:"private"` // Endpunkt im lokalen Netz erlaubt (Ollama)
 	Files     string `json:"files"`   // yes | no   (ausgewählte Dateien und Dokumente lesen und auswerten)
+	Review    string `json:"review"`  // yes | no   (Chat-Auswertung bei Vorfällen durch globale Admins; Standard no)
 }
 
 type Svc struct {
 	St       store.Store
+	Chat     *chat.Svc                // für die Chat-Auswertung (nur Admin)
 	H        http.Handler             // gesamte Anwendung: interne Abfragen mit den Zugangsdaten des Fragenden
 	Info     func() map[string]string // Systemangaben für den Knopf "System" (Version, TLS, Speicher ...)
 	LangName func(code string) string // Sprachname zum Sprachcode ("" = unbekannt)
@@ -86,6 +88,9 @@ func norm(c Config) Config {
 	if c.Files != "no" {
 		c.Files = "yes"
 	}
+	if c.Review != "yes" {
+		c.Review = "no"
+	}
 	if c.MaxTokens < 64 || c.MaxTokens > 8192 {
 		c.MaxTokens = 1024
 	}
@@ -122,14 +127,14 @@ func hostOf(c Config) string {
 
 // settingsIn: Eingabe des Admins. Key nil = unverändert, "" = löschen.
 type settingsIn struct {
-	Mode, Provider, Endpoint, Model, Vision, Files string
-	Key                                            *string
-	MaxTokens, Rate                                int
-	Private                                        bool
+	Mode, Provider, Endpoint, Model, Vision, Files, Review string
+	Key                                                    *string
+	MaxTokens, Rate                                        int
+	Private                                                bool
 }
 
 func (s *Svc) set(in settingsIn) error {
-	for _, x := range []string{in.Mode, in.Provider, in.Endpoint, in.Model, in.Vision, in.Files} {
+	for _, x := range []string{in.Mode, in.Provider, in.Endpoint, in.Model, in.Vision, in.Files, in.Review} {
 		if strings.ContainsAny(x, "\r\n\x00") || len(x) > 300 {
 			return errors.New("invalid characters")
 		}
@@ -147,7 +152,7 @@ func (s *Svc) set(in settingsIn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := Config{Mode: in.Mode, Provider: in.Provider, Endpoint: in.Endpoint, Model: in.Model, Vision: in.Vision,
-		MaxTokens: in.MaxTokens, Rate: in.Rate, Private: in.Private, Files: in.Files, Key: s.cur.Key}
+		MaxTokens: in.MaxTokens, Rate: in.Rate, Private: in.Private, Files: in.Files, Review: in.Review, Key: s.cur.Key}
 	if in.Key != nil {
 		n.Key = *in.Key
 	} else if n.Provider != s.cur.Provider || hostOf(n) != hostOf(s.cur) {
@@ -359,7 +364,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/ai/settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		c := s.config()
 		json.NewEncoder(w).Encode(map[string]any{"mode": c.Mode, "provider": c.Provider, "endpoint": c.Endpoint, "model": c.Model,
-			"keySet": c.Key != "", "vision": c.Vision, "maxTokens": c.MaxTokens, "rate": c.Rate, "private": c.Private, "files": c.Files, "defaultEndpoint": Config{Provider: c.Provider}.endpoint()})
+			"keySet": c.Key != "", "vision": c.Vision, "maxTokens": c.MaxTokens, "rate": c.Rate, "private": c.Private, "files": c.Files, "review": c.Review, "defaultEndpoint": Config{Provider: c.Provider}.endpoint()})
 	}))
 	mux.Handle("POST /api/ai/settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		var in settingsIn
@@ -387,6 +392,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{"reply": clip(out, 300), "ms": time.Since(t0).Milliseconds()})
 	}))
+	s.reviewRoutes(mux, admin, s.Chat)
 	mux.Handle("POST /api/ai/chat", wrap(http.HandlerFunc(s.chat)))
 	mux.Handle("GET /api/ai/sources", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c := s.config(); !c.enabled() || c.Files == "no" {
