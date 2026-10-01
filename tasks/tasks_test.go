@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -34,8 +35,11 @@ func TestSpawnAndTick(t *testing.T) {
 	if n.Due != "2026-10-30" || n.Status != "open" || n.Assignee != "bob" || len(n.Miles) != 1 || n.Miles[0].Done || n.Miles[0].Due != "2026-10-20" || n.Link[0] != "a1" {
 		t.Fatalf("%+v", n)
 	}
-	var sent []string
-	s.Notify = func(user, subj, text string) { sent = append(sent, user) }
+	var (
+		mu   sync.Mutex
+		sent []string
+	)
+	s.Notify = func(user, subj, text string) { mu.Lock(); sent = append(sent, user); mu.Unlock() }
 	n.Due = "2026-09-01"
 	n.Miles[0].Due = "2026-09-02"
 	s.Tick(d("2026-09-30"))
@@ -47,6 +51,8 @@ func TestSpawnAndTick(t *testing.T) {
 		t.Fatal("doppelt gemeldet")
 	}
 	time.Sleep(50 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
 	if len(sent) != 2 || sent[0] != "bob" {
 		t.Fatal(sent)
 	}

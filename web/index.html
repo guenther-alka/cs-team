@@ -2394,7 +2394,7 @@ S.set={
       const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
       if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
       if(!await api('POST','/api/settings/rtc',rb))return false;
-      if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
+      if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};aiStart();return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};
     $('#stest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/settings/testmail');this.select();if(r)alert(t('Testmail gesendet an {0}',r.to));};
@@ -2496,8 +2496,9 @@ async function aiDocCard(parent,prop){
 }
 async function aiStart(){
   AI.cfg=await fetch('/api/ai/config').then(r=>r.ok?r.json():null).catch(()=>null);
-  if(!AI.cfg||!AI.cfg.enabled)return;
-  const p=$('#aip'),b=$('#aib');b.style.display='block';b.title=t('KI fragen');
+  const p=$('#aip'),b=$('#aib');
+  if(!AI.cfg||!AI.cfg.enabled){b.style.display='none';p.classList.remove('open');return;}   // aus: Knopf weg, Panel zu (auch nach dem Speichern der Einstellungen, ohne Neuladen)
+  b.style.display='block';b.title=t('KI fragen');
   $('#aitt').textContent=t('KI-Assistent');$('#ainew').textContent=t('Neuer Chat');$('#aigo').textContent=t('Senden');
   $('#aix').placeholder=t('Frage eingeben…');
   $('#aihint').textContent=t('Die KI sieht nur, was du selbst sehen darfst. Fragen und Daten gehen an den eingestellten KI-Anbieter.');
@@ -2506,6 +2507,7 @@ async function aiStart(){
   $('#aigo').onclick=()=>aiSend($('#aix').value);
   $('#aix').onkeydown=e=>{if(e.key=='Enter'&&!e.shiftKey){e.preventDefault();aiSend($('#aix').value);}};
   $('#aix').oninput=()=>{const x=$('#aix');x.style.height='auto';x.style.height=Math.min(120,x.scrollHeight)+'px';};
+  $('#aiat').style.display='none';$('#aifb').style.display='none';p.ondragover=p.ondragleave=p.ondrop=null;$('#aix').onpaste=null;$('#aifl').classList.remove('open');
   if(AI.cfg.vision){   // Bilder: Büroklammer, Drag & Drop und Einfügen aus der Zwischenablage
     const at=$('#aiat');at.style.display='';at.title=t('Bild anhängen (auch per Drag & Drop oder Einfügen)');
     at.onclick=()=>$('#aifile').click();$('#aifile').onchange=async e=>{for(const f of e.target.files)await aiImage(f);e.target.value='';};

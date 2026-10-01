@@ -163,7 +163,7 @@ Fix: beim PUT/Abo-Import Frequenzen < DAILY ablehnen, Zeitraum begrenzen.
 
 **A-03 | niedrig | `tasks/tasks.go:338-341, 613`** – `save()` ignoriert Speicherfehler; Speichern unter globalem Mutex.
 
-**A-04 | niedrig | `tasks/tasks.go:507-525`** – Status `open` mit gesetztem Bearbeiter ist inkonsistent.
+**A-04 | niedrig | `tasks/tasks.go:507-525`** – Status `open` mit gesetztem Bearbeiter ist inkonsistent. *Bewertung 0.14.1: beabsichtigt – „offen + Bearbeiter“ heißt „zugewiesen, noch nicht begonnen“ (Übernehmen gilt nur ohne Bearbeiter); keine Änderung.*
 
 **A-05/A-06/A-07 | niedrig** – doppelte Meilenstein-IDs möglich; keine Gesamtgrenzen (Log bis 500 × 4000 Zeichen, jede Änderung schreibt die ganze Datei); Beteiligte (`Watch`) bekommen keine Mails, `Notify` ohne Rate-Limit (`Tick` in Serverzeit).
 
@@ -184,15 +184,15 @@ Fix: Empfängerzahl und Tageskontingent, Hintergrundversand/Worker-Pool.
 **C-06 | mittel | `chat/chat.go:199-222, 581-588`** – Race „send on closed channel“: `broadcast` gibt den Lock vor `c.out <- b` frei, Disconnect schließt `c.out` → Panic im Sender-Request (Nachricht schon gespeichert, Rest des Broadcasts entfällt).
 Fix: `done`-Channel/`sync.Once` statt `close(c.out)`.
 
-**C-07 | niedrig | `chat/chat.go:269-272, 307`** – Edit/Reaktion verlangt nur Leserecht und ist nicht rate-limitiert; jede Änderung schreibt den ganzen Kanal.
+**C-07 | niedrig | `chat/chat.go:269-272, 307`** – Edit/Reaktion verlangt nur Leserecht und ist nicht rate-limitiert; jede Änderung schreibt den ganzen Kanal. *Behoben in 0.14.1 (Schreibrecht, Tempolimit).*
 
-**C-08/C-09 | niedrig** – `St.Put`/`St.Delete` Fehler ignoriert; Race in `RemoveChannel` (alter Kanal wird neu geschrieben); gelöschte Gruppen lassen Chat-/Dateidaten zurück.
+**C-08/C-09 | niedrig** *(behoben in 0.14.1: Put-Fehler werden gemeldet, Kanal-Löschrace; die Reste gelöschter Gruppen bleiben)* – `St.Put`/`St.Delete` Fehler ignoriert; Race in `RemoveChannel` (alter Kanal wird neu geschrieben); gelöschte Gruppen lassen Chat-/Dateidaten zurück.
 
-**C-10/C-11 | niedrig** – SSRF-Blocklist (siehe K-02); `msg[:1900]` schneidet UTF-8; Redirects 307/308 leiten den Nachrichtentext an das Ziel weiter.
+**C-10/C-11 | niedrig** *(C-11 in 0.14.1 erledigt bzw. war schon behoben)* – SSRF-Blocklist (siehe K-02); `msg[:1900]` schneidet UTF-8; Redirects 307/308 leiten den Nachrichtentext an das Ziel weiter.
 
 **C-12 | info | `chat/settings.go:63-89`** – Env-Werte lassen sich in der UI nicht leeren; `Private` als `bool` (fehlendes Feld setzt „privat erlauben“ stillschweigend auf false); SMTP-Passwort im Klartext in `settings.json` (0600); Testmail-Fehler gibt rohe SMTP-Antwort zurück. DynDNS gibt es im Code nicht, nur das Feld „Öffentliche Adresse“ für Links.
 
-**C-13/C-14 | info** – WebSocket ohne Ping/Idle-Timeout und ohne Verbindungslimit je Nutzer; Mitgliedschaftsänderungen erst nach Reconnect; Versandprotokoll global auf 200 Einträge (eine aktive Gruppe verdrängt alle anderen), Chat ohne zeitliche Retention.
+**C-13/C-14 | info** *(Ping, Verbindungslimit und Protokoll je Gruppe in 0.14.1 behoben; Mitgliedschaftsänderungen und Retention bleiben)* – WebSocket ohne Ping/Idle-Timeout und ohne Verbindungslimit je Nutzer; Mitgliedschaftsänderungen erst nach Reconnect; Versandprotokoll global auf 200 Einträge (eine aktive Gruppe verdrängt alle anderen), Chat ohne zeitliche Retention.
 
 ## 4. Routen und Rollen (Kurzfassung)
 

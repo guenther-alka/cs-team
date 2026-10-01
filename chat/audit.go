@@ -598,7 +598,9 @@ func (s *Svc) applyDelete(ctx context.Context, mode string, hits []Hit) int {
 			}
 			c.msgs = keep
 		}
-		s.save(ctx, c)
+		if err := s.save(ctx, c); err != nil {
+			log.Printf("chat: audit save: %v", err)
+		}
 		c.mu.Unlock()
 		for _, m := range upd {
 			if mode == "remove" {

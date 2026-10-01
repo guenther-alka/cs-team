@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"regexp"
@@ -61,6 +62,7 @@ type channel struct {
 	g, c string
 	msgs []Msg
 	last int64
+	gone bool // Kanal wurde gelöscht: nie wieder schreiben (C-09)
 }
 
 type chanInfo struct {
@@ -70,6 +72,7 @@ type chanInfo struct {
 
 type client struct {
 	user string
+	born time.Time
 	out  chan []byte
 	done chan struct{} // wird (unter s.mu, genau einmal) geschlossen; out selbst bleibt offen -> kein Senden auf geschlossenen Kanal
 	// Videochat (rtc.go): Raum und Teilnehmerkennung unter s.mu; sigT/sigN nur von der Lese-Schleife benutzt
@@ -177,7 +180,10 @@ func (s *Svc) ch(ctx context.Context, g, cn string) *channel {
 }
 
 // save: Kanal sichern (c.mu gehalten), ältere Nachrichten samt Anhängen entfernen.
-func (s *Svc) save(ctx context.Context, c *channel) {
+func (s *Svc) save(ctx context.Context, c *channel) error {
+	if c.gone {
+		return ErrNoChan
+	}
 	for len(c.msgs) > maxKeep {
 		if a := c.msgs[0].Att; a != nil {
 			s.St.Delete(ctx, fileKey(c.g, c.c, a.ID))
@@ -185,7 +191,11 @@ func (s *Svc) save(ctx context.Context, c *channel) {
 		c.msgs = c.msgs[1:]
 	}
 	b, _ := json.Marshal(c.msgs)
-	s.St.Put(ctx, chatKey(c.g, c.c), b, "")
+	if _, err := s.St.Put(ctx, chatKey(c.g, c.c), b, ""); err != nil { // C-08: Fehler nicht verschlucken
+		log.Printf("chat: save %s/%s: %v", c.g, c.c, err)
+		return errors.New("storage error")
+	}
+	return nil
 }
 
 func (s *Svc) limited(user string) bool {
@@ -266,7 +276,12 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 	c.last = id
 	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid}
 	c.msgs = append(c.msgs, m)
-	s.save(ctx, c)
+	if err := s.save(ctx, c); err != nil {
+		c.msgs = c.msgs[:len(c.msgs)-1]
+		c.last = id - 1
+		c.mu.Unlock()
+		return nil, err
+	}
 	c.mu.Unlock()
 	s.broadcast(g, map[string]any{"t": "msg", "g": g, "c": cn, "m": m})
 	return &m, nil
@@ -282,19 +297,41 @@ func find(c *channel, id int64) int {
 }
 
 // change: Nachricht bearbeiten/löschen/reagieren. fn läuft unter c.mu und liefert false bei Ablehnung.
-func (s *Svc) change(ctx context.Context, user, g, cn string, id int64, fn func(m *Msg) bool) error {
-	if r, _ := access(user, g); !r || !s.exists(ctx, g, cn) {
+// needW: Bearbeiten und Reaktionen verlangen Schreibrecht und zählen zum Tempolimit (C-07); Löschen nur Leserecht (Autor/Gruppen-Admin).
+func (s *Svc) change(ctx context.Context, user, g, cn string, id int64, needW bool, fn func(m *Msg) bool) error {
+	r, w := access(user, g)
+	if !r || !s.exists(ctx, g, cn) {
 		return ErrNoChat
+	}
+	if needW {
+		if !w {
+			return ErrReadonly
+		}
+		if s.limited(user) {
+			return ErrRate
+		}
 	}
 	c := s.ch(ctx, g, cn)
 	c.mu.Lock()
 	i := find(c, id)
-	if i < 0 || c.msgs[i].Del || !fn(&c.msgs[i]) {
+	if i < 0 || c.msgs[i].Del {
+		c.mu.Unlock()
+		return errors.New("not allowed")
+	}
+	old, _ := json.Marshal(c.msgs[i]) // Rückfall, falls das Speichern scheitert
+	if !fn(&c.msgs[i]) {
 		c.mu.Unlock()
 		return errors.New("not allowed")
 	}
 	m := c.msgs[i]
-	s.save(ctx, c)
+	if err := s.save(ctx, c); err != nil {
+		var o Msg
+		if json.Unmarshal(old, &o) == nil {
+			c.msgs[i] = o
+		}
+		c.mu.Unlock()
+		return err
+	}
 	c.mu.Unlock()
 	s.broadcast(g, map[string]any{"t": "upd", "g": g, "c": cn, "m": m})
 	return nil
@@ -322,7 +359,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 		if text == "" || utf8.RuneCountInString(text) > maxText {
 			return errors.New("bad text")
 		}
-		return s.change(ctx, user, m.G, m.C, m.ID, func(x *Msg) bool {
+		return s.change(ctx, user, m.G, m.C, m.ID, true, func(x *Msg) bool {
 			if x.By != user || x.Vid != nil {
 				return false
 			}
@@ -331,7 +368,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 		})
 	case "del":
 		var att *Att
-		err := s.change(ctx, user, m.G, m.C, m.ID, func(x *Msg) bool {
+		err := s.change(ctx, user, m.G, m.C, m.ID, false, func(x *Msg) bool {
 			if x.By != user && !auth.IsGroupAdmin(user, m.G) { // Autor oder Gruppen-Admin
 				return false
 			}
@@ -351,7 +388,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 		if !ok {
 			return errors.New("bad emoji")
 		}
-		return s.change(ctx, user, m.G, m.C, m.ID, func(x *Msg) bool {
+		return s.change(ctx, user, m.G, m.C, m.ID, true, func(x *Msg) bool {
 			if x.Re == nil {
 				x.Re = map[string][]string{}
 			}
@@ -410,6 +447,10 @@ func (s *Svc) RemoveChannel(ctx context.Context, user, g, name string) error {
 	if r, _ := access(user, g); !r || (!auth.IsGroupAdmin(user, g) && info.By != user) {
 		return errors.New("not allowed")
 	}
+	c := s.ch(ctx, g, name)
+	c.mu.Lock() // laufende Schreiber abwarten, danach darf der Kanal nie wieder gespeichert werden
+	c.gone = true
+	c.mu.Unlock()
 	s.mu.Lock()
 	delete(l, name)
 	delete(s.chans, g+"/"+name)
@@ -587,6 +628,36 @@ func urlEnc(s string) string {
 	return b.String()
 }
 
+const (
+	maxConnsUser = 8                // WebSocket-Verbindungen je Benutzer (mehrere Tabs/Geräte)
+	pingEvery    = 30 * time.Second // Lebenszeichen; keine Antwort innerhalb von pingWait = Verbindung tot
+	pingWait     = 20 * time.Second
+)
+
+// dropOldest schließt die älteste Verbindung des Benutzers, wenn das Limit erreicht ist (s.mu gehalten).
+func (s *Svc) dropOldest(user string) {
+	var all []*client
+	for c := range s.conns {
+		if c.user == user {
+			all = append(all, c)
+		}
+	}
+	for len(all) >= maxConnsUser {
+		k := 0
+		for i, c := range all {
+			if c.born.Before(all[k].born) {
+				k = i
+			}
+		}
+		old := all[k]
+		all = append(all[:k], all[k+1:]...)
+		if s.conns[old] {
+			delete(s.conns, old)
+			close(old.done)
+		}
+	}
+}
+
 func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	me := auth.User(r.Context())
 	conn, err := websocket.Accept(w, r, nil)
@@ -595,8 +666,9 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 	conn.SetReadLimit(16 << 10)
-	c := &client{user: me, out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &client{user: me, born: time.Now(), out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
+	s.dropOldest(me) // C-13: höchstens maxConnsUser Verbindungen je Benutzer, die älteste weicht
 	s.conns[c] = true
 	s.mu.Unlock()
 	defer func() {
@@ -608,7 +680,28 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Unlock()
 	}()
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	go func() { // C-13: tote Verbindungen (Laptop zugeklappt, Netz weg) erkennen und freigeben
+		tk := time.NewTicker(pingEvery)
+		defer tk.Stop()
+		for {
+			select {
+			case <-tk.C:
+				pc, pcancel := context.WithTimeout(ctx, pingWait)
+				err := conn.Ping(pc)
+				pcancel()
+				if err != nil {
+					cancel() // beendet die Lese-Schleife
+					return
+				}
+			case <-ctx.Done():
+				return
+			case <-c.done:
+				return
+			}
+		}
+	}()
 	hello, _ := json.Marshal(map[string]any{"t": "hello", "groups": s.groupsOf(ctx, me)})
 	c.out <- hello
 	go func() {

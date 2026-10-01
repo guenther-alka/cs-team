@@ -47,7 +47,7 @@ Flache Ablage pro Benutzer (`files/<owner>/<name>`, Metadaten unter `filesmeta/`
 Bearbeiten Calc/Text verwenden).
 Teilen pro Datei: ausgewählte Benutzer (lesen / schreiben), **Team** (alle angemeldeten Benutzer, technisch `"*"`
 in der Lese-/Schreibliste; gilt auch für Calc/Text) und optional ein öffentlicher Link `/pub/<token>` (nur lesen,
-widerrufbar). PDF, Bilder und Text werden im Browser angezeigt, alles andere (HTML, SVG, ...) nur als Download.
+widerrufbar). PDF, Bilder und Text werden im Browser angezeigt, alles andere (HTML, SVG, ...) nur als Download. Downloads unterstützen Range (Teilabrufe, Spulen, Fortsetzen) und ETag/304.
 
 WebDAV: `https://host/webdav/` (Basic Auth, dieselben Rechte wie im Browser). Root = eigene Dateien,
 `shared/<besitzer>/` = mit mir geteilt. Keine Ordner (MKCOL = 403). COPY/MOVE nur innerhalb der eigenen Dateien.

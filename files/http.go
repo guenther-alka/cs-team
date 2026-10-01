@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"cs-team/auth"
 )
@@ -129,14 +130,104 @@ func serve(w http.ResponseWriter, r *http.Request, m *Meta, rc io.ReadCloser) {
 	if InlineOK(m.Type) && r.URL.Query().Get("dl") != "1" {
 		disp = "inline"
 	}
-	w.Header().Set("Content-Type", m.Type)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": Base(m.Name)}))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Length", strconv.FormatInt(m.Size, 10))
-	w.Header().Set("ETag", `"`+m.ETag()+`"`)
-	if r.Method != http.MethodHead {
-		io.Copy(w, rc)
+	etag := `"` + m.ETag() + `"`
+	h := w.Header()
+	h.Set("Content-Type", m.Type)
+	h.Set("Content-Disposition", mime.FormatMediaType(disp, map[string]string{"filename": Base(m.Name)}))
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("ETag", etag)
+	h.Set("Accept-Ranges", "bytes")
+	h.Set("Cache-Control", "private, no-cache") // Browser fragt mit If-None-Match nach; die Zugriffsprüfung lief schon
+	if etagMatch(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
 	}
+	start, n, partial, ok := byteRange(r.Header.Get("Range"), r.Header.Get("If-Range"), etag, m.Size)
+	if !ok {
+		h.Set("Content-Range", "bytes */"+strconv.FormatInt(m.Size, 10))
+		http.Error(w, "range not satisfiable", http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	h.Set("Content-Length", strconv.FormatInt(n, 10))
+	if partial {
+		h.Set("Content-Range", "bytes "+strconv.FormatInt(start, 10)+"-"+strconv.FormatInt(start+n-1, 10)+"/"+strconv.FormatInt(m.Size, 10))
+		w.WriteHeader(http.StatusPartialContent)
+	}
+	if r.Method == http.MethodHead {
+		return
+	}
+	if start > 0 {
+		if _, err := io.CopyN(io.Discard, rc, start); err != nil {
+			return
+		}
+	}
+	io.CopyN(w, rc, n)
+}
+
+// etagMatch: If-None-Match (Liste, "*", schwache Form W/"..."), schwacher Vergleich.
+func etagMatch(hdr, etag string) bool {
+	hdr = strings.TrimSpace(hdr)
+	if hdr == "" {
+		return false
+	}
+	if hdr == "*" {
+		return true
+	}
+	for _, p := range strings.Split(hdr, ",") {
+		if strings.TrimPrefix(strings.TrimSpace(p), "W/") == etag {
+			return true
+		}
+	}
+	return false
+}
+
+// byteRange wertet einen einzelnen "bytes=a-b"-Bereich aus. partial=false: ganze Datei (kein/ungültiger Kopf, mehrere Bereiche
+// oder If-Range passt nicht). ok=false: Bereich liegt außerhalb der Datei (416).
+func byteRange(hdr, ifRange, etag string, size int64) (start, n int64, partial, ok bool) {
+	whole := func() (int64, int64, bool, bool) { return 0, size, false, true }
+	if !strings.HasPrefix(hdr, "bytes=") || strings.Contains(hdr, ",") {
+		return whole()
+	}
+	if ifRange != "" && strings.TrimSpace(ifRange) != etag {
+		return whole() // Datei hat sich geändert (oder Datumsform): ganze Datei senden
+	}
+	a, b, found := strings.Cut(strings.TrimSpace(hdr[len("bytes="):]), "-")
+	if !found {
+		return whole()
+	}
+	var from, to int64
+	var err error
+	switch {
+	case a == "": // letzte n Bytes
+		k, e := strconv.ParseInt(b, 10, 64)
+		if e != nil || k <= 0 {
+			return whole()
+		}
+		if size == 0 {
+			return 0, 0, false, false
+		}
+		if k > size {
+			k = size
+		}
+		from, to = size-k, size-1
+	default:
+		if from, err = strconv.ParseInt(a, 10, 64); err != nil || from < 0 {
+			return whole()
+		}
+		to = size - 1
+		if b != "" {
+			if to, err = strconv.ParseInt(b, 10, 64); err != nil || to < from {
+				return whole()
+			}
+		}
+		if from >= size {
+			return 0, 0, false, false
+		}
+		if to >= size {
+			to = size - 1
+		}
+	}
+	return from, to - from + 1, true, true
 }
 
 func (s *Svc) download(w http.ResponseWriter, r *http.Request) {

@@ -197,9 +197,8 @@ func hook(ctx context.Context, cl *http.Client, target, subject, text string) er
 		b, _ := json.Marshal(map[string]string{"text": msg})
 		body, ctype = string(b), "application/json"
 	case strings.HasSuffix(host, "discord.com") || strings.HasSuffix(host, "discordapp.com"):
-		for len(msg) > 1900 { // an UTF-8-Grenze kürzen
-			r := []rune(msg)
-			msg = string(r[:len(r)-(len(msg)-1900)/2-1])
+		if r := []rune(msg); len(r) > 1900 { // Discord erlaubt 2000 Zeichen: nach Zeichen kürzen, nie mitten im UTF-8-Zeichen
+			msg = string(r[:1900])
 		}
 		b, _ := json.Marshal(map[string]string{"content": msg})
 		body, ctype = string(b), "application/json"
@@ -255,7 +254,11 @@ type logEntry struct {
 	Chat  bool   `json:"chat,omitempty"`
 }
 
-const logKey = "msg/log.json"
+const (
+	logKey      = "msg/log.json"
+	logPerGroup = 200
+	logTotal    = 2000
+)
 
 func (m *Mailer) limited(user string) bool {
 	m.mu.Lock()
@@ -381,13 +384,27 @@ func (m *Mailer) send(ctx context.Context, user string, in sendIn) (*sendOut, in
 		if cur != nil {
 			json.Unmarshal(cur, &l)
 		}
-		l = append(l, e)
-		if len(l) > 200 {
-			l = l[len(l)-200:]
-		}
+		l = trimLog(append(l, e), e.Group)
 		return json.Marshal(l)
 	})
 	return out, 200, nil
+}
+
+// trimLog: je Gruppe die letzten logPerGroup Einträge (eine aktive Gruppe verdrängt die anderen nicht), insgesamt höchstens logTotal.
+func trimLog(l []logEntry, group string) []logEntry {
+	n := 0
+	for i := len(l) - 1; i >= 0; i-- {
+		if l[i].Group == group {
+			if n++; n > logPerGroup {
+				l = append(l[:i], l[i+1:]...)
+				break
+			}
+		}
+	}
+	if len(l) > logTotal {
+		l = l[len(l)-logTotal:]
+	}
+	return l
 }
 
 func (m *Mailer) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {

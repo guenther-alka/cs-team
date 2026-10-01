@@ -1,5 +1,19 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.14.1 Haertung und Dateien. KI-Widget: Knopf erscheint nach dem Speichern der KI-Einstellungen sofort (und verschwindet beim Ausschalten), kein Neuladen
+                   mehr noetig. Chat (Audit C-07, C-08/C-09, C-13/C-14): Bearbeiten und Reaktionen verlangen Schreibrecht im Kanal (bisher nur Leserecht) und zaehlen
+                   zum Tempolimit (20 je 10 s mit dem Senden); Speicherfehler beim Senden, Bearbeiten und in der Auswertung werden gemeldet statt verschluckt (die
+                   Aenderung wird zurueckgenommen, "storage error"); ein geloeschter Kanal wird von laufenden Schreibern nicht mehr neu angelegt (Rennen in
+                   RemoveChannel); WebSocket mit Lebenszeichen (Ping alle 30 s, 20 s Frist), tote Verbindungen werden freigegeben; hoechstens 8 Verbindungen je
+                   Benutzer, die aelteste weicht. Nachricht (C-11): Kuerzung fuer Discord nach Zeichen (1900), nie mitten im UTF-8-Zeichen; Weiterleitungen bei POST
+                   waren schon gesperrt (307/308 geben den Text nicht weiter). Versandprotokoll: je Gruppe die letzten 200 Eintraege (eine aktive Gruppe verdraengt
+                   die anderen nicht), insgesamt 2000. Aufgaben (A-04): "offen" mit Bearbeiter ist der gewollte Zustand "zugewiesen, noch nicht begonnen" - keine
+                   Aenderung, im Audit als beabsichtigt vermerkt. Dateien: Download mit Teilbereichen (Range, einzelner Bereich, If-Range; 206/416, Accept-Ranges) und
+                   bedingten Abrufen (If-None-Match -> 304, Cache-Control private,no-cache) - Videos lassen sich spulen, grosse Dateien setzen nach Abbruch fort;
+                   Zugriffspruefung vor jedem 304, fremde Dateien bleiben 404. Test: tasks.TestSpawnAndTick ohne Datenrasur (Fehler lag im Test). Neue Tests:
+                   harden_test.go (Range/304, Rechte und Tempolimit bei Reaktionen, Verbindungslimit), chat/harden_test.go (Protokoll je Gruppe, aelteste Verbindung);
+                   Browsertest KI-Widget (Chromium). Offen bleiben C-12 (nur Dokumentation) und WebDAV-Range (x/net/webdav).
+
 2026-10-01  0.14.0 Kalender: Serientermine, Zeitzonen und Terminbearbeitung. Anzeige: GET /api/cal/{kal}/events?from=&to= (RFC 3339 oder YYYY-MM-DD, hoechstens 800 Tage,
                    ohne Angabe -31/+400 Tage) loest Serien serverseitig auf (RRULE, EXDATE, RDATE, RECURRENCE-ID, STATUS:CANCELLED; je Serie bis 1500 Vorkommen); Zeilen
                    tragen rec/ovr/rid/rule/tz/float/desc. Zeitzonen: IANA und gaengige Windows-Namen (z.B. "W. Europe Standard Time") werden erkannt, Zeitzonen sind
