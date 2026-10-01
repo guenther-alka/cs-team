@@ -20,7 +20,7 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 | User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export |
 | Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, global, group, resource (no double booking), internet subscriptions; recurring events with time zones, edit "only this / all events of the series" |
 | Calc / Text | multi-user live editing (per cell / per paragraph), formulas, import/export csv, xlsx, txt, rtf, docx |
-| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder |
+| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder, trash (restore, 30 days by default), WebDAV file locks (LOCK/UNLOCK) |
 | Tasks | ticket system light: requester, assignee, milestones, history, repetition, notifications |
 | Chat / Message | group chat with channels (attachments, reactions, @mentions); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat |
 | Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable) |
@@ -60,6 +60,7 @@ Basic Auth is used - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind a
 | `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
 | `CS_MAX_UPLOAD_MB` / `CS_CHAT_MAX_MB` | upload limits | 100 / 10 |
 | `CS_QUOTA_MB` | default file quota per user and group folder in MB (better set in *Settings*) | 0 (unlimited) |
+| `CS_TRASH_DAYS` | days deleted files stay in the trash (better set in *Settings*; 0 = no trash) | 30 |
 | `CS_LANG` / `CS_LANGDIR` | default language / own language files | `de` |
 | `CS_CONF` or `-c file` | configuration file (`KEY=VALUE`) | - |
 
@@ -69,7 +70,7 @@ The built-in video chat needs HTTPS or localhost (browser rule for camera and mi
 ## Clients
 
 CalDAV `https://host:9004/dav/` · WebDAV `https://host:9004/webdav/` (rclone, WinSCP, Cyberduck, macOS Finder;
-Windows network drive needs HTTPS) · REST `/api/...`.
+Windows network drive needs HTTPS; DAV class 2 with LOCK/UNLOCK, so Explorer and Office can write) · REST `/api/...`.
 
 ## Build
 

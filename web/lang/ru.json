@@ -627,5 +627,22 @@
  "nach Anzahl": "после числа",
  "nie": "никогда",
  "{0} Termine": "{0} событий",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Изменение всей серии: если изменить начало или повтор, отдельно изменённые или удалённые события серии отбрасываются."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Изменение всей серии: если изменить начало или повтор, отдельно изменённые или удалённые события серии отбрасываются.",
+ "Papierkorb": "Корзина",
+ "Gelöscht": "Удалено",
+ "Läuft ab": "Истекает",
+ "Wiederherstellen": "Восстановить",
+ "Endgültig löschen": "Удалить навсегда",
+ "Papierkorb leeren": "Очистить корзину",
+ "Der Papierkorb ist leer.": "Корзина пуста.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Удалённые файлы хранятся в корзине {0} дн. и учитываются в квоте; при нехватке места сначала удаляется самая старая запись.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "Корзина отключена; удалённые файлы исчезают сразу.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Восстановлено как «{0}» (имя уже занято).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "Удалить «{0}» навсегда? Это нельзя отменить.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Очистить корзину? Все записи ({0}) будут удалены навсегда.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "Переместить папку «{0}» со всеми файлами в корзину?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "Переместить «{0}» в корзину? (восстановление возможно {1} дн.)",
+ "davon {0} im Papierkorb": "из них в корзине: {0}",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Корзина: дней до окончательного удаления (0 = без корзины)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Корзина: число дней (0 = без корзины)."
 }

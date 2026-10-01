@@ -1504,11 +1504,12 @@ const icoHtml=f=>{const [l,c]=icoOf(f);return '<span class="fico" style="backgro
 const dirIco='<span class="fico" style="background:#f9ab00">DIR</span>';
 S.files={
   keepSel:true,
-  items:[],own:[],shared:[],folders:[],maxMB:100,quota:0,fsel:null,path:'',
+  items:[],own:[],shared:[],folders:[],maxMB:100,quota:0,fsel:null,path:'',tr:[],trDays:0,
   vmode:lsGet('cs.files.view','list'),sortk:'name',sortd:1,
   isG:f=>f.owner.startsWith('@'),
   async load(){
-    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;
+    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;this.trDays=r.trashDays||0;
+    const q=await J('GET','/api/trash');this.tr=(q&&q.items)||[];
     this.build();
   },
   filesOf(k){
@@ -1521,18 +1522,20 @@ S.files={
     const it=[{k:'own',label:t('Meine Ablage'),sub:String(this.real('own'))},{k:'shared',label:t('Für mich freigegeben'),sub:String(this.real('shared'))}];
     if(this.folders.length)it.push({head:t('Gruppenordner')});
     for(const fo of this.folders)it.push({k:'@'+fo.name,label:fo.name,sub:this.real('@'+fo.name)+(fo.write?'':' · '+t('nur lesen'))});
+    if(this.trDays>0||this.tr.length)it.push({k:'trash',label:t('Papierkorb'),sub:String(this.tr.length)});
     this.items=it;setList(it);
   },
   loc(){return sel||'own';},
   quotaTxt(){   // Kontingent: belegt X von Y (eigene Ablage bzw. aktueller Gruppenordner)
     const k=this.loc();if(!this.quota||(k!='own'&&!k.startsWith('@')))return '';
-    const u=this.filesOf(k).reduce((a,f)=>a+(f.size||0),0);
-    return ' · '+t('belegt {0} von {1}',fmtSize(u),fmtSize(this.quota));
+    const own=k=='own'?me.name:k,tp=this.tr.filter(x=>x.owner==own).reduce((a,x)=>a+(x.size||0),0);
+    const u=this.filesOf(k).reduce((a,f)=>a+(f.size||0),0)+tp;
+    return ' · '+t('belegt {0} von {1}',fmtSize(u),fmtSize(this.quota))+(tp?' ('+t('davon {0} im Papierkorb',fmtSize(tp))+')':'');
   },
   nm(f){return this.loc()=='shared'?f.owner+'/'+f.name:f.name;},   // Anzeigepfad (freigegeben: Besitzer als oberster Ordner)
   ownerOf(){const k=this.loc();return k.startsWith('@')?k:'';},
-  canWriteLoc(){const k=this.loc();if(k=='own')return true;if(k=='shared')return false;const fo=this.folders.find(x=>'@'+x.name==k);return !!(fo&&fo.write);},
-  locName(){const k=this.loc();return k=='own'?t('Meine Ablage'):k=='shared'?t('Für mich freigegeben'):t('Gruppenordner')+' '+k.slice(1);},
+  canWriteLoc(){const k=this.loc();if(k=='own')return true;if(k=='shared'||k=='trash')return false;const fo=this.folders.find(x=>'@'+x.name==k);return !!(fo&&fo.write);},
+  locName(){const k=this.loc();return k=='trash'?t('Papierkorb'):k=='own'?t('Meine Ablage'):k=='shared'?t('Für mich freigegeben'):t('Gruppenordner')+' '+k.slice(1);},
   onFilter(){this.draw();},
   home(){if(sel===null)sel='own';this.build();this.draw();upd();},
   select(k){sel=k;this.path='';this.fsel=null;this.build();this.draw();upd();},
@@ -1566,6 +1569,7 @@ S.files={
     return h;
   },
   draw(){
+    if(this.loc()=='trash')return this.drawTrash();
     const l=this.entries(),k=this.loc(),q=($('#flt').value||'').trim();let body='';
     const sk=e=>this.fsel==this.key(e)?' act':'';
     if(this.vmode=='grid'){
@@ -1598,6 +1602,37 @@ S.files={
     dz.ondragover=e=>{e.preventDefault();dz.classList.add('over');};dz.ondragleave=()=>dz.classList.remove('over');
     dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');if(this.canWriteLoc())this.upload(e.dataTransfer.files);};
     if(this.fsel)this.detail(this.fsel);
+  },
+  trWhere(o){return o.startsWith('@')?t('Gruppenordner')+' '+o.slice(1):t('Meine Ablage');},
+  drawTrash(){
+    const q=($('#flt').value||'').trim().toLowerCase(),l=this.tr.filter(x=>!q||x.name.toLowerCase().includes(q));
+    const fe=x=>x.expires?esc(fmtDT(new Date(x.expires*1000).toISOString())):'–';
+    let body='<table class="ftab"><tr><th>'+t('Name')+'</th><th>'+t('Ort')+'</th><th>'+t('Größe')+'</th><th>'+t('Gelöscht')+'</th><th>'+t('Läuft ab')+'</th><th></th></tr>'+
+      l.map(x=>'<tr class="fr"><td>'+esc(x.name)+'</td><td>'+esc(this.trWhere(x.owner))+'</td><td>'+fmtSize(x.size)+'</td><td>'+esc(fmtDT(new Date(x.at*1000).toISOString()))+' · '+esc(x.by)+'</td><td>'+fe(x)+'</td>'+
+        '<td style="white-space:nowrap"><button data-r="'+esc(x.owner+'/'+x.id)+'">'+t('Wiederherstellen')+'</button> <button data-x="'+esc(x.owner+'/'+x.id)+'">'+t('Endgültig löschen')+'</button></td></tr>').join('')+'</table>';
+    if(!l.length)body='<div class="muted" style="margin:16px 0">'+(q?t('Keine Treffer.'):t('Der Papierkorb ist leer.'))+'</div>';
+    const info=this.trDays>0?t('Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.',this.trDays):t('Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.');
+    $('#main').innerHTML='<div class="fwrap"><div class="fmain"><div class="ftool"><span class="ttl">'+esc(t('Papierkorb'))+'</span>'+(this.tr.length?'<button id="tre">'+t('Papierkorb leeren')+'</button>':'')+'</div>'+
+      body+'<div class="muted" style="margin-top:10px">'+info+'</div></div></div>';
+    document.querySelectorAll('#main [data-r]').forEach(b=>b.onclick=()=>this.trRestore(b.dataset.r));
+    document.querySelectorAll('#main [data-x]').forEach(b=>b.onclick=()=>this.trDel(b.dataset.x));
+    if($('#tre'))$('#tre').onclick=()=>this.trEmpty();
+  },
+  trItem(k){const i=k.indexOf('/');return this.tr.find(x=>x.owner==k.slice(0,i)&&x.id==k.slice(i+1));},
+  async trRestore(k){
+    const x=this.trItem(k);if(!x)return;
+    const r=await J('POST','/api/trash/'+encodeURIComponent(x.owner)+'/'+encodeURIComponent(x.id)+'/restore');
+    if(r&&r.name!=x.name)alert(t('Wiederhergestellt als "{0}" (der Name war schon vergeben).',r.name));
+    await this.load();this.draw();upd();
+  },
+  async trDel(k){
+    const x=this.trItem(k);if(!x||!confirm(t('"{0}" endgültig löschen? Das lässt sich nicht rückgängig machen.',x.name)))return;
+    if(await api('DELETE','/api/trash/'+encodeURIComponent(x.owner)+'/'+encodeURIComponent(x.id))){await this.load();this.draw();upd();}
+  },
+  async trEmpty(){
+    if(!confirm(t('Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.',this.tr.length)))return;
+    for(const o of [...new Set(this.tr.map(x=>x.owner))])await api('DELETE','/api/trash?owner='+encodeURIComponent(o));
+    await this.load();this.draw();upd();
   },
   add(){   // "add" = Hochladen in den aktuellen Ort (nicht beschreibbar: eigene Ablage)
     if(!this.canWriteLoc()){sel='own';this.path='';this.build();this.draw();}
@@ -1639,7 +1674,7 @@ S.files={
       d.style.display='';
       $('#dop').onclick=()=>{this.path=full;this.fsel=null;this.draw();};
       if(w){$('#dmv').onclick=()=>this.rename(k,true);
-        $('#ddel').onclick=async()=>{if(!confirm(t('Ordner "{0}" mit allen Dateien darin löschen?',full)))return;
+        $('#ddel').onclick=async()=>{if(!confirm(this.trDays>0?t('Ordner "{0}" mit allen Dateien darin in den Papierkorb verschieben?',full):t('Ordner "{0}" mit allen Dateien darin löschen?',full)))return;
           if(await api('DELETE','/api/files/'+encodeURIComponent(this.ownerOf()||me.name)+'/'+encPath(full)+'?dir=1')){this.fsel=null;await this.load();this.draw();}};}
       return;
     }
@@ -1666,7 +1701,7 @@ S.files={
       if(await api('POST','/api/filesshare/'+fpath(f),b)){await this.load();this.fsel=k;this.draw();}};
   },
   async del(){
-    const f=this.fsel&&this.find(this.fsel);if(!f||!confirm(t('"{0}" löschen?',f.name)))return;
+    const f=this.fsel&&this.find(this.fsel);if(!f||!confirm(this.trDays>0?t('"{0}" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)',f.name,this.trDays):t('"{0}" löschen?',f.name)))return;
     if(await api('DELETE','/api/files/'+fpath(f))){this.fsel=null;await this.load();this.draw();upd();}
   }
 };
@@ -2374,7 +2409,8 @@ S.set={
      [0,1,2].map(i=>vdRow(i,(c.video||[])[i]||{})).join('')+'</div>'+
      rtcPanel(c.rtc||{})+
      '<div class="panel"><b>'+t('Dateien')+'</b>'+
-     '<div class="row"><input id="sq" type="number" min="0" style="width:90px" value="'+(c.quotaMB||0)+'"> '+t('Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)')+'</div></div>'+
+     '<div class="row"><input id="sq" type="number" min="0" style="width:90px" value="'+(c.quotaMB||0)+'"> '+t('Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)')+'</div>'+
+     '<div class="row"><input id="strash" type="number" min="0" max="3650" style="width:90px" value="'+(c.trashDays??30)+'"> '+t('Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)')+'</div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -2391,6 +2427,8 @@ S.set={
       if(!await api('POST','/api/settings/video',{options:vo}))return false;
       const qm=Math.round(+$('#sq').value);if(!(qm>=0)){alert(t('Kontingent: Zahl in MB (0 = unbegrenzt).'));return false;}
       if(!await api('POST','/api/settings/quota',{mb:qm}))return false;
+      const td=Math.round(+$('#strash').value);if(!(td>=0&&td<=3650)){alert(t('Papierkorb: Zahl der Tage (0 = kein Papierkorb).'));return false;}
+      if(!await api('POST','/api/settings/trash',{days:td}))return false;
       const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
       if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
       if(!await api('POST','/api/settings/rtc',rb))return false;

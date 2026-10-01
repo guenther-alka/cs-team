@@ -627,5 +627,22 @@
  "nach Anzahl": "after number",
  "nie": "never",
  "{0} Termine": "{0} events",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Changing the whole series: if you change the start or the repetition, events of the series that were changed or deleted individually are dropped."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Changing the whole series: if you change the start or the repetition, events of the series that were changed or deleted individually are dropped.",
+ "Papierkorb": "Trash",
+ "Gelöscht": "Deleted",
+ "Läuft ab": "Expires",
+ "Wiederherstellen": "Restore",
+ "Endgültig löschen": "Delete permanently",
+ "Papierkorb leeren": "Empty trash",
+ "Der Papierkorb ist leer.": "The trash is empty.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Deleted files stay in the trash for {0} days and count towards the quota; if space runs short, the oldest entry is removed first.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "The trash is switched off; newly deleted files are gone immediately.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Restored as \"{0}\" (the name was already taken).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "Delete \"{0}\" permanently? This cannot be undone.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Empty the trash? All {0} entries will be deleted permanently.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "Move folder \"{0}\" and all files in it to the trash?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "Move \"{0}\" to the trash? (can be restored for {1} days)",
+ "davon {0} im Papierkorb": "{0} of it in the trash",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Trash: days until permanent deletion (0 = no trash)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Trash: number of days (0 = no trash)."
 }

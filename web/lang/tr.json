@@ -627,5 +627,22 @@
  "nach Anzahl": "sayıdan sonra",
  "nie": "asla",
  "{0} Termine": "{0} etkinlik",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Tüm seriyi değiştirme: başlangıcı veya tekrarı değiştirirseniz, serinin tek tek değiştirilmiş veya silinmiş etkinlikleri atılır."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Tüm seriyi değiştirme: başlangıcı veya tekrarı değiştirirseniz, serinin tek tek değiştirilmiş veya silinmiş etkinlikleri atılır.",
+ "Papierkorb": "Çöp kutusu",
+ "Gelöscht": "Silindi",
+ "Läuft ab": "Süresi dolar",
+ "Wiederherstellen": "Geri yükle",
+ "Endgültig löschen": "Kalıcı olarak sil",
+ "Papierkorb leeren": "Çöp kutusunu boşalt",
+ "Der Papierkorb ist leer.": "Çöp kutusu boş.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Silinen dosyalar {0} gün çöp kutusunda kalır ve kotaya dahildir; yer azalırsa önce en eski kayıt kalıcı olarak silinir.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "Çöp kutusu kapalı; yeni silinen dosyalar hemen yok olur.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "\"{0}\" olarak geri yüklendi (ad zaten kullanımdaydı).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "\"{0}\" kalıcı olarak silinsin mi? Bu işlem geri alınamaz.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Çöp kutusu boşaltılsın mı? {0} kaydın tümü kalıcı olarak silinecek.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "\"{0}\" klasörü ve içindeki tüm dosyalar çöp kutusuna taşınsın mı?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "\"{0}\" çöp kutusuna taşınsın mı? ({1} gün boyunca geri yüklenebilir)",
+ "davon {0} im Papierkorb": "bunun {0} kadarı çöp kutusunda",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Çöp kutusu: kalıcı silmeye kadar gün (0 = çöp kutusu yok)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Çöp kutusu: gün sayısı (0 = çöp kutusu yok)."
 }

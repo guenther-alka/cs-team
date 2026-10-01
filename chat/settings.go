@@ -25,24 +25,27 @@ type Settings struct {
 	EnvPrivate bool
 	// EnvQuotaMB: Vorgabe für das Dateikontingent (Startparameter CS_QUOTA_MB)
 	EnvQuotaMB int64
+	// EnvTrashDays: Vorgabe für die Aufbewahrung im Papierkorb (CS_TRASH_DAYS, Standard 30; 0 = aus)
+	EnvTrashDays int
 
 	mu  sync.RWMutex
 	cur stored
 }
 
 type stored struct {
-	Host    string     `json:"host,omitempty"`
-	Port    string     `json:"port,omitempty"`
-	User    string     `json:"user,omitempty"`
-	Pass    string     `json:"pass,omitempty"`
-	From    string     `json:"from,omitempty"`
-	TLS     string     `json:"tls,omitempty"`
-	Public  string     `json:"public,omitempty"`
-	Private *bool      `json:"private,omitempty"`
-	Video   []VideoOpt `json:"video,omitempty"`   // Videochat-Server (bis zu 3)
-	VSecret string     `json:"vsecret,omitempty"` // Geheimnis für Raumnamen
-	RTC     RTCCfg     `json:"rtc"`               // eingebauter Videochat (WebRTC)
-	QuotaMB *int64     `json:"quotaMB,omitempty"` // Kontingent je Benutzer / Gruppenordner (MB, 0 = unbegrenzt)
+	Host      string     `json:"host,omitempty"`
+	Port      string     `json:"port,omitempty"`
+	User      string     `json:"user,omitempty"`
+	Pass      string     `json:"pass,omitempty"`
+	From      string     `json:"from,omitempty"`
+	TLS       string     `json:"tls,omitempty"`
+	Public    string     `json:"public,omitempty"`
+	Private   *bool      `json:"private,omitempty"`
+	Video     []VideoOpt `json:"video,omitempty"`     // Videochat-Server (bis zu 3)
+	VSecret   string     `json:"vsecret,omitempty"`   // Geheimnis für Raumnamen
+	RTC       RTCCfg     `json:"rtc"`                 // eingebauter Videochat (WebRTC)
+	QuotaMB   *int64     `json:"quotaMB,omitempty"`   // Kontingent je Benutzer / Gruppenordner (MB, 0 = unbegrenzt)
+	TrashDays *int       `json:"trashDays,omitempty"` // Papierkorb: Tage (0 = aus)
 }
 
 const settingsKey = "settings.json"
@@ -87,6 +90,32 @@ func (s *Settings) QuotaMB() int64 {
 		return *s.cur.QuotaMB
 	}
 	return s.EnvQuotaMB
+}
+
+// TrashDays: wirksame Aufbewahrung gelöschter Dateien in Tagen (0 = Papierkorb aus).
+func (s *Settings) TrashDays() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cur.TrashDays != nil {
+		return *s.cur.TrashDays
+	}
+	return s.EnvTrashDays
+}
+
+func (s *Settings) setTrashDays(d int) error {
+	if d < 0 || d > 3650 {
+		return errors.New("trash: 0..3650 days")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.cur
+	n.TrashDays = &d
+	b, _ := json.Marshal(n)
+	if _, err := s.St.Put(context.Background(), settingsKey, b, ""); err != nil {
+		return err
+	}
+	s.cur = n
+	return nil
 }
 
 // Quota: Kontingent in Byte (für files.Svc.Quota).
@@ -195,10 +224,11 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 		json.NewEncoder(w).Encode(map[string]any{
 			"host": c.Host, "port": c.Port, "user": c.User, "from": c.From, "tls": c.TLS, "passSet": c.Pass != "",
 			"public": own.Public, "private": s.AllowPrivate(), "enabled": c.Enabled(),
-			"envHost": s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
-			"video":   s.Video(),
-			"quotaMB": s.QuotaMB(),
-			"rtc":     map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
+			"envHost":   s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
+			"video":     s.Video(),
+			"quotaMB":   s.QuotaMB(),
+			"trashDays": s.TrashDays(),
+			"rtc":       map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
 		})
 	}))
 	mux.Handle("POST /api/settings/quota", admin(func(w http.ResponseWriter, r *http.Request) {
@@ -208,6 +238,16 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			return
 		}
 		if err := s.setQuota(in.MB); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
+	}))
+	mux.Handle("POST /api/settings/trash", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Days int }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setTrashDays(in.Days); err != nil {
 			http.Error(w, err.Error(), 400)
 		}
 	}))

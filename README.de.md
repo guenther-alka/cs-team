@@ -51,8 +51,19 @@ widerrufbar). PDF, Bilder und Text werden im Browser angezeigt, alles andere (HT
 
 WebDAV: `https://host/webdav/` (Basic Auth, dieselben Rechte wie im Browser). Root = eigene Dateien,
 `shared/<besitzer>/` = mit mir geteilt. Keine Ordner (MKCOL = 403). COPY/MOVE nur innerhalb der eigenen Dateien.
-Getestet mit dem Protokoll; im Windows-Explorer ist WebDAV wählerisch (HTTPS nötig, kein LOCK) - rclone, WinSCP,
-Cyberduck oder macOS-Finder funktionieren zuverlässiger.
+Getestet mit dem Protokoll; im Windows-Explorer ist WebDAV wählerisch (HTTPS nötig) - rclone, WinSCP,
+Cyberduck oder macOS-Finder funktionieren zuverlässiger. Seit 0.14.2 meldet der Server DAV-Klasse 2 (`LOCK`/`UNLOCK`): exklusive
+Schreibsperre je Datei im Speicher des Prozesses (Standard 10 Minuten, höchstens 1 Stunde, Erneuerung per `If`-Token, lock-null legt eine
+leere Datei an). Gesperrt ist die Datei für alle anderen Benutzer, im Browser wie per WebDAV (HTTP 423); der Sperrende darf auch ohne
+Token schreiben. Nach einem Neustart sperren die Clients neu.
+
+**Papierkorb (0.14.2).** Löschen (Browser, WebDAV, REST) verschiebt Dateien nach `files/<besitzer>/.trash/<id>` (Metadaten mit
+Ursprungspfad, Löscher, Zeit); der Name `.trash` ist reserviert. Aufbewahrung: Einstellungen > Dateien "Papierkorb: Tage" (Standard 30,
+Vorgabe `CS_TRASH_DAYS`, 0 = kein Papierkorb, sofort endgültig). Stündlicher Lauf entfernt abgelaufene Einträge. Der Papierkorb zählt zum
+Kontingent; bei Platzmangel werden zuerst die ältesten Einträge endgültig gelöscht. Gruppenordner: Verwalter sehen und stellen wieder her.
+REST: `GET /api/trash`, `POST /api/trash/<besitzer>/<id>/restore` (bei belegtem Namen neuer Name, Antwort `{"name":...}`),
+`DELETE /api/trash/<besitzer>/<id>`, `DELETE /api/trash[?owner=@gruppe]` (leeren), `POST /api/settings/trash {"days":n}` (Admin).
+Ein Gruppenordner lässt sich erst löschen, wenn sein Papierkorb leer ist.
 
 REST: `GET/POST /api/files`, `GET/DELETE /api/files/<owner>/<name>`, `POST .../share`, `GET /pub/<token>`;
 Kalender: `GET/POST /api/cal`, `DELETE /api/cal/<id>`, `GET/POST /api/cal/<id>/events`, `DELETE .../events/<file>`.
@@ -154,7 +165,7 @@ sichtbar für Auftraggeber, Bearbeiter, Beteiligte und Admins. Speicherung: `tas
 ## Kontingent (0.13.9)
 
 Einstellungen > Dateien: Kontingent je Benutzer und je Gruppenordner in MB (0 = unbegrenzt). Vorgabe aus `CS_QUOTA_MB`. Es gilt für Browser und
-WebDAV und wirkt sofort; ist es voll, antwortet der Server mit HTTP 507 (`storage quota exceeded`). Eine ersetzte Datei zählt nicht doppelt,
+WebDAV (der Papierkorb zählt mit) und wirkt sofort; ist es voll, antwortet der Server mit HTTP 507 (`storage quota exceeded`). Eine ersetzte Datei zählt nicht doppelt,
 parallele Uploads überschreiten das Kontingent nicht. Die Dateiansicht zeigt "belegt X von Y". REST: `POST /api/settings/quota {"mb":n}`
 (Admin), `GET /api/settings` liefert `quotaMB`, `GET /api/files` liefert `quota` und `used`.
 

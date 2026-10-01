@@ -627,5 +627,22 @@
  "nach Anzahl": "dopo un numero",
  "nie": "mai",
  "{0} Termine": "{0} eventi",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Modifica dell'intera serie: se cambia l'inizio o la ripetizione, gli eventi della serie modificati o eliminati singolarmente vengono scartati."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Modifica dell'intera serie: se cambia l'inizio o la ripetizione, gli eventi della serie modificati o eliminati singolarmente vengono scartati.",
+ "Papierkorb": "Cestino",
+ "Gelöscht": "Eliminato",
+ "Läuft ab": "Scade",
+ "Wiederherstellen": "Ripristina",
+ "Endgültig löschen": "Elimina definitivamente",
+ "Papierkorb leeren": "Svuota il cestino",
+ "Der Papierkorb ist leer.": "Il cestino è vuoto.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "I file eliminati restano nel cestino per {0} giorni e contano per la quota; se manca spazio, viene rimossa prima la voce più vecchia.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "Il cestino è disattivato; i file eliminati scompaiono subito.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Ripristinato come «{0}» (il nome era già in uso).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "Eliminare «{0}» definitivamente? L'operazione non è reversibile.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Svuotare il cestino? Tutte le {0} voci verranno eliminate definitivamente.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "Spostare la cartella «{0}» con tutti i file nel cestino?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "Spostare «{0}» nel cestino? (ripristinabile per {1} giorni)",
+ "davon {0} im Papierkorb": "di cui {0} nel cestino",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Cestino: giorni fino all'eliminazione definitiva (0 = nessun cestino)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Cestino: numero di giorni (0 = nessun cestino)."
 }

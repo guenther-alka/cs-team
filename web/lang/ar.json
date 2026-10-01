@@ -627,5 +627,22 @@
  "nach Anzahl": "بعد عدد",
  "nie": "أبدًا",
  "{0} Termine": "{0} أحداث",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "تغيير السلسلة بأكملها: إذا غيّرت البداية أو التكرار، تُهمَل أحداث السلسلة المعدّلة أو المحذوفة بشكل منفرد."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "تغيير السلسلة بأكملها: إذا غيّرت البداية أو التكرار، تُهمَل أحداث السلسلة المعدّلة أو المحذوفة بشكل منفرد.",
+ "Papierkorb": "سلة المحذوفات",
+ "Gelöscht": "تم الحذف",
+ "Läuft ab": "ينتهي",
+ "Wiederherstellen": "استعادة",
+ "Endgültig löschen": "حذف نهائي",
+ "Papierkorb leeren": "إفراغ سلة المحذوفات",
+ "Der Papierkorb ist leer.": "سلة المحذوفات فارغة.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "تبقى الملفات المحذوفة في سلة المحذوفات {0} يومًا وتُحسب ضمن الحصة؛ وعند نقص المساحة يُحذف أقدم عنصر أولًا.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "سلة المحذوفات معطّلة؛ الملفات المحذوفة حديثًا تُزال فورًا.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "تمت الاستعادة باسم \"{0}\" (الاسم مستخدم مسبقًا).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "هل تريد حذف \"{0}\" نهائيًا؟ لا يمكن التراجع عن ذلك.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "هل تريد إفراغ سلة المحذوفات؟ سيتم حذف جميع العناصر ({0}) نهائيًا.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "هل تريد نقل المجلد \"{0}\" وكل ملفاته إلى سلة المحذوفات؟",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "هل تريد نقل \"{0}\" إلى سلة المحذوفات؟ (يمكن الاستعادة خلال {1} يومًا)",
+ "davon {0} im Papierkorb": "منها {0} في سلة المحذوفات",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "سلة المحذوفات: عدد الأيام حتى الحذف النهائي (0 = بدون سلة)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "سلة المحذوفات: عدد الأيام (0 = بدون سلة)."
 }

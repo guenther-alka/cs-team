@@ -627,5 +627,22 @@
  "nach Anzahl": "après un nombre",
  "nie": "jamais",
  "{0} Termine": "{0} événements",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Modification de toute la série : si vous changez le début ou la répétition, les événements de la série modifiés ou supprimés individuellement sont abandonnés."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Modification de toute la série : si vous changez le début ou la répétition, les événements de la série modifiés ou supprimés individuellement sont abandonnés.",
+ "Papierkorb": "Corbeille",
+ "Gelöscht": "Supprimé",
+ "Läuft ab": "Expire",
+ "Wiederherstellen": "Restaurer",
+ "Endgültig löschen": "Supprimer définitivement",
+ "Papierkorb leeren": "Vider la corbeille",
+ "Der Papierkorb ist leer.": "La corbeille est vide.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Les fichiers supprimés restent {0} jours dans la corbeille et comptent dans le quota ; en cas de manque de place, l'entrée la plus ancienne est supprimée en premier.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "La corbeille est désactivée ; les fichiers supprimés disparaissent immédiatement.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Restauré sous « {0} » (le nom était déjà pris).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "Supprimer « {0} » définitivement ? Cette action est irréversible.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Vider la corbeille ? Les {0} entrées seront supprimées définitivement.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "Déplacer le dossier « {0} » et tous ses fichiers dans la corbeille ?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "Déplacer « {0} » dans la corbeille ? (restauration possible pendant {1} jours)",
+ "davon {0} im Papierkorb": "dont {0} dans la corbeille",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Corbeille : jours avant la suppression définitive (0 = pas de corbeille)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Corbeille : nombre de jours (0 = pas de corbeille)."
 }

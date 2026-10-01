@@ -1,5 +1,24 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.14.2 Papierkorb und WebDAV-Sperren. Papierkorb: Loeschen im Browser, per WebDAV und REST verschiebt die Datei (bei Ordnern jede Datei) nach
+                   files/<besitzer>/.trash/<id> mit Metadaten (Ursprungspfad, Loescher, Zeit); der Name ".trash" ist fuer Dateien reserviert (ValidName). Neu in
+                   store: Move (FS rename, Mem, S3 Kopie + Loeschen). Aufbewahrung in Tagen: Einstellungen > Dateien (Standard 30, Vorgabe CS_TRASH_DAYS, 0 = kein
+                   Papierkorb), stuendlicher Lauf (RunTrash) entfernt Abgelaufene. Der Papierkorb zaehlt zum Kontingent (belegt, Upload-Pruefung); fehlt Platz fuer
+                   einen Upload, werden zuerst die aeltesten Eintraege endgueltig geloescht (evictTrash), erst dann 507. Gruppenordner: Verwalter (Gruppen-Admin,
+                   bei "alle schreiben" jedes Mitglied) sehen und stellen wieder her; ein Gruppenordner mit Papierkorb-Eintraegen laesst sich erst nach dem Leeren
+                   loeschen. Wiederherstellen legt die Datei an den Ursprungspfad zurueck, bei belegtem Namen mit neuem Namen (Antwort {"name"}). REST: GET /api/trash,
+                   POST /api/trash/{besitzer}/{id}/restore, DELETE /api/trash/{besitzer}/{id}, DELETE /api/trash[?owner=] (leeren), POST /api/settings/trash {"days"};
+                   GET /api/files liefert trash/trashDays, used enthaelt den Papierkorb. Oberflaeche: Eintrag "Papierkorb" in der Seitenleiste (Ort, Groesse, geloescht
+                   von/am, laeuft ab; Wiederherstellen, Endgueltig loeschen, Papierkorb leeren), Hinweis beim Loeschen, Kontingentanzeige mit Anteil im Papierkorb,
+                   Feld "Papierkorb: Tage" in den Einstellungen; 17 neue Texte in allen Sprachen. WebDAV LOCK/UNLOCK (DAV-Klasse 2): exklusive Schreibsperre je Datei im
+                   Speicher (Standard 10 Min., hoechstens 1 Std., Erneuerung per If-Token, lock-null legt eine leere Datei an, 201); OPTIONS meldet "DAV: 1, 2, 3"
+                   und Allow mit LOCK/UNLOCK (Windows-Explorer, Word, Excel). Die Sperre gilt fuer alle Wege (WebDAV, Browser-Upload, Loeschen, Verschieben): andere
+                   Benutzer erhalten 423, der Sperrende darf auch ohne Token schreiben (kein Aussperren nach Absturz des Clients); Sperren sind nur im Speicher
+                   (Neustart: Clients sperren neu), hoechstens 5000. Tests: store TestMove, files/trash_test.go (Ablauf, Verdraengung), trash_test.go (Loeschen,
+                   Wiederherstellen, Namenskonflikt, Ordner, Gruppen, Einstellung, Rechte, Kontingent), davlock_test.go (LOCK, Erneuerung, UNLOCK, lock-null, fremde
+                   Benutzer 423, Ablauf, OPTIONS); livetest: LOCK und Papierkorb als feste Pruefungen; Browsertest (Chromium, de/en). Handbuch (de/en) Kapitel 4.7,
+                   4.11, 6, 9 und Umgebungsvariable CS_TRASH_DAYS; README (de/en). Offen: WebDAV-Range im RAM-Speicher (Mem ist kein ReadSeeker; FS und S3 gehen).
+
 2026-10-01  0.14.1 Haertung und Dateien. KI-Widget: Knopf erscheint nach dem Speichern der KI-Einstellungen sofort (und verschwindet beim Ausschalten), kein Neuladen
                    mehr noetig. Chat (Audit C-07, C-08/C-09, C-13/C-14): Bearbeiten und Reaktionen verlangen Schreibrecht im Kanal (bisher nur Leserecht) und zaehlen
                    zum Tempolimit (20 je 10 s mit dem Senden); Speicherfehler beim Senden, Bearbeiten und in der Auswertung werden gemeldet statt verschluckt (die

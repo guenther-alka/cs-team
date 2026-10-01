@@ -33,6 +33,16 @@ func (s *Svc) WebDAV() http.Handler {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			hd.Set("Content-Disposition", "attachment")
 		}
+		switch r.Method {
+		case "LOCK":
+			s.davLock(w, r)
+			return
+		case "UNLOCK":
+			s.davUnlock(w, r)
+			return
+		case http.MethodOptions:
+			w = &davHead{ResponseWriter: w, opts: true}
+		}
 		h.ServeHTTP(w, r)
 	})
 }
@@ -53,6 +63,8 @@ func dErr(err error) error {
 		return webdav.NewHTTPError(http.StatusRequestEntityTooLarge, err)
 	case errors.Is(err, ErrQuota):
 		return webdav.NewHTTPError(http.StatusInsufficientStorage, err)
+	case errors.Is(err, ErrLocked):
+		return webdav.NewHTTPError(http.StatusLocked, err)
 	case errors.Is(err, ErrBadName):
 		return webdav.NewHTTPError(http.StatusBadRequest, err)
 	case errors.Is(err, ErrExists):

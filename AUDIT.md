@@ -235,7 +235,7 @@ Lücken: `FromDOCX` zählt `w:tab` in den Absatzeigenschaften als Tab im Text; T
 Vorschläge: Formatierung im DOCX-Export (mindestens b/i/u, Listen), `w:tab` nur innerhalb von `w:r`, Überschreib-Bestätigung.
 
 **Dateien.** Eigene Ablage, „Für mich freigegeben“, Gruppenordner, Liste/Raster, Suche, Upload (Dialog, Drag&Drop, Ordner), Teilen per Benutzer/Gruppe/alle, öffentlicher Link, WebDAV.
-Lücken: Umbenennen/Verschieben legt die Datei neu an – **Freigaben und öffentlicher Link gehen verloren**, ohne Hinweis; bei Ordnern Teilzustand bei Fehlern; `serve()` ohne Range/304 (Videos nicht spulbar); WebDAV ohne `LOCK` (Word/Excel/Finder mounten oft nur lesend); kein Papierkorb, keine Versionierung, kein Kontingent, keine Mehrfachauswahl; Umbenennen per `prompt()`; Fehlermeldung bei gesperrten Namen `shared`/`groups` nur „bad file name“.
+Lücken: Umbenennen/Verschieben legt die Datei neu an – **Freigaben und öffentlicher Link gehen verloren**, ohne Hinweis; bei Ordnern Teilzustand bei Fehlern; `serve()` ohne Range/304 (Videos nicht spulbar); WebDAV ohne `LOCK` (in 0.14.2 behoben); kein Papierkorb (in 0.14.2 behoben), keine Versionierung, kein Kontingent (0.13.9 behoben), keine Mehrfachauswahl; Umbenennen per `prompt()`; Fehlermeldung bei gesperrten Namen `shared`/`groups` nur „bad file name“.
 Vorschläge: Metadaten beim Verschieben übernehmen, Range/304, Papierkorb + Quota, Ablauf/Passwort für öffentliche Links.
 
 **Aufgaben.** Ticketsystem mit Filtern, Status open → doing → done → closed, Meilensteine, Wiederholung, Verweise, Kommentarverlauf, Echtzeit, Desktop-Benachrichtigungen.

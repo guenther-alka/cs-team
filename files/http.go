@@ -22,6 +22,8 @@ func status(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, ErrQuota):
 		return http.StatusInsufficientStorage
+	case errors.Is(err, ErrLocked):
+		return http.StatusLocked
 	case errors.Is(err, ErrBadName), errors.Is(err, ErrExists):
 		return http.StatusBadRequest
 	}
@@ -65,8 +67,12 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/files/{owner}/{name...}", f(s.download))
 	mux.Handle("DELETE /api/files/{owner}/{name...}", f(s.remove)) // ?dir=1 löscht einen Ordner samt Inhalt
 	mux.Handle("POST /api/filesshare/{owner}/{name...}", f(s.share))
-	mux.Handle("POST /api/filesdir", f(s.mkdir)) // ?owner=&name=<ordnerpfad>
-	mux.Handle("POST /api/filesmove", f(s.move)) // ?owner=&from=&to=[&dir=1][&copy=1]
+	mux.Handle("POST /api/filesdir", f(s.mkdir))                          // ?owner=&name=<ordnerpfad>
+	mux.Handle("POST /api/filesmove", f(s.move))                          // ?owner=&from=&to=[&dir=1][&copy=1]
+	mux.Handle("GET /api/trash", f(s.trashList))                          // Papierkorb: eigene und Gruppenordner, die ich verwalte
+	mux.Handle("POST /api/trash/{owner}/{id}/restore", f(s.trashRestore)) // stellt wieder her, Antwort {"name":...}
+	mux.Handle("DELETE /api/trash/{owner}/{id}", f(s.trashDelete))        // endgültig löschen
+	mux.Handle("DELETE /api/trash", f(s.trashEmpty))                      // ?owner= leert den Papierkorb dieses Besitzers (Standard: eigener)
 	mux.Handle("GET /pub/{token}", http.HandlerFunc(s.public))
 	mux.Handle("/webdav/", wrap(auth.Need("files", s.WebDAV())))
 	mux.Handle("/webdav", wrap(http.RedirectHandler("/webdav/", http.StatusMovedPermanently)))
@@ -85,8 +91,10 @@ func (s *Svc) list(w http.ResponseWriter, r *http.Request) {
 		Folders []auth.FolderInfo `json:"folders"` // Gruppenordner, auf die ich zugreifen darf
 		MaxMB   int64             `json:"maxMB"`
 		Quota   int64             `json:"quota,omitempty"` // Kontingent in Bytes (0 = unbegrenzt)
-		Used    int64             `json:"used"`            // belegt (eigener Bereich)
-	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20, 0, 0}
+		Used    int64             `json:"used"`            // belegt (eigener Bereich, einschließlich Papierkorb)
+		Trash   int64             `json:"trash,omitempty"` // davon im Papierkorb
+		Days    int               `json:"trashDays"`       // Aufbewahrung in Tagen (0 = kein Papierkorb)
+	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20, 0, 0, 0, s.trashDays()}
 	if s.Quota != nil {
 		out.Quota = s.Quota()
 	}
@@ -94,6 +102,8 @@ func (s *Svc) list(w http.ResponseWriter, r *http.Request) {
 		out.Own = append(out.Own, toRow(m, me))
 		out.Used += m.Size
 	}
+	out.Trash = s.TrashUsed(r.Context(), me)
+	out.Used += out.Trash
 	for _, m := range shared {
 		out.Shared = append(out.Shared, toRow(m, me))
 	}
@@ -312,4 +322,42 @@ func (s *Svc) share(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(toRow(*m, me))
+}
+
+func (s *Svc) trashList(w http.ResponseWriter, r *http.Request) {
+	items, err := s.Trash(r.Context(), auth.User(r.Context()))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"days": s.trashDays(), "items": items})
+}
+
+func (s *Svc) trashRestore(w http.ResponseWriter, r *http.Request) {
+	name, err := s.Restore(r.Context(), auth.User(r.Context()), r.PathValue("owner"), r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"name": name})
+}
+
+func (s *Svc) trashDelete(w http.ResponseWriter, r *http.Request) {
+	if err := s.DeleteTrash(r.Context(), auth.User(r.Context()), r.PathValue("owner"), r.PathValue("id")); err != nil {
+		fail(w, err)
+	}
+}
+
+func (s *Svc) trashEmpty(w http.ResponseWriter, r *http.Request) {
+	me := auth.User(r.Context())
+	owner := r.URL.Query().Get("owner")
+	if owner == "" {
+		owner = me
+	}
+	n, err := s.EmptyTrash(r.Context(), me, owner)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]int{"deleted": n})
 }

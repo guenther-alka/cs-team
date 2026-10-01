@@ -43,14 +43,15 @@ var (
 )
 
 type Meta struct {
-	Name  string   `json:"name"`
-	Owner string   `json:"owner"`
-	Size  int64    `json:"size"`
-	Type  string   `json:"type"`
-	Mod   int64    `json:"mod"` // unix nano
-	Read  []string `json:"read,omitempty"`
-	Write []string `json:"write,omitempty"`
-	Token string   `json:"token,omitempty"`
+	Name  string     `json:"name"`
+	Owner string     `json:"owner"`
+	Size  int64      `json:"size"`
+	Type  string     `json:"type"`
+	Mod   int64      `json:"mod"` // unix nano
+	Read  []string   `json:"read,omitempty"`
+	Write []string   `json:"write,omitempty"`
+	Token string     `json:"token,omitempty"`
+	Trash *TrashInfo `json:"trash,omitempty"` // gesetzt: Eintrag im Papierkorb (siehe trash.go)
 }
 
 func (m *Meta) ETag() string { return fmt.Sprintf("%d-%d", m.Mod, m.Size) }
@@ -86,7 +87,10 @@ type Svc struct {
 	Max int64 // maximale Dateigröße in Bytes
 	// Quota: Kontingent je Besitzer (Benutzer oder Gruppenordner) in Bytes; nil oder 0 = unbegrenzt (F8)
 	Quota func() int64
+	// TrashDays: Aufbewahrung gelöschter Dateien in Tagen; nil oder 0 = kein Papierkorb (sofort löschen)
+	TrashDays func() int
 
+	locks  lockTable // WebDAV-Sperren (davlock.go)
 	cmu    sync.Mutex
 	cache  []Meta
 	cload  time.Time
@@ -256,7 +260,7 @@ func ValidName(n string) bool {
 		return false
 	}
 	segs := strings.Split(n, "/")
-	if len(segs) > 10 || segs[0] == "shared" || segs[0] == "groups" {
+	if len(segs) > 10 || segs[0] == "shared" || segs[0] == "groups" || segs[0] == trashDir {
 		return false
 	}
 	for _, sg := range segs {
@@ -330,6 +334,9 @@ func (s *Svc) List(ctx context.Context, user string) (own, shared []Meta, err er
 		return nil, nil, err
 	}
 	for _, m := range all {
+		if isTrash(&m) {
+			continue
+		}
 		if m.Owner == user {
 			own = append(own, m)
 		} else if r, _ := m.Level(user); r {
@@ -390,6 +397,9 @@ func (s *Svc) Put(ctx context.Context, actor, owner, name string, r io.Reader, s
 			return nil, ErrDenied
 		}
 	}
+	if s.lockedByOther(owner, name, actor) {
+		return nil, ErrLocked
+	}
 	if size > s.Max {
 		return nil, ErrTooLarge
 	}
@@ -397,6 +407,9 @@ func (s *Svc) Put(ctx context.Context, actor, owner, name string, r io.Reader, s
 		return nil, err
 	}
 	room, release, err := s.reserve(ctx, owner, size, old.Size)
+	if errors.Is(err, ErrQuota) && s.evictTrash(ctx, owner, size) > 0 { // Platzmangel: zuerst den Papierkorb leeren (älteste zuerst)
+		room, release, err = s.reserve(ctx, owner, size, old.Size)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +463,7 @@ func (s *Svc) Open(ctx context.Context, actor, owner, name string) (*Meta, io.Re
 	return m, rc, err
 }
 
-// Remove: nur der Owner.
+// Remove löscht eine Datei: in den Papierkorb (wenn eingeschaltet, nicht für Ordner-Marker und leere Dateien), sonst endgültig.
 func (s *Svc) Remove(ctx context.Context, actor, owner, name string) error {
 	m, err := s.Meta(ctx, owner, name)
 	if err != nil {
@@ -459,11 +472,22 @@ func (s *Svc) Remove(ctx context.Context, actor, owner, name string) error {
 	if !canManage(m, actor) {
 		return ErrDenied
 	}
+	if s.lockedByOther(owner, name, actor) {
+		return ErrLocked
+	}
+	if s.trashDays() > 0 && Base(m.Name) != Marker && m.Size > 0 {
+		return s.trashRemove(ctx, actor, m)
+	}
+	return s.removeHard(ctx, m)
+}
+
+// removeHard: endgültig (auch beim Verschieben/Umbenennen, wo kein Papierkorb-Eintrag entstehen soll).
+func (s *Svc) removeHard(ctx context.Context, m *Meta) error {
 	if m.Token != "" {
 		s.St.Delete(ctx, tokKey(m.Token))
 	}
-	s.St.Delete(ctx, metaKey(owner, name))
-	err = s.St.Delete(ctx, dataKey(owner, name))
+	s.St.Delete(ctx, metaKey(m.Owner, m.Name))
+	err := s.St.Delete(ctx, dataKey(m.Owner, m.Name))
 	s.invalidate()
 	return err
 }
@@ -483,7 +507,7 @@ func (s *Svc) under(ctx context.Context, owner, dir string) []Meta {
 	all, _ := s.all(ctx)
 	var out []Meta
 	for _, m := range all {
-		if m.Owner == owner && strings.HasPrefix(m.Name, dir+"/") {
+		if m.Owner == owner && !isTrash(&m) && strings.HasPrefix(m.Name, dir+"/") {
 			out = append(out, m)
 		}
 	}
@@ -552,7 +576,7 @@ func (s *Svc) MoveTo(ctx context.Context, actor, owner, from, to string, dir, mo
 			return err
 		}
 		if move {
-			if err := s.Remove(ctx, actor, owner, m.Name); err != nil {
+			if err := s.removeFrom(ctx, actor, owner, m.Name); err != nil {
 				return err
 			}
 		}
@@ -656,9 +680,24 @@ func (s *Svc) Copy(ctx context.Context, user, from, to string, move, overwrite b
 		return false, err
 	}
 	if move {
-		if err = s.Remove(ctx, user, user, from); err != nil {
+		if err = s.removeFrom(ctx, user, user, from); err != nil {
 			return false, err
 		}
 	}
 	return !exists, nil
+}
+
+// removeFrom: Quelle nach Verschieben/Umbenennen endgültig entfernen (Rechte wie bei Remove, aber nie in den Papierkorb).
+func (s *Svc) removeFrom(ctx context.Context, actor, owner, name string) error {
+	m, err := s.Meta(ctx, owner, name)
+	if err != nil {
+		return err
+	}
+	if !canManage(m, actor) {
+		return ErrDenied
+	}
+	if s.lockedByOther(owner, name, actor) {
+		return ErrLocked
+	}
+	return s.removeHard(ctx, m)
 }

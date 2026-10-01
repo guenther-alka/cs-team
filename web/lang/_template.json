@@ -626,5 +626,22 @@
  "nach Anzahl": "nach Anzahl",
  "nie": "nie",
  "{0} Termine": "{0} Termine",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.",
+ "Papierkorb": "Papierkorb",
+ "Gelöscht": "Gelöscht",
+ "Läuft ab": "Läuft ab",
+ "Wiederherstellen": "Wiederherstellen",
+ "Endgültig löschen": "Endgültig löschen",
+ "Papierkorb leeren": "Papierkorb leeren",
+ "Der Papierkorb ist leer.": "Der Papierkorb ist leer.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)",
+ "davon {0} im Papierkorb": "davon {0} im Papierkorb",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Papierkorb: Zahl der Tage (0 = kein Papierkorb)."
 }

@@ -627,5 +627,22 @@
  "nach Anzahl": "tras un número",
  "nie": "nunca",
  "{0} Termine": "{0} eventos",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Cambio de toda la serie: si cambia el inicio o la repetición, se descartan los eventos de la serie modificados o eliminados individualmente."
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "Cambio de toda la serie: si cambia el inicio o la repetición, se descartan los eventos de la serie modificados o eliminados individualmente.",
+ "Papierkorb": "Papelera",
+ "Gelöscht": "Eliminado",
+ "Läuft ab": "Caduca",
+ "Wiederherstellen": "Restaurar",
+ "Endgültig löschen": "Eliminar definitivamente",
+ "Papierkorb leeren": "Vaciar la papelera",
+ "Der Papierkorb ist leer.": "La papelera está vacía.",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "Los archivos eliminados permanecen {0} días en la papelera y cuentan para la cuota; si falta espacio, se elimina primero la entrada más antigua.",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "La papelera está desactivada; los archivos eliminados desaparecen de inmediato.",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "Restaurado como «{0}» (el nombre ya estaba en uso).",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "¿Eliminar «{0}» definitivamente? No se puede deshacer.",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "¿Vaciar la papelera? Las {0} entradas se eliminarán definitivamente.",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "¿Mover la carpeta «{0}» con todos sus archivos a la papelera?",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "¿Mover «{0}» a la papelera? (se puede restaurar durante {1} días)",
+ "davon {0} im Papierkorb": "de ello {0} en la papelera",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "Papelera: días hasta la eliminación definitiva (0 = sin papelera)",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "Papelera: número de días (0 = sin papelera)."
 }

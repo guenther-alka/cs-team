@@ -627,5 +627,22 @@
  "nach Anzahl": "按次数",
  "nie": "从不",
  "{0} Termine": "{0} 次活动",
- "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "更改整个系列：如果更改开始时间或重复规则，系列中已单独更改或删除的活动将被丢弃。"
+ "Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.": "更改整个系列：如果更改开始时间或重复规则，系列中已单独更改或删除的活动将被丢弃。",
+ "Papierkorb": "回收站",
+ "Gelöscht": "已删除",
+ "Läuft ab": "到期",
+ "Wiederherstellen": "还原",
+ "Endgültig löschen": "永久删除",
+ "Papierkorb leeren": "清空回收站",
+ "Der Papierkorb ist leer.": "回收站是空的。",
+ "Gelöschte Dateien bleiben {0} Tage im Papierkorb und zählen zum Kontingent; bei Platzmangel wird der älteste Eintrag zuerst endgültig entfernt.": "已删除的文件会在回收站保留 {0} 天并计入配额；空间不足时，最早的条目会先被永久删除。",
+ "Der Papierkorb ist abgeschaltet; neu gelöschte Dateien sind sofort weg.": "回收站已关闭；新删除的文件会立即消失。",
+ "Wiederhergestellt als \"{0}\" (der Name war schon vergeben).": "已还原为“{0}”（该名称已被占用）。",
+ "\"{0}\" endgültig löschen? Das lässt sich nicht rückgängig machen.": "永久删除“{0}”？此操作无法撤销。",
+ "Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.": "清空回收站？全部 {0} 个条目将被永久删除。",
+ "Ordner \"{0}\" mit allen Dateien darin in den Papierkorb verschieben?": "将文件夹“{0}”及其中所有文件移到回收站？",
+ "\"{0}\" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)": "将“{0}”移到回收站？（{1} 天内可还原）",
+ "davon {0} im Papierkorb": "其中 {0} 在回收站",
+ "Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)": "回收站：永久删除前的天数（0 = 无回收站）",
+ "Papierkorb: Zahl der Tage (0 = kein Papierkorb).": "回收站：天数（0 = 无回收站）。"
 }

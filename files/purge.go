@@ -8,7 +8,7 @@ func (s *Svc) UserCount(ctx context.Context, user string) int {
 	all, _ := s.all(ctx)
 	n := 0
 	for _, m := range all {
-		if m.Owner == user {
+		if m.Owner == user && !isTrash(&m) {
 			n++
 		}
 	}

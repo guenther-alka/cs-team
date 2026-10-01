@@ -71,7 +71,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.14.1"
+const version = "0.14.2"
 
 var started = time.Now()
 
@@ -203,8 +203,14 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	if n, err := strconv.ParseInt(os.Getenv("CS_QUOTA_MB"), 10, 64); err == nil && n > 0 {
 		cfg.EnvQuotaMB = n
 	}
+	cfg.EnvTrashDays = 30 // Papierkorb: Standard 30 Tage
+	if n, err := strconv.Atoi(os.Getenv("CS_TRASH_DAYS")); err == nil && n >= 0 {
+		cfg.EnvTrashDays = n
+	}
 	fsvc.Quota = cfg.Quota // Dateikontingent aus den Einstellungen
-	cs.Cfg = cfg           // Videochat-Server aus den Einstellungen
+	fsvc.TrashDays = cfg.TrashDays
+	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen
+	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
 	cfg.Routes(mux, a.Wrap, mailer)
 	mailer.Routes(mux, a.Wrap)

@@ -101,3 +101,34 @@ func TestFSStore(t *testing.T) {
 		t.Fatalf("persist: %q %v", b, err)
 	}
 }
+
+func TestMove(t *testing.T) {
+	ctx := context.Background()
+	fs, err := NewFS(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, s := range map[string]Store{"mem": NewMem(), "fs": fs} {
+		if err := s.PutStream(ctx, "files/u/a\x1fb", strings.NewReader("inhalt"), 6, "text/plain"); err != nil {
+			t.Fatal(name, err)
+		}
+		if err := Move(ctx, s, "files/u/a\x1fb", "files/u/.trash\x1fxyz"); err != nil {
+			t.Fatal(name, "move:", err)
+		}
+		if _, err := s.GetStream(ctx, "files/u/a\x1fb"); !errors.Is(err, ErrNotFound) {
+			t.Fatal(name, "Quelle noch da:", err)
+		}
+		rc, err := s.GetStream(ctx, "files/u/.trash\x1fxyz")
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		if string(b) != "inhalt" {
+			t.Fatal(name, "Inhalt:", string(b))
+		}
+		if err := Move(ctx, s, "files/u/gibtsnicht", "files/u/x"); !errors.Is(err, ErrNotFound) {
+			t.Fatal(name, "fehlende Quelle:", err)
+		}
+	}
+}
