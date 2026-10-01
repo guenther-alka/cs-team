@@ -1,6 +1,13 @@
 # cs-team
 
-Multiuser CalDAV-Kalender, Calc und Text auf RustFS/S3. Ein Go-Binary, Web-UI eingebettet.
+Kleine, in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kalender (CalDAV), Calc, Text, Dateien (WebDAV),
+Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
+
+Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
+ohne Doppelbuchung, Internet-Abo); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
+und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; neun Sprachen.
+Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
+Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
 
 Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
 
@@ -22,7 +29,7 @@ Admins (Web-UI: "Benutzer"): anlegen, löschen (optional mit Kalendern), sperren
 Jeder Benutzer: eigenes Passwort ändern ("Konto"). Der letzte aktive Admin ist geschützt.
 Passwort 8..72 Bytes. 5 Fehlversuche je Benutzer+IP sperren 5 Minuten (429). `CS_TRUST_PROXY=1` wertet
 `X-Forwarded-For` aus (nur hinter eigenem Proxy). Gelöschte/gesperrte Benutzer verlieren den Zugriff sofort
-für neue Anfragen; bereits offene WebSockets laufen bis zum Verbindungsende.
+für neue Anfragen; offene Calc/Text-Verbindungen verlieren Rechte spätestens nach 15 Sekunden (seit 0.13.9).
 Dokumente eines gelöschten Benutzers bleiben; Admins können sie freigeben oder löschen.
 
 REST: `GET /api/me`, `POST /api/me/password`, `GET /api/users`, `POST /api/users`,
@@ -143,6 +150,35 @@ jährlich, braucht ein Fälligkeitsdatum): mit der Abnahme entsteht genau eine F
 Vergangenheit). E-Mail/Webhook (SMTP und Chat-Adresse wie bei Nachricht) bei Zuweisung, Übernahme, Erledigt, Abnahme, Kommentar und Fälligkeit
 (stündliche Prüfung). Rechte: Gruppen-Einstellung „Aufgaben anlegen“ (jedes Mitglied/nur Admins/aus); Aufgaben ohne Gruppe darf jeder anlegen,
 sichtbar für Auftraggeber, Bearbeiter, Beteiligte und Admins. Speicherung: `tasks/<id>.json`.
+
+## Kontingent (0.13.9)
+
+Einstellungen > Dateien: Kontingent je Benutzer und je Gruppenordner in MB (0 = unbegrenzt). Vorgabe aus `CS_QUOTA_MB`. Es gilt für Browser und
+WebDAV und wirkt sofort; ist es voll, antwortet der Server mit HTTP 507 (`storage quota exceeded`). Eine ersetzte Datei zählt nicht doppelt,
+parallele Uploads überschreiten das Kontingent nicht. Die Dateiansicht zeigt "belegt X von Y". REST: `POST /api/settings/quota {"mb":n}`
+(Admin), `GET /api/settings` liefert `quotaMB`, `GET /api/files` liefert `quota` und `used`.
+
+## Videochat (0.13.7 / 0.13.8)
+
+Im Chat unter der Gruppenliste, Einrichtung unter Einstellungen. Plätze 1 bis 3 nutzen externe Server (Jitsi, MiroTalk oder eigene Adresse mit
+`{room}`): fester Raum je Gruppe, Ad-hoc-Raum für Gruppen-Admins, Ad-hoc-Raum für alle Schreiber. Der Raumname ist ein HMAC (nicht erratbar),
+die Einladung im Kanal gilt 24 Stunden. Platz 4 ist der **eingebaute Videochat (WebRTC)**: nur Browser, höchstens 6 Teilnehmer, Bild und Ton laufen
+direkt zwischen den Browsern (Mesh), der Server vermittelt nur die Signalisierung über die Chat-WebSocket (`rtcjoin`, `rtcsig`, `rtcleave`) und
+prüft Leserecht und Einladung. STUN-Server vorbelegt (änderbar), optional TURN (coturn `use-auth-secret`, zeitlich begrenzte Zugangsdaten).
+Der Browser braucht HTTPS oder localhost.
+
+## KI-Assistent (0.12 ff.)
+
+Optionales Widget "KI" (Einstellungen: Anbieter Anthropic, OpenAI-kompatibel oder Ollama, Schlüssel nur auf dem Server). Die KI sieht nur,
+was der Benutzer selbst sehen darf, schreibt nichts selbst und schlägt neue Dokumente (Text, Calc) nur vor; angelegt wird nach Bestätigung.
+Gewählte Dateien (Text, CSV, DOCX, XLSX, PDF mit Text, Bilder) werden ausgewertet. Ein zweiter Anbieter springt bei Ausfall ein.
+
+## Sicherheit (Auswahl)
+
+Chat-/Webhook-Adressen enthalten Zugangsschlüssel und sind nur für den Benutzer und globale Admins sichtbar und änderbar (0.13.9).
+Rechteentzug trennt offene Calc/Text-Verbindungen (sofort, spätestens nach 15 s). Ressourcen-Kalender buchen atomar (auch Serientermine).
+SSRF-Sperrliste für Webhooks, Kalender-Abos und KI-Endpunkte; CSV-/XLSX-Export gegen Formel-Injektion; Anmelde-Sperre; Security-Header.
+Prüfbericht: `AUDIT.md`.
 
 ## Grenzen / TODO
 

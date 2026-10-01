@@ -8,6 +8,8 @@ Part of the [napp-it 4ai (client-server edition)](https://napp-it.org) tooling f
 (alongside [cs-tools](https://www.napp-it.org/cs-tools_en.html)). It can be started and stopped from the
 napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on its own.
 
+**Run it standalone (CLI, config file, service):** [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md)
+
 **Manual (PDF):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
 · Detailed German notes: [README.de.md](README.de.md)
 
@@ -18,10 +20,17 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 | User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export |
 | Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, global, group, resource (no double booking), internet subscriptions |
 | Calc / Text | multi-user live editing (per cell / per paragraph), formulas, import/export csv, xlsx, txt, rtf, docx |
-| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV |
+| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, optional quota per user and group folder |
 | Tasks | ticket system light: requester, assignee, milestones, history, repetition, notifications |
-| Chat / Message | group chat with channels; broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat |
-| Settings | mail server (SMTP), public address (DynDNS), webhooks - effective immediately |
+| Chat / Message | group chat with channels (attachments, reactions, @mentions); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat |
+| Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable) |
+| AI assistant | optional widget (Anthropic, OpenAI-compatible, Ollama): answers questions about your tasks, appointments, files and chat with your own rights, reads chosen files (text, DOCX, XLSX, PDF, images) and proposes new documents; nothing is written without your confirmation |
+| Settings | mail server (SMTP), public address (DynDNS), webhooks, video chat servers, AI provider, file quota - effective immediately |
+
+Also included: user deletion wizard with preview and snapshot, renaming a group (class) with its folders and shares,
+rights changes that take effect at once on open documents, CSV user/group import and export, phone layout.
+Security: bcrypt passwords with lockout, SSRF block list for webhooks, calendar feeds and AI endpoints, chat addresses
+(webhook URLs hold access keys) visible only to the user and global admins, security headers, no formula injection in exports.
 
 UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left); more can be added without rebuilding
 (`CS_LANGDIR`).
@@ -50,10 +59,12 @@ Basic Auth is used - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind a
 | `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS certificate / key (PEM) | HTTP |
 | `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
 | `CS_MAX_UPLOAD_MB` / `CS_CHAT_MAX_MB` | upload limits | 100 / 10 |
+| `CS_QUOTA_MB` | default file quota per user and group folder in MB (better set in *Settings*) | 0 (unlimited) |
 | `CS_LANG` / `CS_LANGDIR` | default language / own language files | `de` |
 | `CS_CONF` or `-c file` | configuration file (`KEY=VALUE`) | - |
 
-Mail (SMTP), public address and webhooks are configured inside cs-team (menu *Settings*, global admins only).
+Mail (SMTP), public address, webhooks, video chat (STUN/TURN), AI provider and the file quota are configured inside cs-team (menu *Settings*, global admins only).
+The built-in video chat needs HTTPS or localhost (browser rule for camera and microphone).
 
 ## Clients
 
