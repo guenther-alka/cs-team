@@ -527,5 +527,16 @@
  "Verwerfen": "Отклонить",
  "Angelegt: {0}": "Создано: {0}",
  "Nicht möglich: {0}": "Невозможно: {0}",
- "Vorschlag:": "Предложение:"
+ "Vorschlag:": "Предложение:",
+ "(eigene Angaben)": "(свои параметры)",
+ "Nachrichten Verlauf": "сообщений истории",
+ "Zeichen je Nachricht (höchstens)": "символов в сообщении (максимум)",
+ "Zweiter Anbieter": "Второй провайдер",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "подключается, если первый не отвечает (пусто = нет)",
+ "Adresse des Rechners (IP:Port)": "Адрес машины (IP:порт)",
+ "Modelle laden": "Загрузить модели",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "Ключ запоминается для каждого целевого хоста и никогда не показывается.",
+ "lade …": "загрузка …",
+ "Modelle nicht abrufbar: {0}": "Модели недоступны: {0}",
+ "{0} Modelle": "Моделей: {0}"
 }

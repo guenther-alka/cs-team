@@ -527,5 +527,16 @@
  "Verwerfen": "Scarta",
  "Angelegt: {0}": "Creato: {0}",
  "Nicht möglich: {0}": "Non possibile: {0}",
- "Vorschlag:": "Proposta:"
+ "Vorschlag:": "Proposta:",
+ "(eigene Angaben)": "(personalizzato)",
+ "Nachrichten Verlauf": "messaggi di cronologia",
+ "Zeichen je Nachricht (höchstens)": "caratteri per messaggio (massimo)",
+ "Zweiter Anbieter": "Secondo provider",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "subentra se il primo non risponde (vuoto = nessuno)",
+ "Adresse des Rechners (IP:Port)": "Indirizzo della macchina (IP:porta)",
+ "Modelle laden": "Carica modelli",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "La chiave viene ricordata per macchina di destinazione e non viene mai mostrata.",
+ "lade …": "caricamento …",
+ "Modelle nicht abrufbar: {0}": "Modelli non disponibili: {0}",
+ "{0} Modelle": "{0} modelli"
 }

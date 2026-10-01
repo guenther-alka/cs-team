@@ -527,5 +527,16 @@
  "Verwerfen": "Discard",
  "Angelegt: {0}": "Created: {0}",
  "Nicht möglich: {0}": "Not possible: {0}",
- "Vorschlag:": "Proposal:"
+ "Vorschlag:": "Proposal:",
+ "(eigene Angaben)": "(custom)",
+ "Nachrichten Verlauf": "messages of history",
+ "Zeichen je Nachricht (höchstens)": "characters per message (maximum)",
+ "Zweiter Anbieter": "Second provider",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "takes over if the first does not answer (empty = none)",
+ "Adresse des Rechners (IP:Port)": "Address of the machine (IP:port)",
+ "Modelle laden": "Load models",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "The key is remembered per target machine and never shown.",
+ "lade …": "loading …",
+ "Modelle nicht abrufbar: {0}": "Models not available: {0}",
+ "{0} Modelle": "{0} models"
 }

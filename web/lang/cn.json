@@ -527,5 +527,16 @@
  "Verwerfen": "放弃",
  "Angelegt: {0}": "已创建：{0}",
  "Nicht möglich: {0}": "无法完成：{0}",
- "Vorschlag:": "建议："
+ "Vorschlag:": "建议：",
+ "(eigene Angaben)": "（自定义）",
+ "Nachrichten Verlauf": "条历史消息",
+ "Zeichen je Nachricht (höchstens)": "每条消息最多字符数",
+ "Zweiter Anbieter": "第二提供商",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "第一个无响应时接替（留空 = 无）",
+ "Adresse des Rechners (IP:Port)": "主机地址（IP:端口）",
+ "Modelle laden": "加载模型",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "密钥按目标主机记住，且永不显示。",
+ "lade …": "加载中…",
+ "Modelle nicht abrufbar: {0}": "无法获取模型：{0}",
+ "{0} Modelle": "{0} 个模型"
 }

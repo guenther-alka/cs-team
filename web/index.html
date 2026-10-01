@@ -2010,11 +2010,48 @@ function tkForm(x){
   };
 }
 
+let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
+const AIDEF={anthropic:'Anthropic',openai:'OpenAI',ollama:'Ollama (local)'};
+function aiProvRow(p,v){   // eine Anbieterzeile: Vorlage, Protokoll, Adresse, Modell (mit Liste vom Anbieter), Schlüssel; p = '' oder '2'
+  const prov=v.provider||(p?'openai':'anthropic');
+  const lh=e=>{try{const u=new URL(e);return /^(\d{1,3}\.){3}\d{1,3}$|^localhost$|^\[/.test(u.hostname)?u:null;}catch(x){return null;}};   // eigener Rechner im Netz: IP/localhost
+  const pre=AIP.find(q=>v.endpoint&&q.endpoint==v.endpoint)||(!v.endpoint&&AIP.find(q=>q.name==AIDEF[prov]))||
+    (lh(v.endpoint)&&AIP.find(q=>q.local&&q.protocol==prov&&new URL(q.endpoint).pathname==lh(v.endpoint).pathname))||null;
+  const ipv=lh(v.endpoint)&&pre&&pre.local?lh(v.endpoint).host:'';
+  return '<div class="row">'+modeSel('aipre'+p,pre?pre.name:'',[['','(eigene Angaben)']].concat(AIP.map(q=>[q.name,q.name])),false)+' '+
+    modeSel('aip_'+p,prov,[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+'</div>'+
+   '<div class="row"><input id="aiep'+p+'" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+(v.def?': '+esc(v.def):'')+'" value="'+esc(v.endpoint||'')+'"> '+
+    '<span id="aiipw'+p+'" style="'+(pre&&pre.local?'':'display:none')+'"><input id="aiip'+p+'" style="width:170px" placeholder="IP:Port" value="'+esc(ipv)+'"> <small class="muted">'+t('Adresse des Rechners (IP:Port)')+'</small></span></div>'+
+   '<div class="row"><input id="aimod'+p+'" list="aiml'+p+'" style="width:260px" placeholder="'+t('Modell')+'" value="'+esc(v.model||'')+'" autocomplete="off"><datalist id="aiml'+p+'"></datalist> '+
+    '<button type="button" id="aild'+p+'">'+t('Modelle laden')+'</button> <small class="muted" id="aims'+p+'"></small></div>'+
+   '<div class="row"><input id="aikey'+p+'" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(v.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(v.keySet?' <label><input type="checkbox" id="aikx'+p+'"> '+t('Schlüssel löschen')+'</label>':'')+
+    ' <small class="muted">'+t('Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.')+'</small></div>';
+}
+function aiProvBind(p){
+  const $$=id=>$('#'+id+p);
+  const hostOf=u=>{try{return new URL(u).host;}catch(e){return '';}};
+  $$('aipre').onchange=()=>{const q=AIP.find(x=>x.name==$$('aipre').value);if(!q)return;
+    $$('aip_').value=q.protocol;$$('aiep').value=q.endpoint;$$('aiipw').style.display=q.local?'':'none';$$('aiip').value=hostOf(q.endpoint);
+    if(q.local&&$('#aipriv'))$('#aipriv').checked=true;$$('aimod').value='';aiLoad(p);};
+  $$('aiip').onchange=()=>{let h=$$('aiip').value.trim();if(!h)return;let u;try{u=new URL($$('aiep').value||AIP.find(x=>x.name==$$('aipre').value)?.endpoint||'http://x/v1/chat/completions');}catch(e){return;}
+    if(/^https?:\/\//.test(h)){try{h=new URL(h).host;}catch(e){return;}}
+    u.host=h;$$('aiep').value=u.href;if($('#aipriv'))$('#aipriv').checked=true;aiLoad(p);};
+  $$('aild').onclick=()=>aiLoad(p);
+  const q=AIP.find(x=>x.endpoint==$$('aiep').value);if(q&&q.local)$$('aiip').value=hostOf(q.endpoint);
+}
+async function aiLoad(p){   // Modell-Liste vom Anbieter (Server holt sie mit dem gemerkten bzw. eingegebenen Schlüssel)
+  const g=id=>$('#'+id+p),st=g('aims');st.textContent=t('lade …');
+  const r=await fetch('/api/ai/models',{method:'POST',body:JSON.stringify({provider:g('aip_').value,endpoint:g('aiep').value.trim(),key:g('aikey').value,private:$('#aipriv').checked})});
+  if(!r.ok){st.textContent=t('Modelle nicht abrufbar: {0}',(await r.text()).trim()||r.status);return;}
+  const j=await r.json(),l=j.models||[];
+  g('aiml').innerHTML=l.map(m=>'<option value="'+esc(m.id)+'">'+(m.vision?esc(m.id)+' (vision)':'')+'</option>').join('');
+  st.textContent=t('{0} Modelle',l.length);
+}
 /* ---------- Einstellungen (Titel "cs-team", nur globale Admins) ---------- */
 S.set={
   items:[{k:'cfg',label:'Einstellungen'}],cfg:{},
   canAdd:()=>false,
-  async load(){this.items=[{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};},
+  async load(){this.items=[{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};AIP=((await J('GET','/api/ai/providers'))||{}).presets||[];},
   home(){this.select('cfg');},
   select(){
     sel='cfg';setList(this.items);upd();$('#main').className='';
@@ -2028,10 +2065,11 @@ S.set={
        (c.passSet?' <label><input type="checkbox" id="swx"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
      '<div class="row"><input id="sf" style="width:300px" placeholder="'+t('Absender')+' (cs-team@example.org)" value="'+v('from')+'"></div></div>'+
      '<div class="panel"><b>'+t('KI-Assistent (für alle)')+'</b> <small class="muted">'+t('Anbieter, Schlüssel und Modell gelten zentral für alle Benutzer. Der Schlüssel bleibt auf dem Server. Fragen und die Daten der Knöpfe (Aufgaben, Termine …) gehen an diesen Anbieter.')+'</small>'+
-     '<div class="row">'+modeSel('aimo',a.mode||'off',[['off',t('aus')],['provider',t('Anbieter')]],false)+' '+modeSel('aip_',a.provider||'anthropic',[['anthropic','Anthropic (Claude)'],['openai',t('OpenAI-kompatibel (OpenAI, OpenRouter …)')],['ollama','Ollama']],false)+' <input id="aimod" style="width:200px" placeholder="'+t('Modell')+'" value="'+esc(a.model||'')+'"></div>'+
-     '<div class="row"><input id="aiep" style="width:380px" placeholder="'+t('Endpunkt (leer = Standard)')+': '+esc(a.defaultEndpoint||'')+'" value="'+esc(a.endpoint||'')+'"></div>'+
-     '<div class="row"><input id="aikey" type="password" style="width:300px" autocomplete="new-password" placeholder="'+(a.keySet?t('Schlüssel gesetzt – leer lassen = unverändert'):t('API-Schlüssel'))+'">'+(a.keySet?' <label><input type="checkbox" id="aikx"> '+t('Schlüssel löschen')+'</label>':'')+'</div>'+
+     '<div class="row">'+modeSel('aimo',a.mode||'off',[['off',t('aus')],['provider',t('Anbieter')]],false)+'</div>'+
+     aiProvRow('',{provider:a.provider,endpoint:a.endpoint,model:a.model,keySet:a.keySet,def:a.defaultEndpoint})+
      '<div class="row">'+t('Bilder')+': '+modeSel('aivis',a.vision||'auto',[['auto',t('automatisch')],['yes',t('ja')],['no',t('nein')]],false)+' &nbsp; <input id="aitok" style="width:70px" value="'+(a.maxTokens||1024)+'"> '+t('Antwort-Tokens')+' &nbsp; <input id="airate" style="width:55px" value="'+(a.rate||20)+'"> '+t('Anfragen pro Minute und Benutzer')+'</div>'+
+     '<div class="row"><input id="aihis" style="width:55px" value="'+(a.history||11)+'"> '+t('Nachrichten Verlauf')+' &nbsp; <input id="aictx" style="width:75px" value="'+(a.context||12000)+'"> '+t('Zeichen je Nachricht (höchstens)')+'</div>'+
+     '<details'+(a.altModel?' open':'')+'><summary><b>'+t('Zweiter Anbieter')+'</b> <small class="muted">'+t('springt ein, wenn der erste nicht antwortet (leer = keiner)')+'</small></summary>'+aiProvRow('2',{provider:a.altProvider,endpoint:a.altEndpoint,model:a.altModel,keySet:a.altKeySet,def:''})+'</details>'+
      '<div class="row"><label><input type="checkbox" id="aipriv"'+(a.private?' checked':'')+'> '+t('Endpunkt im lokalen Netz erlauben (z.B. Ollama)')+'</label> &nbsp; <label><input type="checkbox" id="aifi"'+(a.files!='no'?' checked':'')+'> '+t('Gewählte Dateien und Dokumente lesen und auswerten')+'</label></div>'+
      '<div class="row"><label><input type="checkbox" id="airv"'+(a.review=='yes'?' checked':'')+'> '+t('Globale Admins dürfen Chat-Vorfälle mit KI auswerten (die Nachrichten gehen an den Anbieter; Standard: aus)')+'</label></div>'+
      '<div class="row"><label><input type="checkbox" id="aicr"'+(a.create=='yes'?' checked':'')+'> '+t('KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit "KI für Mitglieder". Standard: aus)')+'</label></div></div>'+
@@ -2039,11 +2077,13 @@ S.set={
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
      '<div class="row"><button id="ssave">'+t('Speichern')+'</button> <button id="stest">'+t('Speichern + Testmail an mich')+'</button> <button id="aitest">'+t('Speichern + KI testen')+'</button></div>';
+    aiProvBind('');aiProvBind('2');
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
-      const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value,endpoint:$('#aiep').value,vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
+      const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value.trim(),endpoint:$('#aiep').value,history:+$('#aihis').value||11,context:+$('#aictx').value||12000,altProvider:$('#aip_2').value,altEndpoint:$('#aiep2').value,altModel:$('#aimod2').value.trim(),vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
       if($('#aikx')&&$('#aikx').checked)ab.key='';else if($('#aikey').value)ab.key=$('#aikey').value;
+      if($('#aikx2')&&$('#aikx2').checked)ab.altKey='';else if($('#aikey2').value)ab.altKey=$('#aikey2').value;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};
@@ -2109,7 +2149,7 @@ async function aiSend(text){
   aiBubble('u',aiFmt(text)+(imgs.length?'<br>'+imgs.map(d=>'<img src="'+d+'">').join(''):''));
   $('#aix').value='';$('#aix').style.height='';
   AI.busy=true;const w=aiBubble('a','<span class="muted">'+esc(t('Denke nach…'))+'</span>');
-  let msgs=AI.msgs.slice(-11);while(msgs.length&&msgs[0].role!='user')msgs.shift();
+  let msgs=AI.msgs.slice(-((AI.cfg&&AI.cfg.history)||11));while(msgs.length&&msgs[0].role!='user')msgs.shift();
   const body={messages:msgs.map((m,i)=>({role:m.role,text:m.text,images:i==msgs.length-1&&imgs.length?imgs:undefined})),topic:AI.topic,lang:LANG,files:AI.files.length?AI.files:undefined,docs:AI.docs.length?AI.docs.map(d=>d.id):undefined};
   try{const r=await fetch('/api/ai/chat',{method:'POST',body:JSON.stringify(body)});
     if(!r.ok){w.className='aib e';w.textContent=t('Die KI ist nicht erreichbar: {0}',(await r.text()).trim()||r.status);AI.msgs.pop();}

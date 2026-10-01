@@ -47,7 +47,18 @@ type Config struct {
 	Private   bool   `json:"private"` // Endpunkt im lokalen Netz erlaubt (Ollama)
 	Files     string `json:"files"`   // yes | no   (ausgewählte Dateien und Dokumente lesen und auswerten)
 	Review    string `json:"review"`  // yes | no   (Chat-Auswertung bei Vorfällen durch globale Admins; Standard no)
+	Alt       Slot   `json:"alt"`     // zweiter Anbieter: springt ein, wenn der erste nicht antwortet (leer = keiner)
+	History   int    `json:"history"` // Nachrichten, die das Widget als Verlauf mitschickt
+	Context   int    `json:"context"` // höchste Zeichenzahl je Nachricht
 	Create    string `json:"create"`  // yes | no   (KI darf Dokumente VORSCHLAGEN; angelegt wird nur nach Bestätigung; Standard no; je Gruppe schaltbar)
+}
+
+// Slot: Zielangaben eines Anbieters (zweiter Anbieter / Ausweichziel).
+type Slot struct {
+	Provider string `json:"provider"`
+	Endpoint string `json:"endpoint"`
+	Model    string `json:"model"`
+	Key      string `json:"key,omitempty"`
 }
 
 type Svc struct {
@@ -97,6 +108,20 @@ func norm(c Config) Config {
 	if c.Create != "yes" {
 		c.Create = "no"
 	}
+	switch c.Alt.Provider {
+	case "anthropic", "openai", "ollama":
+	default:
+		c.Alt.Provider = "openai"
+	}
+	if strings.TrimSpace(c.Alt.Model) == "" {
+		c.Alt = Slot{Provider: "openai"}
+	}
+	if c.History < 2 || c.History > 40 {
+		c.History = 11
+	}
+	if c.Context < 1000 || c.Context > 100000 {
+		c.Context = 12000
+	}
 	if c.MaxTokens < 64 || c.MaxTokens > 8192 {
 		c.MaxTokens = 1024
 	}
@@ -107,6 +132,17 @@ func norm(c Config) Config {
 }
 
 func (s *Svc) config() Config { s.mu.RLock(); defer s.mu.RUnlock(); return s.cur }
+
+// altConfig: Ausweichziel als eigene Konfiguration (gleiche Grenzen und Schalter, andere Zielangaben); ok=false ohne zweiten Anbieter.
+func (c Config) altConfig() (Config, bool) {
+	if c.Alt.Model == "" {
+		return c, false
+	}
+	a := c
+	a.Provider, a.Endpoint, a.Model, a.Key = c.Alt.Provider, c.Alt.Endpoint, c.Alt.Model, c.Alt.Key
+	a.Alt = Slot{}
+	return a, true
+}
 
 func (c Config) enabled() bool { return c.Mode == "provider" && strings.TrimSpace(c.Model) != "" }
 
@@ -135,36 +171,96 @@ func hostOf(c Config) string {
 type settingsIn struct {
 	Mode, Provider, Endpoint, Model, Vision, Files, Review, Create string
 	Key                                                            *string
-	MaxTokens, Rate                                                int
+	MaxTokens, Rate, History, Context                              int
 	Private                                                        bool
+	AltProvider, AltEndpoint, AltModel                             string
+	AltKey                                                         *string
+}
+
+// checkEndpoint: leer (= Standard des Anbieters) oder http(s)://host[:port]/pfad ohne Zugangsdaten in der Adresse.
+func checkEndpoint(e string) error {
+	if e == "" {
+		return nil
+	}
+	u, err := url.Parse(e)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		return errors.New("endpoint: http(s)://host[:port]/path (no user:password in the URL)")
+	}
+	return nil
+}
+
+// keys: gemerkte Schlüssel je Zielrechner (Host). Ein Schlüssel geht nie an einen anderen Rechner; beim Zurückwechseln ist er wieder da.
+const keysKey = "ai-keys.json"
+
+func (s *Svc) loadKeys() map[string]string {
+	m := map[string]string{}
+	if b, _, err := s.St.Get(context.Background(), keysKey); err == nil {
+		json.Unmarshal(b, &m)
+	}
+	return m
+}
+
+func (s *Svc) saveKeys(m map[string]string) error {
+	b, _ := json.Marshal(m)
+	_, err := s.St.Put(context.Background(), keysKey, b, "")
+	return err
+}
+
+// pickKey wählt den Schlüssel für das neue Ziel: neu eingegeben, sonst der zum neuen Rechner gemerkte (sonst keiner).
+// Der bisherige Schlüssel wird für den bisherigen Rechner gemerkt.
+func pickKey(keys map[string]string, oldC, newC Config, in *string) string {
+	oh, nh := hostOf(oldC), hostOf(newC)
+	if oldC.Key != "" && oh != "" {
+		keys[oh] = oldC.Key
+	}
+	if in != nil {
+		if *in == "" {
+			delete(keys, nh)
+		} else {
+			keys[nh] = *in
+		}
+		return *in
+	}
+	return keys[nh]
 }
 
 func (s *Svc) set(in settingsIn) error {
-	for _, x := range []string{in.Mode, in.Provider, in.Endpoint, in.Model, in.Vision, in.Files, in.Review, in.Create} {
+	for _, x := range []string{in.Mode, in.Provider, in.Endpoint, in.Model, in.Vision, in.Files, in.Review, in.Create, in.AltProvider, in.AltEndpoint, in.AltModel} {
 		if strings.ContainsAny(x, "\r\n\x00") || len(x) > 300 {
 			return errors.New("invalid characters")
 		}
 	}
 	in.Endpoint, in.Model = strings.TrimSpace(in.Endpoint), strings.TrimSpace(in.Model)
-	if in.Endpoint != "" {
-		u, err := url.Parse(in.Endpoint)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-			return errors.New("endpoint: http(s)://host[:port]/path (no user:password in the URL)")
+	in.AltEndpoint, in.AltModel = strings.TrimSpace(in.AltEndpoint), strings.TrimSpace(in.AltModel)
+	for _, e := range []string{in.Endpoint, in.AltEndpoint} {
+		if err := checkEndpoint(e); err != nil {
+			return err
 		}
 	}
-	if in.Key != nil && (strings.ContainsAny(*in.Key, "\r\n\x00 ") || len(*in.Key) > 400) {
-		return errors.New("invalid key")
+	for _, k := range []*string{in.Key, in.AltKey} {
+		if k != nil && (strings.ContainsAny(*k, "\r\n\x00 ") || len(*k) > 400) {
+			return errors.New("invalid key")
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := Config{Mode: in.Mode, Provider: in.Provider, Endpoint: in.Endpoint, Model: in.Model, Vision: in.Vision,
-		MaxTokens: in.MaxTokens, Rate: in.Rate, Private: in.Private, Files: in.Files, Review: in.Review, Create: in.Create, Key: s.cur.Key}
-	if in.Key != nil {
-		n.Key = *in.Key
-	} else if n.Provider != s.cur.Provider || hostOf(n) != hostOf(s.cur) {
-		n.Key = "" // neues Ziel: gespeicherten Schlüssel nie an einen anderen Server schicken
-	}
+		MaxTokens: in.MaxTokens, Rate: in.Rate, History: in.History, Context: in.Context, Private: in.Private, Files: in.Files, Review: in.Review, Create: in.Create,
+		Alt: Slot{Provider: in.AltProvider, Endpoint: in.AltEndpoint, Model: in.AltModel}}
 	n = norm(n)
+	keys := s.loadKeys()
+	n.Key = pickKey(keys, s.cur, n, in.Key)
+	if n.Alt.Model != "" {
+		oldAlt, _ := s.cur.altConfig()
+		if s.cur.Alt.Model == "" {
+			oldAlt = Config{} // vorher keiner: nichts zu merken
+		}
+		newAlt, _ := n.altConfig()
+		n.Alt.Key = pickKey(keys, oldAlt, newAlt, in.AltKey)
+	}
+	if err := s.saveKeys(keys); err != nil {
+		return err
+	}
 	b, _ := json.Marshal(n)
 	if _, err := s.St.Put(context.Background(), cfgKey, b, ""); err != nil {
 		return err
@@ -183,7 +279,21 @@ type msg struct {
 
 var errProvider = errors.New("provider error")
 
+// complete: fragt den Anbieter; antwortet er nicht (Fehler, Zeitüberschreitung), springt ein eingerichteter zweiter Anbieter ein.
 func (s *Svc) complete(ctx context.Context, c Config, system string, ms []msg) (string, error) {
+	out, err := s.complete1(ctx, c, system, ms)
+	if err != nil && errors.Is(err, errProvider) {
+		if a, ok := c.altConfig(); ok && ctx.Err() == nil {
+			if o2, e2 := s.complete1(ctx, a, system, ms); e2 == nil {
+				log.Printf("ai: fallback provider used (%s)", hostOf(a))
+				return o2, nil
+			}
+		}
+	}
+	return out, err
+}
+
+func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) (string, error) {
 	cl := chat.SafeClient(c.Private, 120*time.Second)
 	var body []byte
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.endpoint(), nil)
@@ -361,7 +471,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	// Konfiguration fürs Widget (ohne Schlüssel, ohne Endpunkt)
 	mux.Handle("GET /api/ai/config", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := s.config()
-		out := map[string]any{"enabled": c.enabled(), "vision": c.Vision != "no", "files": c.Files != "no", "create": s.canCreate(r), "topics": []string{}}
+		out := map[string]any{"enabled": c.enabled(), "vision": c.Vision != "no", "files": c.Files != "no", "create": s.canCreate(r), "history": c.History, "topics": []string{}}
 		if c.enabled() {
 			out["topics"] = topicIDs(auth.IsAdmin(r.Context()))
 		}
@@ -370,7 +480,8 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/ai/settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		c := s.config()
 		json.NewEncoder(w).Encode(map[string]any{"mode": c.Mode, "provider": c.Provider, "endpoint": c.Endpoint, "model": c.Model,
-			"keySet": c.Key != "", "vision": c.Vision, "maxTokens": c.MaxTokens, "rate": c.Rate, "private": c.Private, "files": c.Files, "review": c.Review, "create": c.Create, "defaultEndpoint": Config{Provider: c.Provider}.endpoint()})
+			"keySet": c.Key != "", "vision": c.Vision, "maxTokens": c.MaxTokens, "rate": c.Rate, "private": c.Private, "files": c.Files, "review": c.Review, "create": c.Create, "defaultEndpoint": Config{Provider: c.Provider}.endpoint(),
+			"history": c.History, "context": c.Context, "altProvider": c.Alt.Provider, "altEndpoint": c.Alt.Endpoint, "altModel": c.Alt.Model, "altKeySet": c.Alt.Key != ""})
 	}))
 	mux.Handle("POST /api/ai/settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		var in settingsIn
@@ -398,6 +509,33 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{"reply": clip(out, 300), "ms": time.Since(t0).Milliseconds()})
 	}))
+	mux.Handle("GET /api/ai/providers", admin(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"presets": s.presets(r.Context())})
+	}))
+	// Modell-Liste vom Anbieter: Schlüssel = eingegeben, sonst der zum Zielrechner gemerkte; nichts davon geht an den Browser zurück
+	mux.Handle("POST /api/ai/models", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Provider, Endpoint, Key string
+			Private                 bool
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in) != nil || checkEndpoint(strings.TrimSpace(in.Endpoint)) != nil ||
+			(in.Provider != "anthropic" && in.Provider != "openai" && in.Provider != "ollama") || strings.ContainsAny(in.Key, "\r\n\x00 ") || len(in.Key) > 400 {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		c := Config{Provider: in.Provider, Endpoint: strings.TrimSpace(in.Endpoint), Private: in.Private, Key: in.Key}
+		if c.Key == "" {
+			c.Key = s.loadKeys()[hostOf(c)]
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+		defer cancel()
+		l, err := s.listModels(ctx, c)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"models": l})
+	}))
 	s.reviewRoutes(mux, admin, s.Chat)
 	s.createRoutes(mux, wrap)
 	mux.Handle("POST /api/ai/chat", wrap(http.HandlerFunc(s.chat)))
@@ -423,13 +561,13 @@ func (s *Svc) chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in chatIn
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<20)).Decode(&in) != nil || len(in.Messages) == 0 || len(in.Messages) > 24 {
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<20)).Decode(&in) != nil || len(in.Messages) == 0 || len(in.Messages) > 40 {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	var ms []msg
 	for i, m := range in.Messages {
-		if (m.Role != "user" && m.Role != "assistant") || len(m.Text) > 12000 {
+		if (m.Role != "user" && m.Role != "assistant") || len(m.Text) > c.Context {
 			http.Error(w, "bad message", http.StatusBadRequest)
 			return
 		}

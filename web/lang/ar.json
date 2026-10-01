@@ -527,5 +527,16 @@
  "Verwerfen": "تجاهل",
  "Angelegt: {0}": "تم الإنشاء: {0}",
  "Nicht möglich: {0}": "غير ممكن: {0}",
- "Vorschlag:": "اقتراح:"
+ "Vorschlag:": "اقتراح:",
+ "(eigene Angaben)": "(إعدادات مخصصة)",
+ "Nachrichten Verlauf": "رسائل السجل",
+ "Zeichen je Nachricht (höchstens)": "حرفًا لكل رسالة (الحد الأقصى)",
+ "Zweiter Anbieter": "مزود ثانٍ",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "يتولى المهمة إذا لم يستجب الأول (فارغ = لا يوجد)",
+ "Adresse des Rechners (IP:Port)": "عنوان الجهاز (IP:المنفذ)",
+ "Modelle laden": "تحميل النماذج",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "يُحفظ المفتاح لكل جهاز هدف ولا يُعرض أبدًا.",
+ "lade …": "جارٍ التحميل …",
+ "Modelle nicht abrufbar: {0}": "النماذج غير متاحة: {0}",
+ "{0} Modelle": "{0} نماذج"
 }

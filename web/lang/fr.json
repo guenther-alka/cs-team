@@ -527,5 +527,16 @@
  "Verwerfen": "Rejeter",
  "Angelegt: {0}": "Créé : {0}",
  "Nicht möglich: {0}": "Impossible : {0}",
- "Vorschlag:": "Proposition :"
+ "Vorschlag:": "Proposition :",
+ "(eigene Angaben)": "(personnalisé)",
+ "Nachrichten Verlauf": "messages d'historique",
+ "Zeichen je Nachricht (höchstens)": "caractères par message (maximum)",
+ "Zweiter Anbieter": "Deuxième fournisseur",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "prend le relais si le premier ne répond pas (vide = aucun)",
+ "Adresse des Rechners (IP:Port)": "Adresse de la machine (IP:port)",
+ "Modelle laden": "Charger les modèles",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "La clé est mémorisée par machine cible et jamais affichée.",
+ "lade …": "chargement …",
+ "Modelle nicht abrufbar: {0}": "Modèles indisponibles : {0}",
+ "{0} Modelle": "{0} modèles"
 }

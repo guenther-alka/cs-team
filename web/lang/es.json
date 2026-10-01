@@ -527,5 +527,16 @@
  "Verwerfen": "Descartar",
  "Angelegt: {0}": "Creado: {0}",
  "Nicht möglich: {0}": "No es posible: {0}",
- "Vorschlag:": "Propuesta:"
+ "Vorschlag:": "Propuesta:",
+ "(eigene Angaben)": "(personalizado)",
+ "Nachrichten Verlauf": "mensajes de historial",
+ "Zeichen je Nachricht (höchstens)": "caracteres por mensaje (máximo)",
+ "Zweiter Anbieter": "Segundo proveedor",
+ "springt ein, wenn der erste nicht antwortet (leer = keiner)": "toma el relevo si el primero no responde (vacío = ninguno)",
+ "Adresse des Rechners (IP:Port)": "Dirección del equipo (IP:puerto)",
+ "Modelle laden": "Cargar modelos",
+ "Der Schlüssel wird je Zielrechner gemerkt und nie angezeigt.": "La clave se recuerda por equipo de destino y nunca se muestra.",
+ "lade …": "cargando …",
+ "Modelle nicht abrufbar: {0}": "Modelos no disponibles: {0}",
+ "{0} Modelle": "{0} modelos"
 }

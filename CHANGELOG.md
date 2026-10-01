@@ -1,5 +1,13 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.4 KI-Einstellungen wie beim napp-it AI Helpdesk: Anbieter-Vorlagen (15 Anbieter, Liste als Datei providers.txt im Datenspeicher, kuerzbar; fehlt
+                   sie, gilt die eingebaute Liste), Modell-Liste live vom Anbieter ("Modelle laden", Server fragt mit dem gemerkten Schluessel, Modelle mit
+                   Bilderkennung markiert), Adressfeld IP:Port fuer eigene Server (Ollama, Inhouse), Schluessel werden je Zielrechner gemerkt (beim Zurueckwechseln
+                   wieder da, nie angezeigt, "Schluessel loeschen" entfernt ihn), zweiter Anbieter springt ein, wenn der erste nicht antwortet, einstellbare
+                   Grenzen (Nachrichten Verlauf, Zeichen je Nachricht). Neu: GET /api/ai/providers, POST /api/ai/models (nur Admin, mit Adresspruefung). Tests:
+                   ai_provider_test.go. Handbuch (de/en) aktualisiert: Benutzer loeschen mit Snapshot, Windows-Snapshot/CS_SNAPSHOT_DATASET, Sicherheit,
+                   KI-Dokumente, Gruppenschalter, KI-Einstellungen.
+
 2026-10-01  0.13.3 KI Stufe 2: Dokumente vorschlagen, Anlegen nur nach Bestaetigung. Die KI hat weiterhin keine Schreibrechte: sie darf in ihrer Antwort EINEN
                    Vorschlag (Text-Dokument oder Calc-Tabelle) machen, der Browser zeigt eine Vorschau (vom Server geprueft), erst "Anlegen" speichert.
                    Der Server legt ein NEUES Dokument im Besitz des Benutzers an (Recht Text/Calc des Benutzers, Rate-Limit); Vorhandenes wird nie
