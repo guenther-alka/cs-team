@@ -39,6 +39,7 @@ type stored struct {
 	Private *bool      `json:"private,omitempty"`
 	Video   []VideoOpt `json:"video,omitempty"`   // Videochat-Server (bis zu 3)
 	VSecret string     `json:"vsecret,omitempty"` // Geheimnis für Raumnamen
+	RTC     RTCCfg     `json:"rtc"`               // eingebauter Videochat (WebRTC)
 }
 
 const settingsKey = "settings.json"
@@ -155,7 +156,7 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 		}))
 	}
 	mux.Handle("GET /api/settings", admin(func(w http.ResponseWriter, r *http.Request) {
-		c := s.SMTP()
+		c, rtc := s.SMTP(), s.RTC()
 		s.mu.RLock()
 		own := s.cur
 		s.mu.RUnlock()
@@ -164,7 +165,18 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			"public": own.Public, "private": s.AllowPrivate(), "enabled": c.Enabled(),
 			"envHost": s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
 			"video":   s.Video(),
+			"rtc":     map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
 		})
+	}))
+	mux.Handle("POST /api/settings/rtc", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in rtcIn
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setRTC(in); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
 	}))
 	mux.Handle("POST /api/settings/video", admin(func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Options []VideoOpt }

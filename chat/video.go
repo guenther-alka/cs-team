@@ -189,6 +189,9 @@ func (s *Svc) videoFor(user, g string, write bool) []videoRow {
 		}
 		out = append(out, videoRow{i, o.Name, o.Mode, write && (o.Who != "admin" || auth.IsGroupAdmin(user, g))})
 	}
+	if s.Cfg.RTC().On { // eingebauter Videochat: alle mit Schreibrecht
+		out = append(out, videoRow{RTCSlot, "WebRTC", "rtc", write})
+	}
 	return out
 }
 
@@ -200,6 +203,20 @@ func (s *Svc) videoRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 		var in struct{ Slot int }
 		if s.Cfg == nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil {
 			http.Error(w, "bad request", 400)
+			return
+		}
+		if in.Slot == RTCSlot { // eingebauter Videochat: Einladung anlegen, beigetreten wird über die Chat-Verbindung
+			id, err := s.rtcStart(r.Context(), me, g, cn)
+			switch {
+			case err == errNA:
+				http.Error(w, "not available", 404)
+			case err == errForbidden:
+				http.Error(w, "forbidden", 403)
+			case err != nil:
+				http.Error(w, err.Error(), 400)
+			default:
+				json.NewEncoder(w).Encode(map[string]any{"rtc": true, "id": id})
+			}
 			return
 		}
 		opts := s.Cfg.Video()
@@ -262,6 +279,16 @@ func (s *Svc) videoRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			v = &x
 		}
 		c.mu.Unlock()
+		if v != nil && v.Mode == "rtc" { // eingebauter Videochat
+			if !s.Cfg.RTC().On {
+				http.Error(w, "not found", 404)
+			} else if v.Exp > 0 && time.Now().UnixMilli() > v.Exp {
+				http.Error(w, "expired", http.StatusGone)
+			} else {
+				json.NewEncoder(w).Encode(map[string]any{"rtc": true, "id": id})
+			}
+			return
+		}
 		opts := s.Cfg.Video()
 		if v == nil || v.Slot < 0 || v.Slot >= len(opts) || opts[v.Slot].URL == "" {
 			http.Error(w, "not found", 404)

@@ -140,6 +140,15 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .cm .ct .me{background:#fde68a;border-radius:3px;padding:0 2px}
 .cm.mn{background:#fffbe6;border-left:3px solid #f59e0b}
 .cm .ed{color:#999;font-size:11px}.cm .dl{color:#999;font-style:italic}
+#rtc{position:fixed;inset:0;z-index:2000;background:#111;color:#eee;display:flex;flex-direction:column}
+#rtc .rhead{padding:8px 14px;display:flex;gap:10px;align-items:center}#rtc .muted{color:#aaa}
+#rtcg{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:8px;padding:8px;align-content:center;overflow:auto}
+.rtile{position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3;max-height:60vh}
+.rtile video{width:100%;height:100%;object-fit:cover;background:#222}.rtile[data-p=me] video{transform:scaleX(-1)}
+.rtile .rname{position:absolute;left:8px;bottom:6px;background:#0009;padding:1px 8px;border-radius:4px;font-size:13px}
+.rtile .rst{position:absolute;right:8px;top:6px;font-size:12px;background:#b91c1c;border-radius:4px;padding:0 6px}.rtile .rst:empty{display:none}
+#rtc .rbar{padding:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#rtc .rbar button{border:0;border-radius:20px;padding:9px 18px;font-size:14px;background:#333;color:#eee;cursor:pointer}#rtc .rbar button:disabled{opacity:.5;cursor:default}#rtc .rbar button.on{background:#7a4b00}#rtc .rbar .rhang{background:#c0392b;color:#fff}
 .vcard{display:inline-block;border:1px solid #b9cdea;border-radius:6px;padding:6px 10px;background:#f2f7ff;margin:2px 0}.vcard.old{opacity:.6;background:#f5f5f5;border-color:#ccc}.vcard button{margin-left:8px}
 .cm .cimg{max-width:320px;max-height:240px;border-radius:6px;display:block;margin:3px 0}
 .cm .att{display:inline-block;border:1px solid #ddd;border-radius:6px;padding:4px 8px;margin:3px 0;background:#fff;text-decoration:none;color:#1a5fd0}
@@ -1603,6 +1612,7 @@ function chRows(g,rows){const o=chGrp(g);if(!o)return;o.chans=rows||[];
     if(CH.rd[k]===undefined&&CH.hello)CH.rd[k]=c.last||0;}}
 function chEvent(d){
   if(d.t=='hello'){
+    if(RTC.on)rtcEnd(t('Chatverbindung getrennt – Videochat beendet.'));
     CH.groups=d.groups||[];CH.hello=true;
     for(const g of CH.groups)chRows(g.name,g.chans);
     CH.hello=false;chSaveRd();CH.msgs={};
@@ -1621,7 +1631,8 @@ function chEvent(d){
     if(CH.g==d.g&&CH.c==d.c&&sec=='chat')chList(d.t=='msg');
     if(d.t=='msg')chNotify(d.g,d.c,m);
     chMark();chBadge();chSide();
-  }else if(d.t=='err'){chErr(d.m);}
+  }else if(d.t=='err'){if(RTC.on&&RTC.sent&&!RTC.joined)rtcEnd(rtcMsg(d.m));else chErr(d.m);}
+  else if(typeof d.t=='string'&&d.t.startsWith('rtc'))rtcEvent(d);
 }
 function chNotify(g,c,m){
   if(m.by==me.name||!window.Notification||Notification.permission!='granted')return;
@@ -1733,7 +1744,13 @@ async function chOpenRoom(w,r){   // Raum im neuen Tab öffnen (Tab vorher synch
   const u=(await r.json()).url;
   if(w){w.opener=null;w.location.href=u;}else prompt(t('Das Fenster wurde blockiert. Adresse kopieren:'),u);
 }
-function chVideo(slot){const w=window.open('about:blank','_blank');
+function chVideo(slot){
+  if(slot==3){   // eingebauter Videochat: Einladung anlegen (oder laufende finden), dann über die Chat-Verbindung beitreten
+    fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(async r=>{
+      if(!r.ok){chErr((await r.text()).trim()||String(r.status));return;}
+      rtcJoin(CH.g,CH.c,(await r.json()).id);}).catch(e=>chErr(String(e)));
+    return;}
+  const w=window.open('about:blank','_blank');
   fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
 function chJoin(id){const w=window.open('about:blank','_blank');
   fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
@@ -1745,7 +1762,7 @@ function chClick(e){
   const cm=b.closest('.cm'),id=+cm.dataset.id,a=b.dataset.a;
   if(a=='re')chSend({t:'react',g:CH.g,c:CH.c,id,e:b.dataset.e});
   else if(a=='pick'){const p=document.createElement('div');p.className='pick';p.innerHTML=CH.rx.map(x=>'<button data-pk="'+x+'">'+x+'</button>').join('');cm.append(p);e.stopPropagation();}
-  else if(a=='vjoin')chJoin(id);
+  else if(a=='vjoin'){const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id);if(m&&m.vid&&m.vid.mode=='rtc')rtcJoin(CH.g,CH.c,id);else chJoin(id);}
   else if(a=='del'){if(confirm(t('Nachricht löschen?')))chSend({t:'del',g:CH.g,c:CH.c,id});}
   else if(a=='edit'){
     const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id),ct=cm.querySelector('.ct');if(!m||!ct)return;
@@ -1756,13 +1773,110 @@ function chClick(e){
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.pick,[data-a=pick]'))document.querySelectorAll('.pick').forEach(x=>x.remove());});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){chMark();chSide();}});
+/* ---------- Videochat eingebaut (WebRTC, Mesh, höchstens 6): Bild und Ton laufen direkt zwischen den Browsern,
+   der Server vermittelt nur die Verbindungsdaten (rtcjoin / rtcsig / rtcleave) über die Chat-Verbindung ---------- */
+const RTC={on:false,sent:false,joined:false,pcs:{},names:{},q:{},local:null,cfg:null,max:6};
+const rtcMsg=m=>/full/.test(m)?t('Der Raum ist voll (höchstens {0} Teilnehmer).',6):/expired/.test(m)?t('Die Einladung ist abgelaufen.'):t('Videochat nicht verfügbar.');
+const rtcWs=o=>{if(CH.ws&&CH.ws.readyState==1){CH.ws.send(JSON.stringify(o));return true;}return false;};
+async function rtcJoin(g,c,id){
+  if(RTC.on)return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){chErr(t('Der Videochat braucht eine sichere Verbindung (https) oder localhost.'));return;}
+  Object.assign(RTC,{on:true,sent:false,joined:false,pcs:{},names:{},q:{},local:null,g,c,id,muted:false,camoff:false,audioOnly:false,max:6});
+  rtcUI();
+  let st=null;
+  try{st=await navigator.mediaDevices.getUserMedia({audio:true,video:{width:{ideal:640},height:{ideal:480}}});}
+  catch(e){try{st=await navigator.mediaDevices.getUserMedia({audio:true});RTC.audioOnly=true;}catch(e2){rtcEnd(t('Kein Zugriff auf Kamera oder Mikrofon.'));return;}}
+  if(!RTC.on){st.getTracks().forEach(x=>x.stop());return;}
+  RTC.local=st;rtcTile('me',me.name+' '+t('(du)'),st,true);rtcUI();
+  if(!rtcWs({t:'rtcjoin',g,c,id})){rtcEnd(t('Chat nicht verbunden'));return;}
+  RTC.sent=true;RTC.timer=setTimeout(()=>{if(!RTC.joined)rtcEnd(t('Videochat nicht verfügbar.'));},10000);
+}
+function rtcEnd(msg){
+  if(!RTC.on)return;
+  if(RTC.sent)rtcWs({t:'rtcleave'});
+  clearTimeout(RTC.timer);
+  Object.values(RTC.pcs).forEach(p=>{try{p.close();}catch(e){}});
+  if(RTC.local)RTC.local.getTracks().forEach(x=>x.stop());
+  RTC.on=false;RTC.sent=false;RTC.joined=false;RTC.local=null;RTC.pcs={};rtcUI();
+  if(msg){if($('#cherr'))chErr(msg);else alert(msg);}
+}
+function rtcTile(pid,name,stream,mine){
+  const g=$('#rtcg');if(!g)return;
+  let el=g.querySelector('[data-p="'+pid+'"]');
+  if(!el){el=document.createElement('div');el.className='rtile';el.dataset.p=pid;el.innerHTML='<video autoplay playsinline'+(mine?' muted':'')+'></video><span class="rname"></span><span class="rst"></span>';g.append(el);}
+  el.querySelector('.rname').textContent=name;
+  const v=el.querySelector('video');if(stream&&v.srcObject!==stream){v.srcObject=stream;if(v.play)v.play().catch(()=>{});}
+}
+function rtcState(pid,s){
+  const el=$('#rtcg')&&$('#rtcg').querySelector('[data-p="'+pid+'"] .rst');if(!el)return;
+  el.textContent=s=='failed'?t('Verbindung fehlgeschlagen.'):s=='disconnected'?t('Verbindung unterbrochen.'):'';
+}
+function rtcDrop(pid){
+  const pc=RTC.pcs[pid];if(pc){try{pc.close();}catch(e){}}
+  delete RTC.pcs[pid];delete RTC.q[pid];
+  const el=$('#rtcg')&&$('#rtcg').querySelector('[data-p="'+pid+'"]');if(el)el.remove();
+}
+function rtcPeer(pid,offer){
+  let pc=RTC.pcs[pid];if(pc)return pc;
+  pc=new RTCPeerConnection(RTC.cfg);RTC.pcs[pid]=pc;RTC.q[pid]=[];
+  RTC.local.getTracks().forEach(tr=>pc.addTrack(tr,RTC.local));
+  pc.onicecandidate=e=>{if(e.candidate)rtcWs({t:'rtcsig',to:pid,data:{c:e.candidate}});};
+  pc.ontrack=e=>rtcTile(pid,RTC.names[pid]||'?',e.streams[0]||new MediaStream([e.track]));
+  pc.onconnectionstatechange=()=>rtcState(pid,pc.connectionState);
+  if(offer)pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>rtcWs({t:'rtcsig',to:pid,data:{sdp:pc.localDescription}})).catch(()=>rtcState(pid,'failed'));
+  return pc;
+}
+async function rtcSig(d){
+  const pid=d.from,x=d.data||{};if(!RTC.local)return;
+  if(!RTC.names[pid]){RTC.names[pid]=d.user;rtcTile(pid,d.user,null);}
+  try{
+    if(x.sdp){
+      const pc=rtcPeer(pid,false);
+      await pc.setRemoteDescription(x.sdp);
+      for(const c of RTC.q[pid].splice(0))await pc.addIceCandidate(c);
+      if(x.sdp.type=='offer'){await pc.setLocalDescription(await pc.createAnswer());rtcWs({t:'rtcsig',to:pid,data:{sdp:pc.localDescription}});}
+    }else if(x.c){
+      const pc=RTC.pcs[pid];if(!pc)return;
+      if(pc.remoteDescription)await pc.addIceCandidate(x.c);else RTC.q[pid].push(x.c);
+    }
+  }catch(e){rtcState(pid,'failed');}
+}
+function rtcEvent(d){
+  if(!RTC.on)return;
+  if(d.t=='rtcjoined'){
+    RTC.joined=true;clearTimeout(RTC.timer);RTC.cfg={iceServers:d.ice||[]};RTC.max=d.max||6;
+    for(const p of d.peers||[]){RTC.names[p.pid]=p.user;rtcTile(p.pid,p.user,null);rtcPeer(p.pid,true);}   // der Neue ruft die Anwesenden an
+  }else if(d.t=='rtcpeer'){RTC.names[d.pid]=d.user;rtcTile(d.pid,d.user,null);}
+  else if(d.t=='rtcleft')rtcDrop(d.pid);
+  else if(d.t=='rtcsig'){rtcSig(d);return;}
+  rtcUI();
+}
+function rtcUI(){
+  let o=$('#rtc');
+  if(!RTC.on){if(o)o.remove();return;}
+  if(!o){
+    o=document.createElement('div');o.id='rtc';
+    o.innerHTML='<div class="rhead"><b id="rtct"></b><span class="muted" id="rtcn"></span></div><div id="rtcg"></div><div class="rbar"><button id="rtcm"></button><button id="rtcv"></button><button id="rtch" class="rhang"></button></div>';
+    document.body.append(o);
+    $('#rtcm').onclick=()=>{RTC.muted=!RTC.muted;if(RTC.local)RTC.local.getAudioTracks().forEach(x=>x.enabled=!RTC.muted);rtcUI();};
+    $('#rtcv').onclick=()=>{RTC.camoff=!RTC.camoff;if(RTC.local)RTC.local.getVideoTracks().forEach(x=>x.enabled=!RTC.camoff);rtcUI();};
+    $('#rtch').onclick=()=>rtcEnd();
+  }
+  const n=$('#rtcg').querySelectorAll('.rtile').length;
+  $('#rtct').textContent=t('Videochat')+' · '+RTC.g+' #'+RTC.c;
+  $('#rtcn').textContent=!RTC.joined?t('Verbinde …'):n>1?n+'/'+RTC.max:t('Warte auf weitere Teilnehmer …');
+  const m=$('#rtcm'),v=$('#rtcv');
+  m.textContent=(RTC.muted?'🔇 ':'🎤 ')+t(RTC.muted?'Mikrofon an':'Mikrofon aus');m.classList.toggle('on',RTC.muted);
+  v.textContent='📷 '+(RTC.audioOnly?t('Nur Ton'):t(RTC.camoff?'Kamera an':'Kamera aus'));v.disabled=RTC.audioOnly||!RTC.local;v.classList.toggle('on',RTC.camoff);
+  $('#rtch').textContent='📞 '+t('Auflegen');
+}
 S.chat={
   items:[],
   canAdd:()=>false,
   mk(){const l=CH.groups.map(g=>{const n=chUnG(g.name);return {k:g.name,label:g.name,sub:n?'● '+n:''};});
     const o=CH.g&&chGrp(CH.g),vs=((o&&o.video)||[]).filter(v=>v.can);
     if(vs.length){l.push({head:t('Videochat')+' · '+CH.g});
-      for(const v of vs)l.push({k:'vid:'+v.slot,label:'📹 '+t(v.slot==0?'Fester Raum':v.slot==1?'Ad-hoc (Admin)':'Ad-hoc')+' · '+v.name});}
+      for(const v of vs)l.push({k:'vid:'+v.slot,label:'📹 '+(v.slot==3?t('WebRTC (Browser)'):t(v.slot==0?'Fester Raum':v.slot==1?'Ad-hoc (Admin)':'Ad-hoc')+' · '+v.name)});}
     return l;},
   async load(){this.items=this.mk();setList(this.items);},
   home(){
@@ -2045,6 +2159,13 @@ function vdCollect(){const out=[];
     if(!sv){alert(t('Server-Adresse fehlt (Videochat Option {0}).',i+1));return null;}
     out.push(pv=='jitsi'?{name:'Jitsi',url:sv+'/{room}'}:pv=='mirotalk'?{name:'MiroTalk',url:sv+'/join/{room}'}:{name:'',url:sv});}
   return out;}
+function rtcPanel(r){
+  const stun=(r.on||(r.stun||[]).length)?(r.stun||[]).join('\n'):(r.defStun||'');
+  return '<div class="panel"><b>'+t('Videochat eingebaut (Option 4: WebRTC im Browser)')+'</b> <small class="muted">'+t('Ad-hoc-Raum für höchstens 6 Teilnehmer, den alle mit Schreibrecht im Kanal starten können (Einladung gilt 24 Stunden). Bild und Ton laufen direkt zwischen den Browsern; cs-team vermittelt nur die Verbindung. Der Browser braucht https oder localhost.')+'</small>'+
+   '<div class="row"><label><input type="checkbox" id="rtcon"'+(r.on?' checked':'')+'> '+t('Eingebauten Videochat einschalten')+'</label></div>'+
+   '<div class="row"><textarea id="rtcstun" rows="2" style="width:380px" placeholder="stun:stun.example.org:3478">'+esc(stun)+'</textarea> '+t('STUN-Server (einer pro Zeile). Vorbelegt ist ein öffentlicher Server; er sieht nur die IP-Adressen der Teilnehmer, nicht Bild oder Ton. Leer = nur Verbindungen im selben Netz.')+'</div>'+
+   '<div class="row"><textarea id="rtcturn" rows="2" style="width:380px" placeholder="turn:turn.example.org:3478">'+esc((r.turn||[]).join('\n'))+'</textarea> '+t('TURN-Server (optional, für strenge Firewalls; coturn mit use-auth-secret, cs-team vergibt zeitlich begrenzte Zugangsdaten)')+'</div>'+
+   '<div class="row"><input id="rtcsec" type="password" autocomplete="new-password" style="width:380px" placeholder="'+(r.secretSet?t('Geheimnis gesetzt – leer lassen = unverändert'):t('TURN-Geheimnis (static-auth-secret)'))+'"></div></div>';}
 let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
 const AIDEF={anthropic:'Anthropic',openai:'OpenAI',ollama:'Ollama (local)'};
 function aiProvRow(p,v){   // eine Anbieter-Einheit: Anbieter wählen (Popup fragt den Schlüssel), Modell wählen, Rest unter "Erweitert"; p = '' oder '2'
@@ -2161,6 +2282,7 @@ S.set={
      '<div class="row"><label><input type="checkbox" id="aicr"'+(a.create=='yes'?' checked':'')+'> '+t('KI darf Dokumente vorschlagen (Text, Calc); angelegt wird erst nach Bestätigung des Benutzers. Admins und Gruppen-Admins immer, Mitglieder nur in Gruppen mit "KI für Mitglieder". Standard: aus)')+'</label></div></div>'+
      '<div class="panel"><b>'+t('Videochat (externe Server)')+'</b> <small class="muted">'+t('Die Videochat-Server laufen außerhalb von cs-team. cs-team legt nur den Raum fest und lädt im Chat mit einem Link ein. Je Option einen Anbieter wählen oder abschalten.')+'</small>'+
      [0,1,2].map(i=>vdRow(i,(c.video||[])[i]||{})).join('')+'</div>'+
+     rtcPanel(c.rtc||{})+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -2175,6 +2297,9 @@ S.set={
       if($('#aikx2')&&$('#aikx2').checked)ab.altKey='';else if($('#aikey2').value)ab.altKey=$('#aikey2').value;
       const vo=vdCollect();if(!vo)return false;
       if(!await api('POST','/api/settings/video',{options:vo}))return false;
+      const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
+      if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
+      if(!await api('POST','/api/settings/rtc',rb))return false;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};

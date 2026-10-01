@@ -1,5 +1,19 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.8 Videochat Platz 4: eingebautes Ad-hoc-WebRTC (nur Browser, bis 6 Teilnehmer). In den Einstellungen (Panel "Videochat eingebaut") einschalten,
+                   STUN-Server (vorbelegt: oeffentlicher STUN, aenderbar/leerbar) und optional TURN-Server mit coturn-Geheimnis (use-auth-secret) eintragen.
+                   Im Chat steht unter "Videochat" zusaetzlich "WebRTC (Browser)": jeder mit Schreibrecht im Kanal kann starten; es entsteht eine Einladung
+                   (24 Stunden, Karte mit "Beitreten"); laeuft schon ein Anruf, tritt ein erneuter Start diesem bei. Ansicht: Vollbild-Ueberlagerung mit
+                   Kachelraster, Mikrofon aus/an, Kamera aus/an, Auflegen; Geraete ohne Kamera nehmen nur mit Ton teil. Bild und Ton laufen als Mesh direkt
+                   zwischen den Browsern (Neuer ruft die Anwesenden an), der Server vermittelt nur Angebot/Antwort/ICE ueber den vorhandenen Chat-WebSocket
+                   (rtcjoin, rtcsig, rtcleave; Antworten rtcjoined, rtcpeer, rtcsig, rtcleft). Beitritt nur mit Leserecht im Kanal und gueltiger Einladung,
+                   hoechstens 6 je Raum ("Raum voll"), Signal hoechstens 14 KB und 300 je 10 s und Verbindung, eine Verbindung = ein Raum; Verlassen beim
+                   Schliessen der Verbindung. TURN-Zugang zeitlich begrenzt (12 Stunden, HMAC-SHA1 aus dem Geheimnis, an den Benutzer gebunden); das Geheimnis
+                   wird nie ausgegeben. Neu: POST /api/settings/rtc (Admin), GET /api/settings liefert "rtc"; POST /api/chat/{g}/{c}/video mit slot 3 liefert
+                   {rtc,id}. Neu: chat/rtc.go, rtc_test.go (Rechte, Signalisierung, Voll, Rate-Limit, Ablauf, Ausschalten; auch mit -race). Browsertest mit 3 und
+                   6 Teilnehmern (Chromium, Testkamera): Bild und Ton kommen bei allen an. 24 neue Texte in allen Sprachen. Handbuch (de/en): Chat 4.9 und
+                   Einstellungen 4.11. Nicht getestet: echte Firewalls/TURN, Safari/Firefox, Mobilgeraete, Bandbreite bei 6 Teilnehmern (Mesh).
+
 2026-10-01  0.13.7 Videochat im Chat ueber externe Server (Schritt 1). In den Einstellungen (Panel "Videochat") drei Optionen, je Option Anbieter waehlen (Jitsi,
                    MiroTalk oder eigene Adresse mit {room}) und Server eintragen oder abschalten: 1 fester Raum je Gruppe (alle Mitglieder), 2 Ad-hoc-Raum nur
                    fuer Gruppen-Admins, 3 Ad-hoc-Raum fuer alle mit Schreibrecht im Kanal. Im Chat erscheint links unter der Gruppenliste der Abschnitt

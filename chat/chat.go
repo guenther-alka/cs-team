@@ -72,6 +72,10 @@ type client struct {
 	user string
 	out  chan []byte
 	done chan struct{} // wird (unter s.mu, genau einmal) geschlossen; out selbst bleibt offen -> kein Senden auf geschlossenen Kanal
+	// Videochat (rtc.go): Raum und Teilnehmerkennung unter s.mu; sigT/sigN nur von der Lese-Schleife benutzt
+	pid, room string
+	sigT      time.Time
+	sigN      int
 }
 
 type Svc struct {
@@ -81,6 +85,7 @@ type Svc struct {
 	chans map[string]*channel
 	lists map[string]map[string]chanInfo // Gruppe -> zusätzliche Kanäle
 	conns map[*client]bool
+	rtc   map[string]*rtcRoom // laufende WebRTC-Räume
 	rate  map[string][]time.Time
 	// AIReview: ist die KI-Auswertung für Chat-Vorfälle freigegeben? (wird von main gesetzt; nil = nein)
 	AIReview func() bool
@@ -296,13 +301,15 @@ func (s *Svc) change(ctx context.Context, user, g, cn string, id int64, fn func(
 }
 
 type inMsg struct {
-	T    string `json:"t"`
-	G    string `json:"g"`
-	C    string `json:"c"`
-	ID   int64  `json:"id"`
-	Text string `json:"text"`
-	E    string `json:"e"`
-	Name string `json:"name"`
+	T    string          `json:"t"`
+	G    string          `json:"g"`
+	C    string          `json:"c"`
+	ID   int64           `json:"id"`
+	Text string          `json:"text"`
+	E    string          `json:"e"`
+	Name string          `json:"name"`
+	To   string          `json:"to"`   // Videochat: Teilnehmerkennung
+	Data json.RawMessage `json:"data"` // Videochat: Signal (SDP / ICE)
 }
 
 func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
@@ -593,6 +600,7 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	s.conns[c] = true
 	s.mu.Unlock()
 	defer func() {
+		s.rtcLeave(c)
 		s.mu.Lock()
 		if s.conns[c] {
 			delete(s.conns, c)
@@ -625,7 +633,13 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(data, &m) != nil {
 			continue
 		}
-		if err := s.handle(ctx, me, m); err != nil {
+		var herr error
+		if strings.HasPrefix(m.T, "rtc") {
+			herr = s.rtcHandle(ctx, c, m)
+		} else {
+			herr = s.handle(ctx, me, m)
+		}
+		if err := herr; err != nil {
 			b, _ := json.Marshal(map[string]any{"t": "err", "g": m.G, "m": err.Error()})
 			select {
 			case c.out <- b:
