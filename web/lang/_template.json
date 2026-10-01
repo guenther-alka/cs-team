@@ -507,5 +507,10 @@
  "{0} Nachrichten ausgewählt": "{0} Nachrichten ausgewählt",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.",
  "{0} Treffer": "{0} Treffer",
- "{0} angezeigt – Filter enger setzen": "{0} angezeigt – Filter enger setzen"
+ "{0} angezeigt – Filter enger setzen": "{0} angezeigt – Filter enger setzen",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.",
+ "Vorher wird ein Snapshot angelegt.": "Vorher wird ein Snapshot angelegt.",
+ "Zur Bestätigung dein Passwort eingeben:": "Zur Bestätigung dein Passwort eingeben:",
+ "Ohne Snapshot löschen?": "Ohne Snapshot löschen?"
 }

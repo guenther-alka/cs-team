@@ -519,7 +519,7 @@ func TestOfficeImportExport(t *testing.T) {
 	}
 	id2, _ := newDocFromFile(t, srv, "anna", "anna", "obst.xlsx")
 	c, b := req(t, srv, "anna", "GET", "/api/docs/"+id2+"/export", "")
-	if c != 200 || strings.TrimSpace(b) != "Name,Wert\nApfel,3\nBirne,=B2*2" {
+	if c != 200 || strings.TrimSpace(b) != "Name,Wert\nApfel,3\nBirne,'=B2*2" {
 		t.Fatalf("xlsx roundtrip csv: %d %q", c, b)
 	}
 	if c, b := req(t, srv, "anna", "POST", "/api/docs/"+id2+"/tofiles?format=cscalc", ""); c != 200 || !strings.Contains(b, "obst.cscalc") {

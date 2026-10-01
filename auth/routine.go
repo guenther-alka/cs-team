@@ -333,7 +333,7 @@ func (a *Auth) applyYear(ctx context.Context, admin string, pl *Plan) (*LogEntry
 	if pl.Moves == 0 {
 		return nil, errors.New("nothing to do")
 	}
-	id := time.Now().Format("20060102-150405")
+	id := newRunID()
 	if err := runSnapshot(id); err != nil {
 		return nil, fmt.Errorf("snapshot command failed, nothing was changed: %w", err)
 	}

@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.13.1"
+const version = "0.13.2"
 
 var started = time.Now()
 
@@ -220,6 +220,11 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		{Name: "tasks", Area: "tasks", Rename: ts.RenameGroup, Used: ts.TasksUsed},
 	}
 	auth.GroupCalMode = cb.GroupCalMode
+	auth.UserHooks = []auth.UserHook{ // Benutzer löschen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
+		{Name: "files", Count: fsvc.UserCount, Purge: fsvc.PurgeUser},
+		{Name: "documents", Count: hub.UserCount, Purge: hub.PurgeUser},
+		{Name: "calendar", Count: cb.UserCount, Purge: cb.PurgeUser},
+	}
 	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
 	aiSvc.H = mux
 	aiSvc.Chat = cs
@@ -239,7 +244,24 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	web, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /lang/", a.Wrap(http.HandlerFunc(langHandler)))
 	mux.Handle("/", a.Wrap(http.FileServerFS(web)))
-	return mux
+	return secHeaders(mux)
+}
+
+// secHeaders: Sicherheits-Header für alle Antworten (Clickjacking, MIME-Sniffing, Referrer, Skript-Quellen).
+// Die Oberfläche ist eine Datei mit eingebettetem Skript/Stil, daher 'unsafe-inline'; fremde Quellen sind gesperrt.
+func secHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "+
+			"img-src 'self' data: blob:; connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
+		if r.TLS != nil {
+			h.Set("Strict-Transport-Security", "max-age=15552000")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // setupSnapshot: vor jeder globalen Aktion (Jahrgangswechsel ...) wird nach Möglichkeit ein ZFS-Snapshot angelegt.

@@ -347,7 +347,10 @@ func (a *Auth) SetGroup(ctx context.Context, name string, areas, read []string) 
 		return err
 	}
 	return a.mutateGroups(ctx, func(m map[string]Group) error {
-		g := m[name]
+		g, exists := m[name]
+		if !exists && name == legacyDefault { // "users" ist der alte Name der Standardgruppe: alte Freigaben "g:users" würden sonst an diese Gruppe fallen
+			return ErrBadName
+		}
 		g.Areas, g.Read = clean, ro
 		if len(ro) == 0 {
 			g.Read = nil

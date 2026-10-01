@@ -158,7 +158,7 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 			for _, i := range infos {
 				b.St.Delete(r.Context(), i.Key)
 			}
-			http.Error(w, "feed: "+err.Error(), http.StatusBadGateway)
+			http.Error(w, feedErr(err), http.StatusBadGateway)
 			return
 		}
 	}
@@ -319,4 +319,16 @@ func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), code)
 	}
+}
+
+// feedErr: Fehlertext für den Browser ohne Resolver-/Netzwerkdetails (nur Art des Fehlers).
+func feedErr(err error) string {
+	m := err.Error()
+	switch {
+	case strings.Contains(m, "address not allowed"):
+		return "feed: address not allowed"
+	case strings.HasPrefix(m, "feed:"), strings.Contains(m, "too large"), strings.Contains(m, "too many redirects"):
+		return m
+	}
+	return "feed: not reachable or not a calendar"
 }

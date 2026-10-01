@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "{0} messages selected",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "{0} messages will be deleted, {1} of them with attachment.",
  "{0} Treffer": "{0} hits",
- "{0} angezeigt – Filter enger setzen": "{0} shown – narrow the filter"
+ "{0} angezeigt – Filter enger setzen": "{0} shown – narrow the filter",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "To be deleted: {0} files, {1} documents, {2} calendar entries. Shares and the group admin entry of this name are removed. Messages and tasks in groups remain.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "No snapshot is possible: the data will be gone for good.",
+ "Vorher wird ein Snapshot angelegt.": "A snapshot is created first.",
+ "Zur Bestätigung dein Passwort eingeben:": "Enter your password to confirm:",
+ "Ohne Snapshot löschen?": "Delete without snapshot?"
 }

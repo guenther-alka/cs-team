@@ -436,9 +436,16 @@ S.users={
     if($('#fp'))$('#fp').onclick=async()=>{const p=prompt(t('Neues Passwort für {0} (min. 8):',k));if(p)await api('POST','/api/users/'+encodeURIComponent(k)+'/password',{password:p});};
   },
   async del(){
-    const k=sel;if(!confirm(t('Benutzer {0} löschen?',k)))return;
-    const purge=confirm(t('Auch seine Kalender löschen?\nOK = ja, Abbrechen = behalten (Dokumente und Dateien bleiben in jedem Fall).'));
-    if(await api('DELETE','/api/users/'+encodeURIComponent(k)+(purge?'?purge=1':''))){sel=null;await this.load();this.home();upd();}
+    const k=sel;if(!k)return;
+    const pv=await J('GET','/api/users/'+encodeURIComponent(k)+'/delete/preview');if(!pv)return;
+    const c=pv.counts||{};
+    let m=t('Benutzer {0} löschen?',k)+'\n\n'+t('Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.',c.files||0,c.documents||0,c.calendar||0);
+    m+='\n\n'+(pv.snapshot=='none'?t('Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.'):t('Vorher wird ein Snapshot angelegt.'));
+    if(!confirm(m))return;
+    const p=prompt(t('Zur Bestätigung dein Passwort eingeben:'));if(!p)return;
+    let ns=false;
+    if(pv.snapshot=='none'){if(!confirm(t('Ohne Snapshot löschen?')))return;ns=true;}
+    if(await api('POST','/api/users/'+encodeURIComponent(k)+'/delete',{password:p,noSnapshot:ns})){sel=null;await this.load();this.home();upd();}
   }
 };
 

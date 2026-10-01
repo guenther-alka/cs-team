@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "已选择 {0} 条消息",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "将删除 {0} 条消息，其中 {1} 条带附件。",
  "{0} Treffer": "{0} 条匹配",
- "{0} angezeigt – Filter enger setzen": "已显示 {0} 条 – 请缩小筛选范围"
+ "{0} angezeigt – Filter enger setzen": "已显示 {0} 条 – 请缩小筛选范围",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "将删除：{0} 个文件、{1} 个文档、{2} 个日历条目。该名称的共享和群组管理员条目将被移除。群组中的消息和任务保留。",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "无法创建快照：数据将永久丢失。",
+ "Vorher wird ein Snapshot angelegt.": "事先会创建快照。",
+ "Zur Bestätigung dein Passwort eingeben:": "请输入您的密码以确认：",
+ "Ohne Snapshot löschen?": "不创建快照直接删除？"
 }

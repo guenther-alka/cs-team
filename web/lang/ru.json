@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "Выбрано сообщений: {0}",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "Будет удалено сообщений: {0}, из них с вложением: {1}.",
  "{0} Treffer": "Найдено: {0}",
- "{0} angezeigt – Filter enger setzen": "Показано: {0} – сузьте фильтр"
+ "{0} angezeigt – Filter enger setzen": "Показано: {0} – сузьте фильтр",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "Будут удалены: {0} файлов, {1} документов, {2} записей календаря. Доступы и запись администратора группы для этого имени удаляются. Сообщения и задачи в группах сохраняются.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Снимок невозможен: данные будут удалены безвозвратно.",
+ "Vorher wird ein Snapshot angelegt.": "Предварительно создаётся снимок.",
+ "Zur Bestätigung dein Passwort eingeben:": "Введите свой пароль для подтверждения:",
+ "Ohne Snapshot löschen?": "Удалить без снимка?"
 }

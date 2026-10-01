@@ -87,3 +87,29 @@ func (b *Backend) DropGroup(ctx context.Context, g string) {
 }
 
 var _ = store.ErrNotFound
+
+// UserCount: Anzahl der Kalenderobjekte (Termine, Aufgaben) im persönlichen Bereich von user.
+func (b *Backend) UserCount(ctx context.Context, user string) int {
+	infos, _ := b.St.List(ctx, "cal/"+user+"/")
+	n := 0
+	for _, i := range infos {
+		if strings.HasSuffix(i.Key, ".ics") {
+			n++
+		}
+	}
+	return n
+}
+
+// PurgeUser löscht alle Kalender des Benutzers.
+func (b *Backend) PurgeUser(ctx context.Context, user string) error {
+	infos, err := b.St.List(ctx, "cal/"+user+"/")
+	if err != nil {
+		return err
+	}
+	for _, i := range infos {
+		if err := b.St.Delete(ctx, i.Key); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	}
+	return nil
+}

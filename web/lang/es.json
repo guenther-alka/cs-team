@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "{0} mensajes seleccionados",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "Se eliminarán {0} mensajes, {1} de ellos con adjunto.",
  "{0} Treffer": "{0} coincidencias",
- "{0} angezeigt – Filter enger setzen": "{0} mostradas – ajuste el filtro"
+ "{0} angezeigt – Filter enger setzen": "{0} mostradas – ajuste el filtro",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "Se eliminarán: {0} archivos, {1} documentos, {2} entradas de calendario. Se quitan las comparticiones y la entrada de administrador de grupo de este nombre. Los mensajes y tareas de los grupos se conservan.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "No es posible un snapshot: los datos se perderán definitivamente.",
+ "Vorher wird ein Snapshot angelegt.": "Antes se crea un snapshot.",
+ "Zur Bestätigung dein Passwort eingeben:": "Introduce tu contraseña para confirmar:",
+ "Ohne Snapshot löschen?": "¿Eliminar sin snapshot?"
 }

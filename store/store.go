@@ -97,7 +97,30 @@ func mapErr(err error) error {
 	return err
 }
 
+// ValidKey: gemeinsame Schlüsselprüfung für alle Backends (wie FS): nicht leer, kein führendes "/", kein "\\", kein NUL,
+// keine leeren Segmente, kein "." und "..". Bei List darf das Präfix mit "/" enden oder leer sein.
+func ValidKey(key string) bool { return validKey(key, false) }
+
+func validKey(key string, prefix bool) bool {
+	if prefix && key == "" {
+		return true
+	}
+	if key == "" || strings.HasPrefix(key, "/") || strings.Contains(key, "\\") || strings.Contains(key, "\x00") {
+		return false
+	}
+	parts := strings.Split(key, "/")
+	for i, p := range parts {
+		if p == "." || p == ".." || (p == "" && !(prefix && i == len(parts)-1)) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *S3) Get(ctx context.Context, key string) ([]byte, string, error) {
+	if !ValidKey(key) {
+		return nil, "", ErrNotFound
+	}
 	o, err := s.c.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, "", mapErr(err)
@@ -112,6 +135,9 @@ func (s *S3) Get(ctx context.Context, key string) ([]byte, string, error) {
 }
 
 func (s *S3) Put(ctx context.Context, key string, data []byte, ifMatch string) (string, error) {
+	if !ValidKey(key) {
+		return "", ErrNotFound
+	}
 	opt := minio.PutObjectOptions{}
 	switch ifMatch {
 	case "":
@@ -126,6 +152,9 @@ func (s *S3) Put(ctx context.Context, key string, data []byte, ifMatch string) (
 
 func (s *S3) List(ctx context.Context, prefix string) ([]Info, error) {
 	var out []Info
+	if !validKey(prefix, true) {
+		return nil, nil
+	}
 	for o := range s.c.ListObjects(ctx, s.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
 		if o.Err != nil {
 			return nil, o.Err
@@ -136,15 +165,24 @@ func (s *S3) List(ctx context.Context, prefix string) ([]Info, error) {
 }
 
 func (s *S3) Delete(ctx context.Context, key string) error {
+	if !ValidKey(key) {
+		return ErrNotFound
+	}
 	return mapErr(s.c.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}))
 }
 
 func (s *S3) PutStream(ctx context.Context, key string, r io.Reader, size int64, ctype string) error {
+	if !ValidKey(key) {
+		return ErrNotFound
+	}
 	_, err := s.c.PutObject(ctx, s.bucket, key, r, size, minio.PutObjectOptions{ContentType: ctype})
 	return mapErr(err)
 }
 
 func (s *S3) GetStream(ctx context.Context, key string) (io.ReadCloser, error) {
+	if !ValidKey(key) {
+		return nil, ErrNotFound
+	}
 	o, err := s.c.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, mapErr(err)

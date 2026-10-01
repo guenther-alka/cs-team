@@ -80,12 +80,33 @@ func ToCSV(cells map[string]string) []byte {
 			rec[i] = ""
 		}
 		for _, k := range rows[r] {
-			rec[ps[k].col] = cells[k]
+			rec[ps[k].col] = csvSafe(cells[k])
 		}
 		w.Write(rec)
 	}
 	w.Flush()
 	return buf.Bytes()
+}
+
+// csvSafe: Zellen, die in Excel/LibreOffice als Formel gelesen würden (=, +, -, @, Tab, CR am Anfang; Zahlen
+// wie -5 ausgenommen), bekommen ein ' vorangestellt (Formel-Injektion, Audit F7). FromCSV nimmt es wieder weg.
+func csvSafe(v string) string {
+	if v == "" || isNumber(v) {
+		return v
+	}
+	switch v[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + v
+	}
+	return v
+}
+
+// csvUnsafe: Gegenstück zu csvSafe beim Import.
+func csvUnsafe(v string) string {
+	if len(v) > 1 && v[0] == '\'' && strings.ContainsRune("=+-@\t\r", rune(v[1])) {
+		return v[1:]
+	}
+	return v
 }
 
 // FromCSV erkennt Komma oder Semikolon (deutsches Excel) und Latin-1.
@@ -116,7 +137,7 @@ func FromCSV(b []byte) (map[string]string, error) {
 		}
 		for c, v := range rec {
 			if v != "" && c < 702 && row <= 99999 {
-				out[Key(c, row)] = v
+				out[Key(c, row)] = csvUnsafe(v)
 			}
 		}
 		if len(out) > MaxCells {
@@ -162,7 +183,7 @@ func ToXLSX(cells map[string]string) ([]byte, error) {
 		}
 		v := cells[k]
 		switch {
-		case strings.HasPrefix(v, "=") && len(v) > 1:
+		case strings.HasPrefix(v, "=") && len(v) > 1 && safeFormula(xlFormula(v[1:])):
 			b.WriteString(`<c r="` + k + `"><f>` + xmlEsc(xlFormula(v[1:])) + `</f></c>`)
 		case isNumber(v):
 			b.WriteString(`<c r="` + k + `"><v>` + v + `</v></c>`)
@@ -368,6 +389,32 @@ var (
 	reXlFn   = regexp.MustCompile(`([A-Za-zÄÖÜäöüß_][A-Za-z0-9ÄÖÜäöüß_.]*)\(`)
 	reXlBool = regexp.MustCompile(`\b(WAHR|FALSCH)\b`)
 )
+
+// safeFormula: nur Formeln aus den Funktionen des Calc (Whitelist) mit Zellbezügen, Zahlen, Text und Operatoren werden als
+// echte Formeln in die xlsx geschrieben. Alles andere (HYPERLINK, WEBSERVICE, DDE "|", externe Bezüge "[...]"/"!") bleibt Text.
+var xlAllowed = map[string]bool{"SUM": true, "AVERAGE": true, "MIN": true, "MAX": true, "COUNT": true, "COUNTA": true, "PRODUCT": true,
+	"ROUND": true, "ABS": true, "SQRT": true, "AND": true, "OR": true, "NOT": true, "IF": true}
+
+var reXlPlain = regexp.MustCompile(`^[A-Za-z0-9_.$(),:;+\-*/^%&<>= \t]*$`)
+
+func safeFormula(f string) bool {
+	rest, last := strings.Builder{}, 0
+	for _, loc := range reXlStr.FindAllStringIndex(f, -1) {
+		rest.WriteString(f[last:loc[0]] + " ")
+		last = loc[1]
+	}
+	rest.WriteString(f[last:])
+	p := rest.String()
+	if strings.Contains(p, `"`) || !reXlPlain.MatchString(p) {
+		return false
+	}
+	for _, m := range reXlFn.FindAllStringSubmatch(p, -1) {
+		if !xlAllowed[strings.ToUpper(m[1])] {
+			return false
+		}
+	}
+	return true
+}
 
 func xlFormula(f string) string {
 	conv := func(p string) string {

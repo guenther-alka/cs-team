@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "{0} messages sélectionnés",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "{0} messages seront supprimés, dont {1} avec pièce jointe.",
  "{0} Treffer": "{0} résultats",
- "{0} angezeigt – Filter enger setzen": "{0} affichés – affinez le filtre"
+ "{0} angezeigt – Filter enger setzen": "{0} affichés – affinez le filtre",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "Seront supprimés : {0} fichiers, {1} documents, {2} entrées de calendrier. Les partages et l'entrée d'administrateur de groupe de ce nom sont supprimés. Les messages et tâches des groupes sont conservés.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Aucun snapshot possible : les données seront définitivement perdues.",
+ "Vorher wird ein Snapshot angelegt.": "Un snapshot est créé auparavant.",
+ "Zur Bestätigung dein Passwort eingeben:": "Saisissez votre mot de passe pour confirmer :",
+ "Ohne Snapshot löschen?": "Supprimer sans snapshot ?"
 }

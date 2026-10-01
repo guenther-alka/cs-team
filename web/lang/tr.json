@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "{0} mesaj seçildi",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "{0} mesaj silinecek, bunların {1} tanesinde ek var.",
  "{0} Treffer": "{0} sonuç",
- "{0} angezeigt – Filter enger setzen": "{0} gösteriliyor – filtreyi daraltın"
+ "{0} angezeigt – Filter enger setzen": "{0} gösteriliyor – filtreyi daraltın",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "Silinecekler: {0} dosya, {1} belge, {2} takvim girdisi. Bu ada ait paylaşımlar ve grup yöneticisi kaydı kaldırılır. Gruplardaki mesajlar ve görevler kalır.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "Anlık görüntü mümkün değil: veriler kalıcı olarak silinir.",
+ "Vorher wird ein Snapshot angelegt.": "Önce bir anlık görüntü oluşturulur.",
+ "Zur Bestätigung dein Passwort eingeben:": "Onaylamak için parolanızı girin:",
+ "Ohne Snapshot löschen?": "Anlık görüntü olmadan silinsin mi?"
 }

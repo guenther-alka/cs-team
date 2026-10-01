@@ -341,6 +341,9 @@ func (b *Backend) PutCalendarObject(ctx context.Context, p string, c *ical.Calen
 	if !ci.write {
 		return nil, he(http.StatusForbidden, "read-only calendar")
 	}
+	if c != nil && hasFineRRule(c.Component) {
+		return nil, he(http.StatusBadRequest, "RRULE: repeat more often than daily is not supported")
+	}
 	if msg := b.conflict(ctx, ci, c, obj); msg != "" {
 		return nil, he(http.StatusConflict, msg)
 	}

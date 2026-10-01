@@ -70,6 +70,7 @@ type chanInfo struct {
 type client struct {
 	user string
 	out  chan []byte
+	done chan struct{} // wird (unter s.mu, genau einmal) geschlossen; out selbst bleibt offen -> kein Senden auf geschlossenen Kanal
 }
 
 type Svc struct {
@@ -212,11 +213,12 @@ func (s *Svc) broadcast(g string, v any) {
 		}
 		select {
 		case c.out <- b:
+		case <-c.done:
 		default: // zu langsam: Verbindung wird beendet, Client lädt neu
 			s.mu.Lock()
 			if s.conns[c] {
 				delete(s.conns, c)
-				close(c.out)
+				close(c.done)
 			}
 			s.mu.Unlock()
 		}
@@ -577,7 +579,7 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 	conn.SetReadLimit(16 << 10)
-	c := &client{user: me, out: make(chan []byte, 256)}
+	c := &client{user: me, out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.conns[c] = true
 	s.mu.Unlock()
@@ -585,7 +587,7 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		if s.conns[c] {
 			delete(s.conns, c)
-			close(c.out)
+			close(c.done)
 		}
 		s.mu.Unlock()
 	}()
@@ -593,12 +595,17 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	hello, _ := json.Marshal(map[string]any{"t": "hello", "groups": s.groupsOf(ctx, me)})
 	c.out <- hello
 	go func() {
-		for b := range c.out {
-			if conn.Write(ctx, websocket.MessageText, b) != nil {
+		for {
+			select {
+			case b := <-c.out:
+				if conn.Write(ctx, websocket.MessageText, b) != nil {
+					return
+				}
+			case <-c.done:
+				conn.Close(websocket.StatusPolicyViolation, "resync")
 				return
 			}
 		}
-		conn.Close(websocket.StatusPolicyViolation, "resync")
 	}()
 	for {
 		_, data, err := conn.Read(ctx)
@@ -613,6 +620,7 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 			b, _ := json.Marshal(map[string]any{"t": "err", "g": m.G, "m": err.Error()})
 			select {
 			case c.out <- b:
+			case <-c.done:
 			default:
 			}
 		}

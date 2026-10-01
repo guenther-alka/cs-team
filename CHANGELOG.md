@@ -1,5 +1,17 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.2 Haertung nach Audit (S-03/S-04, S-06, S-07, S-08, S-10, K-02/C-10, K-03, C-06, F7, C-11): Anmelde-Schutz: bei CS_TRUST_PROXY=1 zaehlt nur das
+                   LETZTE Element von X-Forwarded-For; zusaetzliche Sperre je Adresse (20 Fehlversuche, alle Namen) und je Benutzername (100, alle Adressen);
+                   erfolgreiche Anmeldungen werden 45 s gemerkt (kein bcrypt je Anfrage; Passwortaenderung/Sperre wirken sofort); Bereinigung entfernt keine
+                   aktiven Sperren mehr. Security-Header (X-Frame-Options, nosniff, Referrer-Policy, CSP, HSTS bei TLS). Schluesselpruefung auch fuer S3
+                   (wie Ordner-Speicher). Gemeinsame Sperrliste fuer Kalender-Abos, Webhooks und KI (CGNAT 100.64/10, 0/8, 192.0.0/24, 198.18/15, NAT64,
+                   Reserviert); Feed-Fehlertext ohne Netzwerkdetails; Webhooks folgen keinen Weiterleitungen mehr (307/308), Discord-Kuerzung an UTF-8-Grenze.
+                   CalDAV/Abo: Wiederholungen feiner als taeglich werden abgelehnt (PUT) bzw. beim Abo-Import entfernt. Chat: kein Senden auf geschlossenen
+                   Kanal mehr (Race beim Trennen). Export: CSV-Zellen mit = + - @ bekommen ein ' (Formel-Injektion), xlsx schreibt nur Formeln aus der
+                   Calc-Funktionsliste, alles andere als Text. Gruppe "users" kann nicht angelegt werden. Benutzer loeschen: Gruppen-Admin-Eintraege
+                   werden entfernt; neuer Assistent mit Vorschau (Anzahl Dateien/Dokumente/Kalendereintraege), Passwort und Snapshot (oder ausdruecklich
+                   ohne) loescht Dateien, Dokumente, Kalender und Freigaben des Namens; Nachrichten/Aufgaben in Gruppen bleiben. Protokoll: users/_delete-log.json.
+
 2026-10-01  0.13.1 Snapshot-Erkennung unter Windows (OpenZFS on Windows): Laufwerksbuchstabe -> Datentraegerbezeichnung = Pool, Ordner/Junctions darunter = Datasets
                    (D:\data -> winpool/data, laengster passender Dataset-Pfad). Neu: CS_SNAPSHOT_DATASET legt das Dataset fest. Fix: doppelte Element-ID
                    in den KI-Einstellungen (Modus-Auswahl ueberschrieb die Meldungsanzeige).

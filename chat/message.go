@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"cs-team/auth"
+	"cs-team/netguard"
 	"cs-team/store"
 )
 
@@ -156,14 +157,16 @@ func safeClient(allowPrivate bool) *http.Client {
 		if err != nil {
 			return err
 		}
-		ip = ip.Unmap()
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+		if netguard.Blocked(ip) {
 			return errors.New("address not allowed")
 		}
 		return nil
 	}}
 	return &http.Client{Timeout: 12 * time.Second, Transport: &http.Transport{DialContext: d.DialContext, DisableKeepAlives: true},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if req.Method == http.MethodPost { // 307/308 würden Nachrichtentext/Schlüssel an ein fremdes Ziel senden
+				return http.ErrUseLastResponse
+			}
 			if len(via) > 3 {
 				return errors.New("too many redirects")
 			}
@@ -194,8 +197,9 @@ func hook(ctx context.Context, cl *http.Client, target, subject, text string) er
 		b, _ := json.Marshal(map[string]string{"text": msg})
 		body, ctype = string(b), "application/json"
 	case strings.HasSuffix(host, "discord.com") || strings.HasSuffix(host, "discordapp.com"):
-		if len(msg) > 1900 {
-			msg = msg[:1900]
+		for len(msg) > 1900 { // an UTF-8-Grenze kürzen
+			r := []rune(msg)
+			msg = string(r[:len(r)-(len(msg)-1900)/2-1])
 		}
 		b, _ := json.Marshal(map[string]string{"content": msg})
 		body, ctype = string(b), "application/json"

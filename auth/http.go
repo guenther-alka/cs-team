@@ -214,6 +214,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 
 	a.groupRoutes(mux, adm)
 	a.routineRoutes(mux, adm)
+	a.purgeRoutes(mux, adm)
 	a.contactRoutes(mux, usr)
 	a.exportRoutes(mux)
 	mux.Handle("POST /api/users/{name}/flags", adm(func(w http.ResponseWriter, r *http.Request) {

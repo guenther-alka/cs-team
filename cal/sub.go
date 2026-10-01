@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/emersion/go-ical"
 
 	"cs-team/auth"
+	"cs-team/netguard"
 )
 
 const (
@@ -52,8 +54,8 @@ func subClient() *http.Client {
 			if err != nil {
 				return err
 			}
-			ip := net.ParseIP(h)
-			if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+			ip, err := netip.ParseAddr(h)
+			if err != nil || netguard.Blocked(ip) {
 				return errors.New("address not allowed")
 			}
 			return nil
@@ -114,6 +116,7 @@ func (b *Backend) refresh(ctx context.Context, owner, kal string, m meta) error 
 			if uid == "" {
 				continue
 			}
+			dropFineRRule(c)
 			if _, ok := byUID[uid]; !ok {
 				order = append(order, uid)
 			}

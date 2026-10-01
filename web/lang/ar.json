@@ -508,5 +508,10 @@
  "{0} Nachrichten ausgewählt": "تم تحديد {0} رسالة",
  "{0} Nachrichten werden gelöscht, davon {1} mit Anhang.": "سيتم حذف {0} رسالة، منها {1} بمرفق.",
  "{0} Treffer": "{0} نتيجة",
- "{0} angezeigt – Filter enger setzen": "عُرض {0} – ضيّق عامل التصفية"
+ "{0} angezeigt – Filter enger setzen": "عُرض {0} – ضيّق عامل التصفية",
+ "Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.": "سيتم حذف: {0} ملفات و{1} مستندات و{2} إدخالات تقويم. تتم إزالة المشاركات وإدخال مسؤول المجموعة لهذا الاسم. تبقى الرسائل والمهام في المجموعات.",
+ "Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.": "لا يمكن إنشاء لقطة: ستُفقد البيانات نهائياً.",
+ "Vorher wird ein Snapshot angelegt.": "يتم إنشاء لقطة أولاً.",
+ "Zur Bestätigung dein Passwort eingeben:": "أدخل كلمة مرورك للتأكيد:",
+ "Ohne Snapshot löschen?": "الحذف بدون لقطة؟"
 }

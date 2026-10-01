@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net"
@@ -22,12 +23,16 @@ import (
 var ForceChange = true
 
 const (
-	usersKey = "users/users.json"
-	cacheTTL = 30 * time.Second
-	maxFails = 5               // Fehlversuche je Benutzer+IP ...
-	lockFor  = 5 * time.Minute // ... dann gesperrt
-	minPass  = 8
-	maxPass  = 72 // bcrypt-Limit
+	usersKey     = "users/users.json"
+	cacheTTL     = 30 * time.Second
+	maxFailsIP   = 20  // Fehlversuche je Adresse (alle Namen) ...
+	maxFailsUser = 100 // ... und je Benutzername (alle Adressen), dann jeweils lockFor gesperrt
+	authTTL      = 45 * time.Second
+	maxCache     = 4096
+	maxFails     = 5               // Fehlversuche je Benutzer+IP ...
+	lockFor      = 5 * time.Minute // ... dann gesperrt
+	minPass      = 8
+	maxPass      = 72 // bcrypt-Limit
 )
 
 var (
@@ -70,6 +75,7 @@ func (u *Account) UnmarshalJSON(b []byte) error {
 type fail struct {
 	n     int
 	until time.Time
+	last  time.Time
 }
 
 type Auth struct {
@@ -82,13 +88,16 @@ type Auth struct {
 	load   time.Time
 	fails  map[string]*fail
 	dummy  []byte
+	cache  map[[32]byte]cacheEnt // erfolgreiche Anmeldungen (kurz), spart bcrypt je Anfrage
+	salt   [16]byte
 }
 
 var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht die Gruppen eines Benutzers
 
 func New(st store.Store) *Auth {
 	d, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.DefaultCost)
-	a := &Auth{st: st, fails: map[string]*fail{}, dummy: d}
+	a := &Auth{st: st, fails: map[string]*fail{}, dummy: d, cache: map[[32]byte]cacheEnt{}}
+	rand.Read(a.salt[:])
 	std = a
 	return a
 }
@@ -271,7 +280,7 @@ func (a *Auth) SetFlags(ctx context.Context, name string, admin, disabled *bool)
 }
 
 func (a *Auth) DeleteUser(ctx context.Context, name string) error {
-	return a.mutate(ctx, func(m map[string]Account) error {
+	err := a.mutate(ctx, func(m map[string]Account) error {
 		if _, ok := m[name]; !ok {
 			return ErrNoUser
 		}
@@ -281,14 +290,44 @@ func (a *Auth) DeleteUser(ctx context.Context, name string) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	a.dropAdminRefs(ctx, name)
+	return nil
+}
+
+// dropAdminRefs: der Name verschwindet aus allen Gruppen-Admin-Listen. Sonst erbt, wer den Namen später neu anlegt, die
+// Gruppen-Admin-Rechte des gelöschten Kontos (Audit S-07).
+func (a *Auth) dropAdminRefs(ctx context.Context, name string) {
+	a.mutateGroups(ctx, func(m map[string]Group) error {
+		for n, g := range m {
+			var keep []string
+			for _, x := range g.Admins {
+				if x != name {
+					keep = append(keep, x)
+				}
+			}
+			if len(keep) != len(g.Admins) {
+				g.Admins = keep
+				m[n] = g
+			}
+		}
+		return nil
+	})
 }
 
 // ---------- Prüfen / Fehlversuch-Sperre ----------
 
+// ip: Client-Adresse. Hinter dem eigenen Proxy (CS_TRUST_PROXY=1) zählt das LETZTE Element von X-Forwarded-For
+// (vom Proxy angehängt); die davor stehenden Elemente setzt der Client frei und werden nie genutzt.
 func (a *Auth) ip(r *http.Request) string {
 	if a.TrustProxy {
 		if f := r.Header.Get("X-Forwarded-For"); f != "" {
-			return strings.TrimSpace(strings.Split(f, ",")[0])
+			parts := strings.Split(f, ",")
+			if v := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(v) != nil {
+				return v
+			}
 		}
 	}
 	h, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -305,24 +344,36 @@ func (a *Auth) locked(key string) bool {
 	return f != nil && time.Now().Before(f.until)
 }
 
-func (a *Auth) failed(key string) {
+func (a *Auth) failed(key string) { a.failedMax(key, maxFails) }
+
+// failedMax zählt einen Fehlversuch für key; ab max Versuchen ist key lockFor lang gesperrt.
+func (a *Auth) failedMax(key string, max int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if len(a.fails) > 10000 { // Speicher begrenzen
+	now := time.Now()
+	if len(a.fails) > 10000 { // Speicher begrenzen: nur abgelaufene Sperren und alte Zähler entfernen, aktive Sperren bleiben
 		for k, f := range a.fails {
-			if time.Now().After(f.until) {
+			if (!f.until.IsZero() && now.After(f.until)) || (f.until.IsZero() && now.Sub(f.last) > lockFor) {
 				delete(a.fails, k)
+			}
+		}
+		if len(a.fails) > 50000 { // Angriff mit sehr vielen Namen: ungesperrte Zähler verwerfen
+			for k, f := range a.fails {
+				if f.until.IsZero() || now.After(f.until) {
+					delete(a.fails, k)
+				}
 			}
 		}
 	}
 	f := a.fails[key]
-	if f == nil || (f.n >= maxFails && time.Now().After(f.until)) {
+	if f == nil || (f.n >= max && now.After(f.until)) {
 		f = &fail{}
 		a.fails[key] = f
 	}
 	f.n++
-	if f.n >= maxFails {
-		f.until = time.Now().Add(lockFor)
+	f.last = now
+	if f.n >= max {
+		f.until = now.Add(lockFor)
 	}
 }
 
@@ -370,15 +421,18 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		key := name + "|" + a.ip(r)
-		if a.locked(key) {
+		cip := a.ip(r)
+		key, ipKey, userKey := name+"|"+cip, "ip|"+cip, "user|"+name
+		if a.locked(key) || a.locked(ipKey) || a.locked(userKey) {
 			w.Header().Set("Retry-After", "300")
 			http.Error(w, "too many attempts", http.StatusTooManyRequests)
 			return
 		}
-		u, good := a.verify(r.Context(), name, pass)
+		u, good := a.verifyCached(r.Context(), name, pass)
 		if !good {
 			a.failed(key)
+			a.failedMax(ipKey, maxFailsIP)     // Passwort-Spraying über viele Namen von einer Adresse
+			a.failedMax(userKey, maxFailsUser) // verteilter Angriff auf einen Namen (hohe Schwelle)
 			w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
