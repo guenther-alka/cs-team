@@ -1,5 +1,13 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.11.0 KI-Assistent: Chat-Widget (Knopf "KI" unten rechts) fuer alle Benutzer. Anbieter, Modell und API-Schluessel stehen zentral in
+                   Einstellungen > "KI-Assistent (fuer alle)": Anthropic, OpenAI-kompatibel (OpenAI, OpenRouter, eigene Server) oder Ollama; Endpunkt im
+                   lokalen Netz nur nach ausdruecklicher Freigabe. Sechs Status-Knoepfe (Aufgaben, Termine, Dateien, Chat, Gruppen, System/Mein Konto):
+                   der Server holt die Daten mit den Rechten des Fragenden ueber die normalen Routen - Benutzer sehen nur eigene Daten, Gruppen-Admins
+                   ihre Gruppen, globale Admins alles. Daneben normaler KI-Chat in der eingestellten Sprache; Bilder per Datei, Drag & Drop oder
+                   Einfuegen (verkleinert) bei Modellen mit Bilderkennung. Nur lesend: die KI aendert nichts. Antworten werden nur als Text
+                   dargestellt, der Schluessel verlaesst den Server nie, Protokoll ohne Inhalte, Limit pro Benutzer und Minute.
+
 2026-10-01  0.10.4 Sicherheit (siehe AUDIT.md): CSRF-Schutz (schreibende Anfragen nur von gleichem Ursprung; DAV-/CalDAV-Apps und curl ohne Origin-Header
                    funktionieren weiter), WebDAV liefert Dateien nur noch als Download (nosniff + CSP sandbox; kein Stored-XSS mehr), Gruppen-Admins
                    duerfen nur Konten verwalten/hinzufuegen, die ausschliesslich in von ihnen verwalteten Gruppen sind (kein Konto-Uebernahme per

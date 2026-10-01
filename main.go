@@ -14,11 +14,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"cs-team/ai"
 	"cs-team/auth"
 	"cs-team/cal"
 	"cs-team/chat"
@@ -67,7 +69,9 @@ func loadConf() {
 	}
 }
 
-const version = "0.10.4"
+const version = "0.11.0"
+
+var started = time.Now()
 
 func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "-v" || os.Args[1] == "--version") {
@@ -205,6 +209,20 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	ts.Base = cfg.PublicURL
 	ts.Routes(mux, a.Wrap)
 	ts.Start(context.Background())
+	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
+	aiSvc.H = mux
+	aiSvc.LangName = func(code string) string { return langList()[code] }
+	aiSvc.Info = func() map[string]string {
+		store := "s3 bucket " + env("S3_BUCKET", "cs-team")
+		if os.Getenv("CS_MEM") == "1" {
+			store = "memory (demo)"
+		} else if os.Getenv("CS_DIR") != "" {
+			store = "folder"
+		}
+		return map[string]string{"version": version, "uptime": time.Since(started).Round(time.Minute).String(), "platform": runtime.GOOS + "/" + runtime.GOARCH,
+			"storage": store, "tls": fmt.Sprint(os.Getenv("CS_TLS_CERT") != ""), "listen": env("CS_LISTEN", ":8080")}
+	}
+	aiSvc.Routes(mux, a.Wrap)
 	web, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /lang/", a.Wrap(http.HandlerFunc(langHandler)))
 	mux.Handle("/", a.Wrap(http.FileServerFS(web)))

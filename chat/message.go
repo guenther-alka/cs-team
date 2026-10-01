@@ -171,6 +171,13 @@ func safeClient(allowPrivate bool) *http.Client {
 		}}
 }
 
+// SafeClient: wie safeClient, mit eigenem Zeitlimit (für KI-Provider mit längeren Antwortzeiten).
+func SafeClient(allowPrivate bool, timeout time.Duration) *http.Client {
+	c := safeClient(allowPrivate)
+	c.Timeout = timeout
+	return c
+}
+
 func hook(ctx context.Context, cl *http.Client, target, subject, text string) error {
 	u, err := url.Parse(target)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
