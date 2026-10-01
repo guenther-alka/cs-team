@@ -1,7 +1,6 @@
 package cal
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -9,9 +8,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
-
-	"github.com/emersion/go-ical"
 
 	"cs-team/auth"
 )
@@ -40,16 +36,6 @@ type calRow struct {
 	Sub         bool   `json:"sub,omitempty"` // Abo-Kalender (Internet-Feed)
 }
 
-type evRow struct {
-	UID      string `json:"uid"`
-	File     string `json:"file"`
-	Summary  string `json:"summary"`
-	Location string `json:"location,omitempty"`
-	Start    string `json:"start"`
-	End      string `json:"end,omitempty"`
-	AllDay   bool   `json:"allDay,omitempty"`
-}
-
 // Routes: einfache JSON-API für die Web-UI (CalDAV-Clients nutzen /dav/).
 func (b *Backend) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	f := func(fn http.HandlerFunc) http.Handler { return wrap(auth.Need("cal", fn)) }
@@ -59,6 +45,7 @@ func (b *Backend) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handle
 	mux.Handle("POST /api/cal/{kal}/refresh", f(b.apiRefresh))
 	mux.Handle("GET /api/cal/{kal}/events", f(b.apiEvents))
 	mux.Handle("POST /api/cal/{kal}/events", f(b.apiAddEvent))
+	mux.Handle("PUT /api/cal/{kal}/events/{file}", f(b.apiPutEvent))
 	mux.Handle("DELETE /api/cal/{kal}/events/{file}", f(b.apiDelEvent))
 }
 
@@ -184,143 +171,6 @@ func (b *Backend) apiDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := b.DeleteCalendarObject(r.Context(), davPath(me, c.cid, "")); err != nil {
 		http.Error(w, err.Error(), 500)
-	}
-}
-
-func (b *Backend) apiEvents(w http.ResponseWriter, r *http.Request) {
-	me := auth.User(r.Context())
-	c, err := b.open(r.Context(), r.PathValue("kal"))
-	if err != nil {
-		http.Error(w, "not found", 404)
-		return
-	}
-	b.autoRefresh(r.Context(), c)
-	objs, err := b.ListCalendarObjects(r.Context(), davPath(me, c.cid, ""), nil)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	out := []evRow{}
-	for _, o := range objs {
-		file := o.Path[strings.LastIndex(o.Path, "/")+1:]
-		for _, ev := range o.Data.Events() {
-			uid, _ := ev.Props.Text(ical.PropUID)
-			sum, _ := ev.Props.Text(ical.PropSummary)
-			loc, _ := ev.Props.Text(ical.PropLocation)
-			row := evRow{UID: uid, File: file, Summary: sum, Location: loc}
-			if p := ev.Props.Get(ical.PropDateTimeStart); p != nil {
-				row.AllDay = p.ValueType() == ical.ValueDate
-			}
-			if t, err := ev.DateTimeStart(time.UTC); err == nil {
-				row.Start = t.Format(time.RFC3339)
-			}
-			if t, err := ev.DateTimeEnd(time.UTC); err == nil {
-				row.End = t.Format(time.RFC3339)
-			}
-			out = append(out, row)
-			break // ein VEVENT pro Objekt genügt für die Liste (Serien: Master-Termin)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Start < out[j].Start })
-	json.NewEncoder(w).Encode(out)
-}
-
-func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		Summary, Location, Start, End string
-		AllDay                        bool
-	}
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&in) != nil || strings.TrimSpace(in.Summary) == "" {
-		http.Error(w, "summary required", 400)
-		return
-	}
-	start, err := time.Parse(time.RFC3339, in.Start)
-	if err != nil {
-		http.Error(w, "bad start (RFC3339)", 400)
-		return
-	}
-	end := start.Add(time.Hour)
-	if in.AllDay {
-		end = start.AddDate(0, 0, 1)
-	}
-	if in.End != "" {
-		if end, err = time.Parse(time.RFC3339, in.End); err != nil || end.Before(start) {
-			http.Error(w, "bad end", 400)
-			return
-		}
-	}
-	c, err := b.open(r.Context(), r.PathValue("kal"))
-	if err != nil {
-		http.Error(w, "no such calendar", 404)
-		return
-	}
-	if !c.write {
-		http.Error(w, "read-only calendar", 403)
-		return
-	}
-	id := hex.EncodeToString(func() []byte { x := make([]byte, 12); rand.Read(x); return x }())
-	ev := ical.NewEvent()
-	ev.Props.SetText(ical.PropUID, id+"@cs-team")
-	ev.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
-	if in.AllDay { // ganztägig: DATE-Werte (Enddatum exklusiv); start/end kommen als UTC-Mitternacht des Datums
-		for _, d := range []struct {
-			name string
-			t    time.Time
-		}{{ical.PropDateTimeStart, start}, {ical.PropDateTimeEnd, end}} {
-			p := ical.NewProp(d.name)
-			p.SetValueType(ical.ValueDate)
-			p.Value = d.t.UTC().Format("20060102")
-			ev.Props.Set(p)
-		}
-	} else {
-		ev.Props.SetDateTime(ical.PropDateTimeStart, start.UTC())
-		ev.Props.SetDateTime(ical.PropDateTimeEnd, end.UTC())
-	}
-	ev.Props.SetText(ical.PropSummary, strings.TrimSpace(in.Summary))
-	if in.Location != "" {
-		ev.Props.SetText(ical.PropLocation, in.Location)
-	}
-	cal := ical.NewCalendar()
-	cal.Props.SetText(ical.PropVersion, "2.0")
-	cal.Props.SetText(ical.PropProductID, "-//cs-team//EN")
-	cal.Children = append(cal.Children, ev.Component)
-	if c.m.Resource {
-		defer lockCal(c.owner, c.kal)()
-	}
-	if msg := b.conflict(r.Context(), c, cal, ""); msg != "" {
-		http.Error(w, msg, http.StatusConflict)
-		return
-	}
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	if _, err := b.St.Put(r.Context(), key(c.owner, c.kal, id+".ics"), buf.Bytes(), "*"); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	json.NewEncoder(w).Encode(map[string]string{"file": id + ".ics"})
-}
-
-func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
-	file := r.PathValue("file")
-	if !strings.HasSuffix(file, ".ics") || strings.ContainsAny(file, `/\`) {
-		http.Error(w, "bad file", 400)
-		return
-	}
-	me := auth.User(r.Context())
-	c, err := b.open(r.Context(), r.PathValue("kal"))
-	if err != nil {
-		http.Error(w, "not found", 404)
-		return
-	}
-	if err := b.DeleteCalendarObject(r.Context(), davPath(me, c.cid, file)); err != nil {
-		code := 500
-		if strings.Contains(err.Error(), "read-only") {
-			code = 403
-		}
-		http.Error(w, err.Error(), code)
 	}
 }
 

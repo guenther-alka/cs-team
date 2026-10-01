@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // Zeitzonen eingebettet (Windows und Minimalsysteme haben oft keine tzdata)
 
 	"cs-team/ai"
 	"cs-team/auth"
@@ -70,7 +71,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.13.9"
+const version = "0.14.0"
 
 var started = time.Now()
 

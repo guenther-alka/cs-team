@@ -133,11 +133,15 @@ func collectCalendar(s *Svc, r *http.Request, w who) (string, error) {
 			Summary, Location, Start, End string
 			AllDay                        bool
 		}
-		if s.get(r, "/api/cal/"+url.PathEscape(c.ID)+"/events", &rows) != nil {
+		q := "?from=" + url.QueryEscape(from.UTC().Format(time.RFC3339)) + "&to=" + url.QueryEscape(to.UTC().Format(time.RFC3339))
+		if s.get(r, "/api/cal/"+url.PathEscape(c.ID)+"/events"+q, &rows) != nil {
 			continue
 		}
 		for _, e := range rows {
 			st, err := time.Parse(time.RFC3339, e.Start)
+			if err != nil { // schwebende Zeit: Ortszeit
+				st, err = time.ParseInLocation("2006-01-02T15:04:05", e.Start, time.Local)
+			}
 			if err != nil {
 				st, err = time.Parse("2006-01-02", e.Start)
 			}
@@ -153,7 +157,7 @@ func collectCalendar(s *Svc, r *http.Request, w who) (string, error) {
 	}
 	sort.Slice(evs, func(i, j int) bool { return evs[i].t.Before(evs[j].t) })
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Calendars visible: %d. Events from %s to %s: %d (recurring series are shown only at their first date).\n", len(cals), from.Format("2006-01-02"), to.Format("2006-01-02"), len(evs))
+	fmt.Fprintf(&sb, "Calendars visible: %d. Events from %s to %s: %d (recurring series are expanded).\n", len(cals), from.Format("2006-01-02"), to.Format("2006-01-02"), len(evs))
 	for i, e := range evs {
 		if i >= 40 {
 			fmt.Fprintf(&sb, "... and %d more\n", len(evs)-40)

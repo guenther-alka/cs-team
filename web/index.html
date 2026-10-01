@@ -758,18 +758,36 @@ const lsGet=(k,def)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v)
 const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}};
 const PALETTE=['#3b82f6','#16a34a','#f97316','#a855f7','#e11d48','#0891b2','#ca8a04','#64748b','#db2777','#4d7c0f'];
 const pad2=n=>String(n).padStart(2,'0');
+const BTZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'';}catch(e){return '';}})();
 const dkey=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
 const sod=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const hhmm=d=>pad2(d.getHours())+':'+pad2(d.getMinutes());
 S.cal={
-  items:[],cals:[],ev:{},vis:lsGet('cs.cal.vis',{}),view:lsGet('cs.cal.view','month'),anchor:new Date(),
+  items:[],cals:[],ev:{},range:null,_evs:[],vis:lsGet('cs.cal.vis',{}),view:lsGet('cs.cal.view','month'),anchor:new Date(),
   colorOf(c){let h=0;for(const ch of c.id)h=(h*31+ch.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];},
   isVis(id){return this.vis[id]!==false;},
   async load(){
     this.cals=(await J('GET','/api/cal'))||[];
-    await Promise.all(this.cals.map(async c=>{this.ev[c.id]=(await J('GET','/api/cal/'+encodeURIComponent(c.id)+'/events'))||[];}));
+    await this.loadEvents();
     this.buildList();
+  },
+  /* sichtbarer Zeitraum der Ansicht [von, bis) */
+  rangeNeed(){
+    const a=this.anchor,v=this.view;let s,e;
+    if(v=='month'){const f=new Date(a.getFullYear(),a.getMonth(),1);s=addDays(f,-((f.getDay()+6)%7));e=addDays(s,42);}
+    else if(v=='week'){s=addDays(sod(a),-((a.getDay()+6)%7));e=addDays(s,7);}
+    else if(v=='day'){s=sod(a);e=addDays(s,1);}
+    else{s=sod(new Date());e=addDays(s,60);}
+    return [s,e];
+  },
+  covered(){const r=this.range,n=this.rangeNeed();return !!(r&&r[0]<=n[0]&&r[1]>=n[1]);},
+  /* Termine (Serien serverseitig aufgelöst) für den sichtbaren Zeitraum plus Puffer laden */
+  async loadEvents(){
+    const n=this.rangeNeed(),lo=addDays(n[0],-35),hi=addDays(n[1],35);
+    const q='?from='+encodeURIComponent(lo.toISOString())+'&to='+encodeURIComponent(hi.toISOString());
+    await Promise.all(this.cals.map(async c=>{this.ev[c.id]=(await J('GET','/api/cal/'+encodeURIComponent(c.id)+'/events'+q))||[];}));
+    this.range=[lo,hi];
   },
   buildList(){
     const it=[];let last='';
@@ -795,7 +813,7 @@ S.cal={
         let s,en;
         if(e.allDay){const a=new Date(e.start),b=e.end?new Date(e.end):null;s=new Date(a.getUTCFullYear(),a.getUTCMonth(),a.getUTCDate());en=b?new Date(b.getUTCFullYear(),b.getUTCMonth(),b.getUTCDate()):addDays(s,1);}
         else{s=new Date(e.start);en=e.end?new Date(e.end):new Date(+s+3600e3);}
-        out.push({c,e,s,en,allDay:!!e.allDay,color:this.colorOf(c)});
+        out.push({c,e,s,en,allDay:!!e.allDay,color:this.colorOf(c),id:out.length});
       }
     }
     out.sort((a,b)=>(b.allDay-a.allDay)||(a.s-b.s));
@@ -803,11 +821,12 @@ S.cal={
   },
   onDay(evs,day){const a=sod(day),b=addDays(a,1);return evs.filter(x=>x.s<b&&(x.en>a||(+x.en==+x.s&&x.s>=a)));},
   chip(x){
-    return '<div class="ev'+(x.allDay?' ad':'')+'" style="background:'+x.color+'" data-c="'+esc(x.c.id)+'" data-f="'+esc(x.e.file)+'" title="'+esc(x.c.name+': '+x.e.summary)+'">'+(x.allDay?'':esc(hhmm(x.s))+' ')+esc(x.e.summary)+'</div>';
+    return '<div class="ev'+(x.allDay?' ad':'')+'" style="background:'+x.color+'" data-i="'+x.id+'" title="'+esc(x.c.name+': '+x.e.summary)+'">'+(x.allDay?'':esc(hhmm(x.s))+' ')+(x.e.rec?'↻ ':'')+esc(x.e.summary)+'</div>';
   },
-  draw(){
+  async draw(){if(!this.covered())await this.loadEvents();this.paint();},
+  paint(){
     const a=this.anchor,v=this.view;let title='',body='';
-    const evs=this.events(),today=dkey(new Date());
+    const evs=this._evs=this.events(),today=dkey(new Date());
     if(v=='month'){
       title=MONTHS[a.getMonth()]+' '+a.getFullYear();
       const first=new Date(a.getFullYear(),a.getMonth(),1),off=(first.getDay()+6)%7,start=addDays(first,-off);
@@ -842,35 +861,96 @@ S.cal={
     $('#cpv').onclick=()=>step(-1);$('#cnx').onclick=()=>step(1);
     document.querySelectorAll('#main button[data-v]').forEach(b=>b.onclick=()=>{this.view=b.dataset.v;lsSet('cs.cal.view',this.view);this.draw();});
     document.querySelectorAll('#main [data-d]').forEach(x=>x.onclick=()=>{const p=x.dataset.d.split('-');this.anchor=new Date(+p[0],+p[1]-1,+p[2]);this.view='day';this.draw();});
-    document.querySelectorAll('#main .ev').forEach(x=>x.onclick=()=>this.detail(x.dataset.c,x.dataset.f));
+    document.querySelectorAll('#main .ev').forEach(x=>x.onclick=()=>this.detail(this._evs[+x.dataset.i]));
     $('#cnew').onclick=()=>this.newEvent();
   },
-  detail(cid,file){
-    const c=this.cals.find(x=>x.id==cid),e=(this.ev[cid]||[]).find(x=>x.file==file);if(!c||!e)return;
-    const s=e.allDay?new Date(new Date(e.start).getTime()+new Date(e.start).getTimezoneOffset()*60000):new Date(e.start);
-    $('#cdet').innerHTML='<div class="panel"><b>'+esc(e.summary)+'</b><div class="muted">'+esc(c.name)+(c.scope=='group'?' ('+t('Gruppe')+' '+esc(c.group)+')':c.scope=='global'?' ('+t('global')+')':'')+'</div>'+
-      '<div>'+(e.allDay?t('ganztägig '):'')+esc(fmtDT(e.start))+(e.end&&!e.allDay?' – '+esc(fmtDT(e.end)):'')+'</div>'+(e.location?'<div>'+t('Ort: ')+esc(e.location)+'</div>':'')+
-      (c.write?'<div class="row"><button id="cdel">'+t('Termin löschen')+'</button></div>':'')+'</div>';
-    if(c.write)$('#cdel').onclick=async()=>{if(confirm(t('Termin löschen?'))&&await api('DELETE','/api/cal/'+encodeURIComponent(cid)+'/events/'+encodeURIComponent(file))){await this.load();this.draw();}};
+  ruleText(r){
+    if(!r)return '';
+    const f={DAILY:t('täglich'),WEEKLY:t('wöchentlich'),MONTHLY:t('monatlich'),YEARLY:t('jährlich')}[r.freq]||r.freq;
+    let x=f+((r.interval||1)>1?', '+t('Intervall {0}',r.interval):'');
+    if(r.count)x+=', '+t('{0} Termine',r.count);
+    if(r.until)x+=', '+t('bis {0}',r.until);
+    if(!r.simple)x+=' ('+t('komplexe Regel, nur im Kalenderprogramm änderbar')+')';
+    return x;
   },
-  newEvent(){
+  detail(x){
+    if(!x)return;
+    const c=x.c,e=x.e,cid=c.id,rec=!!e.rec;
+    $('#cdet').innerHTML='<div class="panel"><b>'+(rec?'↻ ':'')+esc(e.summary)+'</b><div class="muted">'+esc(c.name)+(c.scope=='group'?' ('+t('Gruppe')+' '+esc(c.group)+')':c.scope=='global'?' ('+t('global')+')':'')+'</div>'+
+      '<div>'+(e.allDay?t('ganztägig ')+esc(x.s.toLocaleDateString(LOC,{dateStyle:'medium'}))+(+addDays(x.en,-1)>+x.s?' – '+esc(addDays(x.en,-1).toLocaleDateString(LOC,{dateStyle:'medium'})):''):esc(fmtDT(x.s))+(e.end?' – '+esc(fmtDT(x.en)):''))+'</div>'+
+      (e.location?'<div>'+t('Ort: ')+esc(e.location)+'</div>':'')+(e.desc?'<div style="white-space:pre-wrap">'+esc(e.desc)+'</div>':'')+
+      (rec&&e.rule?'<div class="muted">'+t('Serie: ')+esc(this.ruleText(e.rule))+(e.ovr?' · '+t('einzeln geändert'):'')+'</div>':'')+
+      (c.write?'<div class="row"><button id="cedt">'+t('Bearbeiten')+'</button> '+(rec?'<button id="cdel1">'+t('Nur diesen Termin löschen')+'</button> <button id="cdel">'+t('Ganze Serie löschen')+'</button>':'<button id="cdel">'+t('Termin löschen')+'</button>')+'</div>':'')+'</div>';
+    $('#cdet').scrollIntoView({block:'nearest'});
+    if(!c.write)return;
+    const del=async one=>{
+      if(!confirm(one?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
+      const q=one?'?scope=one&rid='+encodeURIComponent(e.rid):'';
+      if(await api('DELETE','/api/cal/'+encodeURIComponent(cid)+'/events/'+encodeURIComponent(e.file)+q)){await this.load();this.paint();}};
+    $('#cdel').onclick=()=>del(false);
+    if(rec)$('#cdel1').onclick=()=>del(true);
+    $('#cedt').onclick=()=>this.form(x);
+  },
+  newEvent(){this.form(null);},
+  /* Formular für neuen (x=null) oder zu bearbeitenden Termin (x aus events()) */
+  form(x){
     const w=this.cals.filter(c=>c.write);
     if(!w.length){alert(t('Kein beschreibbarer Kalender'));return;}
-    const cur=w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0];
-    const a=new Date(this.anchor);a.setMinutes(0,0,0);if(dkey(a)==dkey(new Date()))a.setHours(new Date().getHours()+1);else a.setHours(9);
-    const loc=d=>dkey(d)+'T'+hhmm(d);
-    $('#cdet').innerHTML='<div class="panel"><b>'+t('Neuer Termin')+'</b><div class="row"><input id="es" placeholder="'+t('Titel')+'" style="width:260px"> <input id="el" placeholder="'+t('Ort')+'"></div>'+
-      '<div class="row">'+t('Kalender: ')+'<select id="ec">'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"> '+t('ganztägig')+'</label></div>'+
-      '<div class="row">'+t('von ')+'<input id="eb" type="datetime-local" value="'+loc(a)+'"> '+t('bis')+' <input id="ee" type="datetime-local" value="'+loc(new Date(+a+3600e3))+'"></div><button id="ego">'+t('Speichern')+'</button></div>';
-    $('#ead').onchange=e=>{$('#eb').type=e.target.checked?'date':'datetime-local';$('#ee').type=e.target.checked?'date':'datetime-local';
-      $('#eb').value=e.target.checked?dkey(a):loc(a);$('#ee').value=e.target.checked?dkey(a):loc(new Date(+a+3600e3));};
+    const ed=!!x,e=x?x.e:null,rec=!!(e&&e.rec),r=e&&e.rule?e.rule:null;
+    const cur=ed?x.c:(w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0]);
+    let a=new Date(this.anchor),b0;
+    if(ed){a=new Date(x.s);b0=new Date(x.en);}
+    else{a.setMinutes(0,0,0);if(dkey(a)==dkey(new Date()))a.setHours(new Date().getHours()+1);else a.setHours(9);b0=new Date(+a+3600e3);}
+    const ad0=ed&&x.allDay,loc=d=>dkey(d)+'T'+hhmm(d);
+    const v0=ad0?dkey(a):loc(a),e0=ad0?dkey(addDays(b0,-1)):loc(b0);
+    const opt=(v,l,sel)=>'<option value="'+v+'"'+(sel?' selected':'')+'>'+l+'</option>';
+    const fr=r?r.freq:'';
+    const rulable=!r||r.simple;   // komplexe Regeln (BYDAY ...) bleiben unverändert
+    $('#cdet').innerHTML='<div class="panel"><b>'+(ed?t('Termin bearbeiten'):t('Neuer Termin'))+'</b>'+
+      '<div class="row"><input id="es" placeholder="'+t('Titel')+'" style="width:260px" value="'+esc(ed?e.summary:'')+'"> <input id="el" placeholder="'+t('Ort')+'" value="'+esc(ed?e.location||'':'')+'"></div>'+
+      '<div class="row"><textarea id="ed" rows="2" placeholder="'+t('Beschreibung')+'" style="width:380px">'+esc(ed?e.desc||'':'')+'</textarea></div>'+
+      '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
+      '<div class="row">'+t('von ')+'<input id="eb" type="'+(ad0?'date':'datetime-local')+'" value="'+v0+'"> '+t('bis')+' <input id="ee" type="'+(ad0?'date':'datetime-local')+'" value="'+e0+'"></div>'+
+      (rec?'<div class="row"><label><input type="radio" name="esc" value="one" checked> '+t('Nur dieser Termin')+'</label> &nbsp; <label><input type="radio" name="esc" value="all"> '+t('Alle Termine der Serie')+'</label></div>':'')+
+      '<div class="row" id="erw">'+t('Wiederholung: ')+'<select id="erp"'+(rulable?'':' disabled')+'>'+opt('',t('keine'),!fr)+opt('DAILY',t('täglich'),fr=='DAILY')+opt('WEEKLY',t('wöchentlich'),fr=='WEEKLY')+opt('MONTHLY',t('monatlich'),fr=='MONTHLY')+opt('YEARLY',t('jährlich'),fr=='YEARLY')+(rulable?'':opt('X',esc(this.ruleText(r)),true))+'</select> '+
+       '<span id="erx" style="display:none">'+t('Intervall')+' <input id="eri" type="number" min="1" max="99" style="width:55px" value="'+((r&&r.interval)||1)+'"> '+t('Ende')+': <select id="ere">'+opt('n',t('nie'),!(r&&(r.count||r.until)))+opt('c',t('nach Anzahl'),!!(r&&r.count))+opt('u',t('am Datum'),!!(r&&r.until&&!r.count))+'</select> '+
+       '<input id="erc" type="number" min="1" max="999" style="width:70px" value="'+((r&&r.count)||10)+'"> <input id="eru" type="date" value="'+((r&&r.until)||'')+'"></span></div>'+
+      (rec?'<div class="muted" id="ern">'+t('Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.')+'</div>':'')+
+      '<div class="row"><button id="ego">'+t('Speichern')+'</button> <button id="ecx">'+t('Abbrechen')+'</button></div></div>';
+    $('#cdet').scrollIntoView({block:'nearest'});
+    const scope=()=>{const q=document.querySelector('input[name=esc]:checked');return q?q.value:'all';};
+    const syncRule=()=>{
+      const one=rec&&scope()=='one';
+      $('#erw').style.display=one?'none':'';
+      const rv=$('#erp').value;$('#erx').style.display=(rv&&rv!='X')?'':'none';
+      const em=$('#ere').value;$('#erc').style.display=em=='c'?'':'none';$('#eru').style.display=em=='u'?'':'none';
+      if($('#ern'))$('#ern').style.display=one?'none':'';
+    };
+    ['erp','ere'].forEach(i=>$('#'+i).onchange=syncRule);
+    document.querySelectorAll('input[name=esc]').forEach(q=>q.onchange=syncRule);syncRule();
+    $('#ead').onchange=ev=>{const on=ev.target.checked,dd=on?'date':'datetime-local';$('#eb').type=dd;$('#ee').type=dd;
+      $('#eb').value=on?dkey(a):loc(a);$('#ee').value=on?dkey(a):loc(b0);};
+    $('#ecx').onclick=()=>{$('#cdet').innerHTML='';};
     $('#ego').onclick=async()=>{
-      const ad=$('#ead').checked,b=$('#eb').value,e=$('#ee').value;if(!b||!$('#es').value){alert(t('Titel und Beginn angeben'));return;}
-      let body={summary:$('#es').value,location:$('#el').value,allDay:ad};
-      if(ad){const p=b.split('-');body.start=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).toISOString();
-        if(e&&e>=b){const q=e.split('-');body.end=new Date(Date.UTC(+q[0],+q[1]-1,+q[2]+1)).toISOString();}}
-      else{body.start=new Date(b).toISOString();body.end=e?new Date(e).toISOString():'';}
-      if(await api('POST','/api/cal/'+encodeURIComponent($('#ec').value)+'/events',body)){await this.load();this.draw();}};
+      const adn=$('#ead').checked,b=$('#eb').value,en=$('#ee').value;if(!b||!$('#es').value.trim()){alert(t('Titel und Beginn angeben'));return;}
+      const body={summary:$('#es').value,location:$('#el').value,description:$('#ed').value,allDay:adn,tz:(ed&&e.tz)||BTZ};
+      if(adn){const p=b.split('-');body.start=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).toISOString();
+        if(en&&en>=b){const q=en.split('-');body.end=new Date(Date.UTC(+q[0],+q[1]-1,+q[2]+1)).toISOString();}}
+      else{body.start=new Date(b).toISOString();body.end=en?new Date(en).toISOString():'';if(en&&en<b){alert(t('Das Ende liegt vor dem Beginn.'));return;}}
+      const one=rec&&scope()=='one';
+      if(one){body.scope='one';body.rid=e.rid;}
+      else if(rulable){
+        const f=$('#erp').value,em=$('#ere').value,iv=Math.max(1,+$('#eri').value||1);
+        const ru={freq:f,interval:iv};
+        if(f&&em=='c')ru.count=Math.max(1,+$('#erc').value||1);
+        if(f&&em=='u'){if(!$('#eru').value||$('#eru').value<b.slice(0,10)){alert(t('Das Enddatum der Wiederholung fehlt oder liegt vor dem Beginn.'));return;}ru.until=$('#eru').value;}
+        const key=q=>JSON.stringify([q.freq||'',q.freq?(q.interval||1):0,q.count||0,q.until||'']);
+        // unverändert gelassene Regel nicht erneut senden (erhält Einzeländerungen und die Originalregel)
+        if(!ed||key(ru)!=key(r||{}))body.rule=ru.freq?ru:{freq:''};
+        if(!ed&&!ru.freq)delete body.rule;
+      }
+      const url='/api/cal/'+encodeURIComponent(ed?cur.id:$('#ec').value)+'/events';
+      if(await api(ed?'PUT':'POST',ed?url+'/'+encodeURIComponent(e.file):url,body)){$('#cdet').innerHTML='';await this.load();this.paint();}};
   },
   add(){
     const gm=me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);

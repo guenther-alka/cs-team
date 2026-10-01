@@ -18,7 +18,7 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 | Menu | What it does |
 |------|--------------|
 | User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export |
-| Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, global, group, resource (no double booking), internet subscriptions |
+| Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, global, group, resource (no double booking), internet subscriptions; recurring events with time zones, edit "only this / all events of the series" |
 | Calc / Text | multi-user live editing (per cell / per paragraph), formulas, import/export csv, xlsx, txt, rtf, docx |
 | Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, optional quota per user and group folder |
 | Tasks | ticket system light: requester, assignee, milestones, history, repetition, notifications |

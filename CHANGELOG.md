@@ -1,5 +1,21 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.14.0 Kalender: Serientermine, Zeitzonen und Terminbearbeitung. Anzeige: GET /api/cal/{kal}/events?from=&to= (RFC 3339 oder YYYY-MM-DD, hoechstens 800 Tage,
+                   ohne Angabe -31/+400 Tage) loest Serien serverseitig auf (RRULE, EXDATE, RDATE, RECURRENCE-ID, STATUS:CANCELLED; je Serie bis 1500 Vorkommen); Zeilen
+                   tragen rec/ovr/rid/rule/tz/float/desc. Zeitzonen: IANA und gaengige Windows-Namen (z.B. "W. Europe Standard Time") werden erkannt, Zeitzonen sind
+                   eingebettet (time/tzdata, auch unter Windows ohne tzdata); Termine ohne Zone ("schwebend") und unbekannte Zonen erscheinen als Ortszeit des
+                   Betrachters statt als UTC. Oberflaeche: Termine werden fuer den sichtbaren Zeitraum nachgeladen; Serien mit Kreispfeil; Klick zeigt Einzelheiten
+                   mit Bearbeiten/Loeschen. Neu: PUT /api/cal/{kal}/events/{datei} (Titel, Ort, Beschreibung, Beginn, Ende, ganztaegig, Wiederholung taeglich/woechentlich/
+                   monatlich/jaehrlich mit Intervall und Ende nie/Anzahl/Datum; scope=one aendert nur ein Vorkommen als Einzeltermin mit RECURRENCE-ID, scope=all die
+                   ganze Serie), DELETE ...?scope=one&rid= (EXDATE) bzw. ganze Serie; POST /api/cal/{kal}/events nimmt tz, description und rule an. Neue Termine werden mit
+                   TZID der Browser-Zeitzone gespeichert, damit eine Serie ueber die Sommerzeit-Umstellung gleich bleibt. Die Regel baut der Server selbst (keine fremde
+                   RRULE aus der Anfrage; 1..99 Intervall, bis 999 Mal). Aenderung von Beginn oder Wiederholung der ganzen Serie verwirft Einzeltermine und Ausnahmen;
+                   fremde Zonen und komplexe Regeln (BYDAY ...) bleiben beim Aendern von Text/Zeit unveraendert. Aenderungen laufen unter der Sperre je Kalender (Ressourcen-
+                   Pruefung beim Bearbeiten, ETag-Pruefung, 409 bei zwischenzeitlicher Aenderung). Die KI-Terminuebersicht sieht Serien jetzt korrekt. 22 neue Texte in
+                   allen Sprachen. Tests: cal_events_test.go (Serie ueber Sommerzeit, Ausnahmen, Windows-/schwebende/unbekannte Zonen, Bearbeiten/Loeschen, fremde Daten
+                   bleiben erhalten, Rechte, Ressource); Browsertest (Chromium, Zeitzone Europe/Berlin). Handbuch (de/en) Kapitel 4.4. Nicht getestet: Thunderbird/iOS/Outlook
+                   mit den neuen Terminen (TZID ohne VTIMEZONE), Serien "dieser und folgende".
+
 2026-10-01  0.13.9 Audit "mittel" abgearbeitet (S-09, S-11, K-05, F4, F8, F9). S-09: Chat-/Webhook-Adressen enthalten Zugangsschluessel und sind nur noch fuer den
                    Benutzer selbst und globale Admins sichtbar und aenderbar; Gruppen-Admins sehen "gesetzt/nicht gesetzt" (chatSet), duerfen bei anderen nur die
                    E-Mail aendern; CSV-Export ohne fremde Adressen, Import lehnt fremde Adressen ab, neuer Benutzer durch Gruppen-Admin ohne Adresse.

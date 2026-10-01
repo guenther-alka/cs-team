@@ -3,7 +3,6 @@ package cal
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -45,93 +44,12 @@ func lockCal(owner, kal string) func() {
 	return l.Unlock
 }
 
-func evSpan(ev *ical.Event) (s, e time.Time, ok bool) {
-	s, err := ev.DateTimeStart(time.UTC)
-	if err != nil {
-		return s, e, false
-	}
-	e, err = ev.DateTimeEnd(time.UTC)
-	if err != nil || !e.After(s) {
-		e = s.Add(time.Hour)
-		if p := ev.Props.Get(ical.PropDateTimeStart); p != nil && p.ValueType() == ical.ValueDate {
-			e = s.AddDate(0, 0, 1)
-		}
-	}
-	return s, e, true
-}
-
-type span struct {
-	s, e time.Time
-	ev   *ical.Event
-}
-
-func cancelled(ev *ical.Event) bool {
-	st, _ := ev.Props.Text(ical.PropStatus)
-	return strings.EqualFold(st, "CANCELLED")
-}
-
-// spans löst die Termine eines Kalenderobjekts im Zeitraum [from, to) in einzelne Vorkommen auf
-// (Serien mit RRULE/EXDATE, Ausnahmen mit RECURRENCE-ID, abgesagte Termine entfallen).
-func spans(c *ical.Calendar, from, to time.Time) []span {
-	evs := c.Events()
-	over := map[string]map[time.Time]bool{} // UID -> ersetzte Vorkommen (RECURRENCE-ID)
-	for i := range evs {
-		if p := evs[i].Props.Get(ical.PropRecurrenceID); p != nil {
-			if t, err := p.DateTime(time.UTC); err == nil {
-				uid, _ := evs[i].Props.Text(ical.PropUID)
-				if over[uid] == nil {
-					over[uid] = map[time.Time]bool{}
-				}
-				over[uid][t.UTC()] = true
-			}
-		}
-	}
-	var out []span
-	for i := range evs {
-		ev := &evs[i]
-		if cancelled(ev) {
-			continue
-		}
-		s, e, ok := evSpan(ev)
-		if !ok {
-			continue
-		}
-		if ev.Props.Get(ical.PropRecurrenceRule) != nil && ev.Props.Get(ical.PropRecurrenceID) == nil {
-			set, err := ev.Component.RecurrenceSet(time.UTC)
-			if err == nil && set != nil {
-				uid, _ := ev.Props.Text(ical.PropUID)
-				d := e.Sub(s)
-				n := 0
-				for _, t := range set.Between(from.Add(-d), to, true) {
-					if n++; n > maxInstances {
-						break
-					}
-					if over[uid][t.UTC()] {
-						continue
-					}
-					if te := t.Add(d); te.After(from) && t.Before(to) {
-						out = append(out, span{t, te, ev})
-					}
-				}
-				continue
-			}
-		}
-		if e.After(from) && s.Before(to) {
-			out = append(out, span{s, e, ev})
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].s.Before(out[j].s) })
-	return out
-}
-
 // fmtSpan: Zeitangabe in der Zeitzone des Termins (TZID), sonst UTC mit Kennzeichnung – nicht in der Zeitzone des Servers.
 func fmtSpan(ev *ical.Event, s, e time.Time) string {
 	loc := time.UTC
 	if p := ev.Props.Get(ical.PropDateTimeStart); p != nil {
-		if tz := p.Params.Get(ical.ParamTimezoneID); tz != "" {
-			if l, err := time.LoadLocation(tz); err == nil {
-				loc = l
-			}
+		if l := lookupTZ(p.Params.Get(ical.ParamTimezoneID)); l != nil {
+			loc = l
 		}
 	}
 	return s.In(loc).Format("02.01. 15:04") + " - " + e.In(loc).Format("15:04 MST")
