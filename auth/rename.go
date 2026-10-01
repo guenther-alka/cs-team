@@ -32,31 +32,39 @@ var (
 	RenameHooks  []RenameHook
 	GroupCalMode func(ctx context.Context, g string) string // "" = kein Gruppenkalender
 	SnapshotCmd  string                                     // Befehl vor jedem Lauf (nur über Startparameter), {id} = Lauf-ID
-	SnapshotAuto bool                                       // Befehl wurde automatisch aus dem ZFS-Dataset des Ordner-Speichers gebildet
+	SnapshotArgv []string                                   // automatisch erkannt: Programm + Argumente ({id} wird ersetzt), ohne Shell
 	SnapshotInfo string                                     // Dataset (Anzeige)
 )
 
 // SnapshotMode: "cmd" (eigener Befehl), "auto" (ZFS-Dataset erkannt) oder "none".
 func SnapshotMode() string {
 	switch {
-	case SnapshotCmd == "":
-		return "none"
-	case SnapshotAuto:
+	case len(SnapshotArgv) > 0:
 		return "auto"
+	case SnapshotCmd != "":
+		return "cmd"
 	}
-	return "cmd"
+	return "none"
 }
 
 func runSnapshot(id string) error {
-	if SnapshotCmd == "" {
-		return nil
-	}
-	c := strings.ReplaceAll(SnapshotCmd, "{id}", id)
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/C", c)
-	} else {
-		cmd = exec.Command("sh", "-c", c)
+	switch {
+	case len(SnapshotArgv) > 0:
+		args := make([]string, len(SnapshotArgv))
+		for i, x := range SnapshotArgv {
+			args[i] = strings.ReplaceAll(x, "{id}", id)
+		}
+		cmd = exec.Command(args[0], args[1:]...)
+	case SnapshotCmd != "":
+		c := strings.ReplaceAll(SnapshotCmd, "{id}", id)
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("cmd", "/C", c)
+		} else {
+			cmd = exec.Command("sh", "-c", c)
+		}
+	default:
+		return nil
 	}
 	done := make(chan error, 1)
 	var out []byte

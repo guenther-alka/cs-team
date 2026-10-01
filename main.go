@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.12.1"
+const version = "0.12.2"
 
 var started = time.Now()
 
@@ -256,16 +256,51 @@ func setupSnapshot(dir string) {
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, zfs, "list", "-H", "-o", "name", dir).Output()
-	ds := strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
-	if err != nil || ds == "" || strings.ContainsAny(ds, " '\"\\$`;&|<>") {
+	ds := zfsDataset(zfs, dir)
+	if ds == "" {
 		log.Println("snapshot: no ZFS dataset found for", dir, "- global actions run without snapshot unless confirmed")
 		return
 	}
-	auth.SnapshotCmd = "'" + zfs + "' snapshot '" + ds + "@cs-team-{id}'"
-	auth.SnapshotAuto = true
+	auth.SnapshotArgv = []string{zfs, "snapshot", ds + "@cs-team-{id}"}
 	auth.SnapshotInfo = ds
 	log.Println("snapshot before global actions: zfs snapshot", ds+"@cs-team-<id>")
+}
+
+// zfsDataset: Dataset des Ordners. Erst "zfs list <pfad>", sonst das Dataset mit dem längsten passenden Mountpoint
+// (funktioniert auch dort, wo zfs keine Pfade annimmt, z.B. OpenZFS on Windows).
+func zfsDataset(zfs, dir string) string {
+	okName := func(n string) bool { return n != "" && !strings.ContainsAny(n, " '\"\\$`;&|<>@") }
+	run := func(args ...string) string {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, zfs, args...).Output()
+		if err != nil {
+			return ""
+		}
+		return string(out)
+	}
+	if out := run("list", "-H", "-o", "name", dir); out != "" {
+		if n := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0]); okName(n) {
+			return n
+		}
+	}
+	norm := func(p string) string {
+		p = strings.ToLower(strings.ReplaceAll(p, "\\", "/"))
+		return strings.TrimRight(p, "/") + "/"
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		abs = dir
+	}
+	want, best, name := norm(abs), 0, ""
+	for _, l := range strings.Split(run("list", "-H", "-o", "name,mountpoint", "-t", "filesystem"), "\n") {
+		f := strings.Split(strings.TrimRight(l, "\r"), "\t")
+		if len(f) != 2 || !okName(f[0]) || f[1] == "none" || f[1] == "legacy" || f[1] == "-" {
+			continue
+		}
+		if m := norm(f[1]); strings.HasPrefix(want, m) && len(m) > best {
+			best, name = len(m), f[0]
+		}
+	}
+	return name
 }

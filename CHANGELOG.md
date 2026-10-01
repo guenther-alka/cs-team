@@ -1,5 +1,8 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.12.2 Snapshot-Erkennung robuster: ohne Shell (kein Quoting-Problem unter Windows), Dataset notfalls ueber den laengsten passenden Mountpoint
+                   (z.B. OpenZFS on Windows, wo "zfs list <pfad>" nicht geht). Testet mit Attrappe (snapshot_test.go).
+
 2026-10-01  0.12.1 Jahrgangswechsel, Modus "Gruppe wird umbenannt" (Gruppen als Klassen): 5a heisst danach 6a und nimmt Mitglieder, Gruppenordner (Dateien),
                    Freigaben an die Gruppe, Gruppen-Admins und - einzeln waehlbar - Kalender, Chat und Aufgaben mit; darunter entsteht eine neue leere
                    Gruppe 5a (Einstellungen kopiert, Wiederholer wechseln dorthin), die oberste Stufe wird umbenannt (ehem-7a-2026) oder bleibt (dann sind
