@@ -264,6 +264,20 @@ func WriteArea(user, area string) bool {
 	return wr[area]
 }
 
+// AreaAccess: Lese- und Schreibrecht eines Benutzers im Bereich, ohne Request-Kontext (offene WebSockets prüfen damit
+// laufend neu, F4). Unbekannte oder gesperrte Benutzer haben nichts.
+func AreaAccess(user, area string) (read, write bool) {
+	if std == nil {
+		return false, false
+	}
+	u, ok := std.get(context.Background(), user)
+	if !ok || u.Disabled {
+		return false, false
+	}
+	all, wr := std.areas(u)
+	return all[area], wr[area]
+}
+
 // Can: darf der angemeldete Benutzer diesen Bereich nutzen?
 func Can(ctx context.Context, area string) bool {
 	m, _ := ctx.Value(ctxAreas{}).(map[string]bool)
@@ -959,6 +973,10 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 		for _, r := range rows {
 			g := uniq(r.groups)
 			u, ex := m[r.name]
+			if r.chat != "" && !IsAdmin(ctx) && r.name != User(ctx) { // Webhook-Adresse nur Besitzer/globaler Admin (S-09)
+				res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: chat address only for the owner or a global admin", r.line, r.name))
+				continue
+			}
 			switch {
 			case ex && !update:
 				res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: exists", r.line, r.name))
@@ -1044,7 +1062,11 @@ func (a *Auth) exportRoutes(mux *http.ServeMux) {
 		sort.Strings(names)
 		lines := []string{"# name;password;groups;mail;chat-url  (empty = unchanged; mail and chat-url optional; new/changed passwords must be changed at first login)"}
 		for _, n := range names {
-			lines = append(lines, csvq(n)+";;"+csvq(strings.Join(effGroups(a.users[n]), ","))+";"+csvq(a.users[n].Mail)+";"+csvq(a.users[n].Chat))
+			chat := ""
+			if IsAdmin(r.Context()) || n == User(r.Context()) { // Webhook-Adressen enthalten Tokens: nur Besitzer und globale Admins (S-09)
+				chat = a.users[n].Chat
+			}
+			lines = append(lines, csvq(n)+";;"+csvq(strings.Join(effGroups(a.users[n]), ","))+";"+csvq(a.users[n].Mail)+";"+csvq(chat))
 		}
 		a.mu.Unlock()
 		csvOut(w, "users.csv", lines)

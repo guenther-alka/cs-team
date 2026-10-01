@@ -284,6 +284,9 @@ func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Props.SetText(ical.PropProductID, "-//cs-team//EN")
 	cal.Children = append(cal.Children, ev.Component)
+	if c.m.Resource {
+		defer lockCal(c.owner, c.kal)()
+	}
 	if msg := b.conflict(r.Context(), c, cal, ""); msg != "" {
 		http.Error(w, msg, http.StatusConflict)
 		return

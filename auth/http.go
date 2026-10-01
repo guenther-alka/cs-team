@@ -127,6 +127,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			Groups   []string `json:"groups,omitempty"`
 			Mail     string   `json:"mail,omitempty"`
 			Chat     string   `json:"chat,omitempty"`
+			ChatSet  bool     `json:"chatSet,omitempty"` // Webhook-Adresse vorhanden (die Adresse selbst nur für den Besitzer und globale Admins, S-09)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -134,9 +135,11 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat})
-			case n == me || (len(ao) > 0 && !u.Admin && shares(effGroups(u), ao)):
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != ""})
+			case n == me:
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != ""})
+			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != ""})
 			}
 		}
 		a.mu.Unlock()
@@ -170,6 +173,10 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		}
 		if _, _, err := cleanContact(in.Mail, in.Chat); err != nil {
 			fail_(w, err)
+			return
+		}
+		if in.Chat != "" && !IsAdmin(r.Context()) {
+			http.Error(w, "chat address: only the owner or a global admin", http.StatusForbidden)
 			return
 		}
 		if err := a.AddUser(r.Context(), in.Name, in.Password, in.Admin, in.Groups); err != nil {

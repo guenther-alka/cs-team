@@ -344,6 +344,9 @@ func (b *Backend) PutCalendarObject(ctx context.Context, p string, c *ical.Calen
 	if c != nil && hasFineRRule(c.Component) {
 		return nil, he(http.StatusBadRequest, "RRULE: repeat more often than daily is not supported")
 	}
+	if ci.m.Resource { // Prüfung und Speichern in einem Zug (K-05)
+		defer lockCal(ci.owner, ci.kal)()
+	}
 	if msg := b.conflict(ctx, ci, c, obj); msg != "" {
 		return nil, he(http.StatusConflict, msg)
 	}

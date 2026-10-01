@@ -51,6 +51,8 @@ func dErr(err error) error {
 		return webdav.NewHTTPError(http.StatusForbidden, err)
 	case errors.Is(err, ErrTooLarge):
 		return webdav.NewHTTPError(http.StatusRequestEntityTooLarge, err)
+	case errors.Is(err, ErrQuota):
+		return webdav.NewHTTPError(http.StatusInsufficientStorage, err)
 	case errors.Is(err, ErrBadName):
 		return webdav.NewHTTPError(http.StatusBadRequest, err)
 	case errors.Is(err, ErrExists):

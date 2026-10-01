@@ -39,6 +39,7 @@ var (
 	ErrTooLarge = errors.New("file too large")
 	ErrBadName  = errors.New("bad file name")
 	ErrExists   = errors.New("exists")
+	ErrQuota    = errors.New("storage quota exceeded")
 )
 
 type Meta struct {
@@ -83,44 +84,158 @@ func (m *Meta) level(user string) (read, write bool) {
 type Svc struct {
 	St  store.Store
 	Max int64 // maximale Dateigröße in Bytes
+	// Quota: Kontingent je Besitzer (Benutzer oder Gruppenordner) in Bytes; nil oder 0 = unbegrenzt (F8)
+	Quota func() int64
 
-	cmu   sync.Mutex
-	cache []Meta
-	cload time.Time
+	cmu    sync.Mutex
+	cache  []Meta
+	cload  time.Time
+	cgen   int              // zählt invalidate(); verwirft veraltete Ladeergebnisse
+	lmu    sync.Mutex       // ein Lader gleichzeitig (all)
+	flight map[string]int64 // laufende Uploads je Besitzer (reservierte Bytes), unter cmu
 }
 
-const cacheTTL = 20 * time.Second
+const (
+	cacheTTL    = 20 * time.Second
+	loadWorkers = 16 // parallele Lesezugriffe auf die Metadaten (F9)
+)
 
-func (s *Svc) invalidate() { s.cmu.Lock(); s.cload = time.Time{}; s.cmu.Unlock() }
+func (s *Svc) invalidate() { s.cmu.Lock(); s.cload = time.Time{}; s.cgen++; s.cmu.Unlock() }
 
-// all: alle Metadaten (kurz gecacht; Schreibzugriffe dieses Prozesses invalidieren sofort).
+// all: alle Metadaten (kurz gecacht; Schreibzugriffe dieses Prozesses invalidieren sofort). Geladen wird ohne Sperre, parallel und
+// von höchstens einem Aufrufer gleichzeitig; ist der Zwischenspeicher nur abgelaufen, benutzen die anderen den alten Stand (F9).
 func (s *Svc) all(ctx context.Context) ([]Meta, error) {
 	s.cmu.Lock()
-	defer s.cmu.Unlock()
-	if !s.cload.IsZero() && time.Since(s.cload) < cacheTTL {
-		return s.cache, nil
+	c, fresh, have := s.cache, !s.cload.IsZero() && time.Since(s.cload) < cacheTTL, !s.cload.IsZero()
+	s.cmu.Unlock()
+	if fresh {
+		return c, nil
+	}
+	if !s.lmu.TryLock() {
+		if have {
+			return c, nil
+		}
+		s.lmu.Lock()
+	}
+	defer s.lmu.Unlock()
+	s.cmu.Lock()
+	c, fresh, gen := s.cache, !s.cload.IsZero() && time.Since(s.cload) < cacheTTL, s.cgen
+	s.cmu.Unlock()
+	if fresh {
+		return c, nil
 	}
 	infos, err := s.St.List(ctx, "filesmeta/")
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Meta, 0, len(infos))
+	var keys []string
 	for _, i := range infos {
-		if !strings.HasSuffix(i.Key, ".json") {
-			continue
+		if strings.HasSuffix(i.Key, ".json") {
+			keys = append(keys, i.Key)
 		}
-		b, _, err := s.St.Get(ctx, i.Key)
-		if err != nil {
-			continue
-		}
-		var m Meta
-		if json.Unmarshal(b, &m) != nil || m.Name == "" {
-			continue
-		}
-		out = append(out, m)
 	}
-	s.cache, s.cload = out, time.Now()
+	res := make([]*Meta, len(keys))
+	var wg sync.WaitGroup
+	next := make(chan int)
+	for w := 0; w < loadWorkers && w < len(keys); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range next {
+				b, _, err := s.St.Get(ctx, keys[i])
+				if err != nil {
+					continue
+				}
+				var m Meta
+				if json.Unmarshal(b, &m) != nil || m.Name == "" {
+					continue
+				}
+				res[i] = &m
+			}
+		}()
+	}
+	for i := range keys {
+		next <- i
+	}
+	close(next)
+	wg.Wait()
+	out := make([]Meta, 0, len(keys))
+	for _, m := range res {
+		if m != nil {
+			out = append(out, *m)
+		}
+	}
+	s.cmu.Lock()
+	if s.cgen == gen { // währenddessen geschrieben: Ergebnis nicht übernehmen, der nächste Aufruf lädt neu
+		s.cache, s.cload = out, time.Now()
+	}
+	s.cmu.Unlock()
 	return out, nil
+}
+
+// Usage: belegter Speicher eines Besitzers in Bytes (Summe der Dateigrößen).
+func (s *Svc) Usage(ctx context.Context, owner string) (int64, error) {
+	all, err := s.all(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var n int64
+	for _, m := range all {
+		if m.Owner == owner {
+			n += m.Size
+		}
+	}
+	return n, nil
+}
+
+// reserve: prüft das Kontingent des Besitzers und reserviert Platz für einen Upload (Größe size, -1 = unbekannt).
+// Liefert den erlaubten Höchstwert in Bytes (-1 = unbegrenzt) und die Freigabe der Reservierung.
+func (s *Svc) reserve(ctx context.Context, owner string, size, replaced int64) (room int64, release func(), err error) {
+	var q int64
+	if s.Quota != nil {
+		q = s.Quota()
+	}
+	if q <= 0 {
+		return -1, func() {}, nil
+	}
+	var used int64
+	for try := 0; ; try++ {
+		s.cmu.Lock()
+		gen := s.cgen
+		s.cmu.Unlock()
+		if used, err = s.Usage(ctx, owner); err != nil {
+			return 0, nil, err
+		}
+		s.cmu.Lock()
+		if s.cgen == gen || try >= 5 {
+			break // unter cmu weiter: kein Schreibzugriff zwischen Messung und Reservierung (sonst würde ein fertiger Upload doppelt fehlen)
+		}
+		s.cmu.Unlock()
+	}
+	defer s.cmu.Unlock()
+	room = q - used + replaced - s.flight[owner] // eine ersetzte Datei zählt nicht doppelt
+	if room < 0 || (size >= 0 && size > room) {
+		return 0, nil, ErrQuota
+	}
+	need := size
+	if need < 0 {
+		need = room
+		if need > s.Max {
+			need = s.Max
+		}
+	}
+	if s.flight == nil {
+		s.flight = map[string]int64{}
+	}
+	s.flight[owner] += need
+	return room, func() {
+		s.cmu.Lock()
+		s.flight[owner] -= need
+		if s.flight[owner] <= 0 {
+			delete(s.flight, owner)
+		}
+		s.cmu.Unlock()
+	}, nil
 }
 
 const (
@@ -281,10 +396,22 @@ func (s *Svc) Put(ctx context.Context, actor, owner, name string, r io.Reader, s
 	if err := s.treeConflict(ctx, owner, name); err != nil {
 		return nil, err
 	}
-	lr := &limitReader{r: r, left: s.Max}
+	room, release, err := s.reserve(ctx, owner, size, old.Size)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	left := s.Max
+	if room >= 0 && room < left {
+		left = room
+	}
+	lr := &limitReader{r: r, left: left}
 	ct := contentType(name)
 	if err := s.St.PutStream(ctx, dataKey(owner, name), lr, size, ct); err != nil {
-		if errors.Is(err, ErrTooLarge) || lr.n > s.Max {
+		if errors.Is(err, ErrTooLarge) || lr.n > left {
+			if room >= 0 && room < s.Max {
+				return nil, ErrQuota
+			}
 			return nil, ErrTooLarge
 		}
 		return nil, err

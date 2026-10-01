@@ -598,5 +598,12 @@
  "Mikrofon an": "Micrófono activado",
  "Mikrofon aus": "Micrófono desactivado",
  "Kamera an": "Cámara activada",
- "Kamera aus": "Cámara desactivada"
+ "Kamera aus": "Cámara desactivada",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Dirección de chat (webhook): {0}. Contiene una clave de acceso y solo el propio usuario y los administradores globales pueden verla y cambiarla.",
+ "gesetzt": "definida",
+ "nicht gesetzt": "sin definir",
+ "Kein Zugriff mehr auf dieses Dokument.": "Ya no tiene acceso a este documento.",
+ "belegt {0} von {1}": "{0} usados de {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Cuota: número en MB (0 = ilimitada).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Cuota por usuario y carpeta de grupo (MB, 0 = ilimitada)"
 }

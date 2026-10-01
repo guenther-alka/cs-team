@@ -1,5 +1,20 @@
 cs-team changelog (newest first)
 
+2026-10-01  0.13.9 Audit "mittel" abgearbeitet (S-09, S-11, K-05, F4, F8, F9). S-09: Chat-/Webhook-Adressen enthalten Zugangsschluessel und sind nur noch fuer den
+                   Benutzer selbst und globale Admins sichtbar und aenderbar; Gruppen-Admins sehen "gesetzt/nicht gesetzt" (chatSet), duerfen bei anderen nur die
+                   E-Mail aendern; CSV-Export ohne fremde Adressen, Import lehnt fremde Adressen ab, neuer Benutzer durch Gruppen-Admin ohne Adresse.
+                   S-11: Auth.refresh laedt ohne Sperre (Einzelflug, Zeitlimit 5 s, 2 s Pause nach Fehler); ein haengender Speicher blockiert keine Anmeldungen
+                   mehr, abgelaufene Daten werden weiterverwendet, nach Aenderungen wird frisch geladen. K-05: Ressourcen-Kalender pruefen und speichern unter
+                   einer Sperre je Kalender (keine Doppelbuchung bei gleichzeitigen Anfragen, CalDAV und Oberflaeche); Serien (RRULE, EXDATE, RECURRENCE-ID,
+                   abgesagte Termine) werden bis 2 Jahre voraus geprueft; Meldung in der Zeitzone des Termins bzw. UTC mit Zonenangabe. F4: Rechteentzug
+                   (Freigabe, Dokument geloescht, Konto/Bereich) trennt offene Calc-/Text-Verbindungen sofort bzw. spaetestens nach 15 s; die Oberflaeche
+                   meldet "Kein Zugriff mehr auf dieses Dokument." und laedt neu. F9: Dateimetadaten werden parallel (16) und im Einzelflug geladen. F8:
+                   Kontingent je Benutzer und Gruppenordner (Einstellungen > Dateien, MB, 0 = unbegrenzt; Startparameter CS_QUOTA_MB als Vorgabe) fuer Web und
+                   WebDAV, Antwort 507, parallele Uploads ueberschreiten es nicht, ersetzte Datei zaehlt nicht doppelt; Anzeige "belegt X von Y" in Dateien.
+                   Neu: POST /api/settings/quota (Admin), GET /api/settings liefert quotaMB, GET /api/files liefert quota/used. Tests: audit_mid_test.go
+                   (TestChatURLPrivacy, TestResourceRace, TestWSRevoke, TestQuota), auth/refresh_test.go, files/files_test.go; auch mit -race. 7 neue Texte in
+                   allen Sprachen. Handbuch (de/en) aktualisiert. csweb-gui: admin.pl-Version/Zeitstempel angepasst.
+
 2026-10-01  0.13.8 Videochat Platz 4: eingebautes Ad-hoc-WebRTC (nur Browser, bis 6 Teilnehmer). In den Einstellungen (Panel "Videochat eingebaut") einschalten,
                    STUN-Server (vorbelegt: oeffentlicher STUN, aenderbar/leerbar) und optional TURN-Server mit coturn-Geheimnis (use-auth-secret) eintragen.
                    Im Chat steht unter "Videochat" zusaetzlich "WebRTC (Browser)": jeder mit Schreibrecht im Kanal kann starten; es entsteht eine Einladung

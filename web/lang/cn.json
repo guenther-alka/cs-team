@@ -598,5 +598,12 @@
  "Mikrofon an": "打开麦克风",
  "Mikrofon aus": "关闭麦克风",
  "Kamera an": "打开摄像头",
- "Kamera aus": "关闭摄像头"
+ "Kamera aus": "关闭摄像头",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "聊天地址（Webhook）：{0}。其中包含访问密钥，仅用户本人和全局管理员可见并可修改。",
+ "gesetzt": "已设置",
+ "nicht gesetzt": "未设置",
+ "Kein Zugriff mehr auf dieses Dokument.": "您已无权访问此文档。",
+ "belegt {0} von {1}": "已用 {0}，共 {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "配额：以 MB 为单位的数字（0 = 不限）。",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "每个用户和群组文件夹的配额（MB，0 = 不限）"
 }

@@ -376,12 +376,14 @@ const S={};
 const isGA=()=>me.admin||(me.adminOf||[]).length>0;
 const manageable=()=>me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);
 const gdl=(id,l)=>'<datalist id="'+id+'">'+l.map(g=>'<option value="'+esc(g)+'">').join('')+'</datalist>';
-const contactPanel=(m,c)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
+const contactPanel=(m,c,own,set)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
   '<div class="row"><input id="cmail" style="width:320px" placeholder="'+t('E-Mail-Adresse')+'" value="'+esc(m||'')+'"></div>'+
-  '<div class="row"><input id="cchat" style="width:320px" placeholder="'+t('Chat-Adresse (https://…)')+'" value="'+esc(c||'')+'"></div>'+
+  (own?'<div class="row"><input id="cchat" style="width:320px" placeholder="'+t('Chat-Adresse (https://…)')+'" value="'+esc(c||'')+'"></div>'
+      :'<div class="row muted">'+t('Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.',t(set?'gesetzt':'nicht gesetzt'))+'</div>')+
   '<button id="cgo">'+t('Speichern')+'</button></div>';
-const contactBind=(url,done)=>{$('#cgo').onclick=async()=>{const m=$('#cmail').value.trim(),c=$('#cchat').value.trim();
-  if(await api('POST',url,{mail:m,chat:c})){done(m,c);alert(t('Gespeichert'));}};};
+const contactBind=(url,done)=>{$('#cgo').onclick=async()=>{const m=$('#cmail').value.trim(),ce=$('#cchat'),c=ce?ce.value.trim():undefined;
+  const b={mail:m};if(ce)b.chat=c;
+  if(await api('POST',url,b)){done(m,c);alert(t('Gespeichert'));}};};
 const modeSel=(id,v,opts,dis)=>'<select id="'+id+'"'+(dis?' disabled':'')+'>'+opts.map(o=>'<option value="'+o[0]+'"'+(o[0]==v?' selected':'')+'>'+esc(t(o[1]))+'</option>').join('')+'</select>';
 const chatModes=(p,g,dis)=>'<div class="row">'+t('Chat: ')+modeSel(p+'c',g.chat||'member',[['member','Mitglieder schreiben'],['admin','nur Admins schreiben'],['off','aus']],dis)+' &nbsp; '+
   t('Kanäle anlegen: ')+modeSel(p+'k',g.chans||'admin',[['admin','nur Admins'],['member','jedes Mitglied'],['off','niemand']],dis)+' &nbsp; '+
@@ -402,7 +404,7 @@ S.users={
      '<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
-     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+contactPanel(me.mail,me.chat)+
+     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+contactPanel(me.mail,me.chat,true)+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
     $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){alert(t('Passwort geändert – bitte neu anmelden.'));location.reload();}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
@@ -411,7 +413,7 @@ S.users={
     const m=manageable();
     $('#main').innerHTML='<h3>'+t('Benutzer anlegen')+'</h3><div class="row"><input id="nn" placeholder="'+t('name (a-z 0-9 . _ -)')+'"></div>'+
      '<div class="row"><input id="np" type="text" placeholder="'+t('Startpasswort (min. 8)')+'"> <span class="muted">'+t('Benutzer muss es beim ersten Login ändern')+'</span></div>'+
-     '<div class="row"><input id="nm" style="width:260px" placeholder="'+t('E-Mail-Adresse')+' ('+t('optional')+')"> <input id="nc" style="width:300px" placeholder="'+t('Chat-Adresse (https://…)')+' ('+t('optional')+')"></div>'+
+     '<div class="row"><input id="nm" style="width:260px" placeholder="'+t('E-Mail-Adresse')+' ('+t('optional')+')"> '+(me.admin?'<input id="nc" style="width:300px" placeholder="'+t('Chat-Adresse (https://…)')+' ('+t('optional')+')">':'')+'</div>'+
      (me.admin?'<div class="row"><label><input id="na" type="checkbox"> '+t('Globaler Admin')+'</label></div>':'')+
      '<div class="row">'+t('Gruppen (mind. eine, Komma getrennt): ')+'<input id="ng" list="dlm" value="'+esc(me.admin?'alluser':m[0]||'')+'"></div>'+gdl('dlm',m)+
      '<button id="ngo">'+t('Anlegen')+'</button>'+
@@ -419,7 +421,7 @@ S.users={
      '<textarea id="imp" rows="8" style="width:100%;box-sizing:border-box" placeholder="lisa;geheim123;klasse5a"></textarea>'+
      '<div class="row"><input type="file" id="impf" accept=".csv,.txt"> '+'<label><input id="impu" type="checkbox" checked>'+t(' vorhandene aktualisieren')+'</label> '+(me.admin?'<label><input id="impc" type="checkbox">'+t(' neue Gruppen anlegen mit Vorlage')+'</label> <select id="impt"><option value="">'+t('nur Files')+'</option><option value="team">Team</option><option value="klasse">'+t('Klasse')+'</option></select> ':'')+'<button id="igo">'+t('Importieren')+'</button></div><div id="ires"></div></div>';
     $('#ngo').onclick=async()=>{const n=$('#nn').value;
-      if(await api('POST','/api/users',{name:n,password:$('#np').value,admin:me.admin&&$('#na').checked,groups:names($('#ng').value),mail:$('#nm').value.trim(),chat:$('#nc').value.trim()})){await this.load();this.select(n);}};
+      if(await api('POST','/api/users',{name:n,password:$('#np').value,admin:me.admin&&$('#na').checked,groups:names($('#ng').value),mail:$('#nm').value.trim(),chat:$('#nc')?$('#nc').value.trim():''})){await this.load();this.select(n);}};
     $('#impf').onchange=async e=>{const f=e.target.files[0];if(f)$('#imp').value=await f.text();};
     $('#igo').onclick=async()=>{
       try{const r=await fetch('/api/users/import?update='+($('#impu').checked?1:0)+(me.admin&&$('#impc')&&$('#impc').checked?'&create=1&template='+$('#impt').value:''),{method:'POST',body:$('#imp').value});
@@ -439,9 +441,9 @@ S.users={
      '<div class="row"><label><input id="fd" type="checkbox" '+(u.disabled?'checked':'')+'> '+t('gesperrt')+'</label></div>';
     else h+='<div class="muted">'+t('Gruppenzuordnung: Mitglieder in der Gruppen-Ansicht (Menü Gruppen) ändern.')+'</div>';
     if(!u.admin||me.admin)h+='<div class="row"><button id="fp">'+t('Passwort setzen')+'</button></div>';
-    h+=contactPanel(u.mail,u.chat);
+    h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
     $('#main').innerHTML=h;
-    contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c)=>{u.mail=m;u.chat=c;});
+    contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c)=>{u.mail=m;if(c!==undefined){u.chat=c;u.chatSet=!!c;}});
     if(me.admin){
       const flag=async f=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/flags',f)){await this.load();}else this.select(k);};
       $('#fa').onchange=e=>flag({admin:e.target.checked});
@@ -948,17 +950,20 @@ function docSection(type){
 S.calc=docSection('sheet');S.text=docSection('text');
 
 let items={},dtype,drw,locks={},curKey=null,hbKey=null,unlockT=null;
+let wsFail=0;   // Verbindungsversuche ohne init in Folge (Zugriff entzogen?)
 function openDoc(id){
   if(ws)ws.close();cur=id;locks={};curKey=null;hbKey=null;
   const w=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host+'/ws/'+encodeURIComponent(id));ws=w;
   w.onmessage=e=>{const m=JSON.parse(e.data);
-    if(m.t=='init'){items=m.items||{};dtype=m.type;drw=m.rw;locks={};for(const k in (m.locks||{}))if(m.locks[k]!=me.name)locks[k]={by:m.locks[k],ts:Date.now()};dtype=='sheet'?renderSheet():renderText();}
+    if(m.t=='init'){w.got=true;wsFail=0;items=m.items||{};dtype=m.type;drw=m.rw;locks={};for(const k in (m.locks||{}))if(m.locks[k]!=me.name)locks[k]={by:m.locks[k],ts:Date.now()};dtype=='sheet'?renderSheet():renderText();}
     else if(m.t=='item'){const c=items[m.k];
       if(!c||m.item.ts>c.ts||(m.item.ts==c.ts&&m.item.by>c.by)){items[m.k]=m.item;dtype=='sheet'?updCell(m.k):renderText();}
       else if(m.item.ts==c.ts){dtype=='sheet'?updCell(m.k):renderText();}}   // Server schickt bei verworfener Änderung den alten Stand zurück
     else if(m.t=='lock'){if(m.by!=me.name){locks[m.k]={by:m.by,ts:Date.now()};lockUI(m.k);}}
     else if(m.t=='unlock'){delete locks[m.k];lockUI(m.k);}};
-  w.onclose=()=>{if(cur==id&&ws===w)setTimeout(()=>{if(cur==id)openDoc(id);},1500);}; // Reconnect -> init = Resync
+  w.onclose=()=>{if(cur!=id||ws!==w)return;
+    if(!w.got&&++wsFail>=3){wsFail=0;cur=null;alert(t('Kein Zugriff mehr auf dieses Dokument.'));location.reload();return;}   // Recht entzogen oder Dokument gelöscht
+    setTimeout(()=>{if(cur==id)openDoc(id);},1500);}; // Reconnect -> init = Resync (auch nach Rechteänderung)
 }
 const send=o=>ws&&ws.readyState==1&&ws.send(JSON.stringify(o));
 /* Weiche Sperre: wer in einer Zelle/einem Absatz schreibt, sperrt sie für andere (Heartbeat alle 10 s, Server löst nach 30 s) */
@@ -1419,11 +1424,11 @@ const icoHtml=f=>{const [l,c]=icoOf(f);return '<span class="fico" style="backgro
 const dirIco='<span class="fico" style="background:#f9ab00">DIR</span>';
 S.files={
   keepSel:true,
-  items:[],own:[],shared:[],folders:[],maxMB:100,fsel:null,path:'',
+  items:[],own:[],shared:[],folders:[],maxMB:100,quota:0,fsel:null,path:'',
   vmode:lsGet('cs.files.view','list'),sortk:'name',sortd:1,
   isG:f=>f.owner.startsWith('@'),
   async load(){
-    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;
+    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;
     this.build();
   },
   filesOf(k){
@@ -1439,6 +1444,11 @@ S.files={
     this.items=it;setList(it);
   },
   loc(){return sel||'own';},
+  quotaTxt(){   // Kontingent: belegt X von Y (eigene Ablage bzw. aktueller Gruppenordner)
+    const k=this.loc();if(!this.quota||(k!='own'&&!k.startsWith('@')))return '';
+    const u=this.filesOf(k).reduce((a,f)=>a+(f.size||0),0);
+    return ' · '+t('belegt {0} von {1}',fmtSize(u),fmtSize(this.quota));
+  },
   nm(f){return this.loc()=='shared'?f.owner+'/'+f.name:f.name;},   // Anzeigepfad (freigegeben: Besitzer als oberster Ordner)
   ownerOf(){const k=this.loc();return k.startsWith('@')?k:'';},
   canWriteLoc(){const k=this.loc();if(k=='own')return true;if(k=='shared')return false;const fo=this.folders.find(x=>'@'+x.name==k);return !!(fo&&fo.write);},
@@ -1492,7 +1502,7 @@ S.files={
     $('#main').innerHTML='<div class="fwrap"><div class="fmain" id="fdz"><div class="ftool"><span class="ttl">'+(q?esc(this.locName())+t(' – Suche'):this.crumbs())+'</span>'+
       (w?'<button id="fnew">'+t('+ Ordner')+'</button><button id="fup">'+t('+ Hochladen')+'</button><button id="fupd">'+t('+ Ordner hochladen')+'</button>':'')+'<button id="fvl" class="'+(this.vmode=='list'?'on':'')+'">'+t('Liste')+'</button><button id="fvg" class="'+(this.vmode=='grid'?'on':'')+'">'+t('Raster')+'</button></div>'+
       '<input id="fi" type="file" multiple style="display:none"><input id="fid" type="file" webkitdirectory style="display:none">'+body+'<div id="st" class="muted"></div>'+
-      '<div class="muted" style="margin-top:10px">'+t('Netzlaufwerk / rclone / WinSCP: ')+'<code>'+esc(location.origin)+'/webdav/</code>'+t(' (Freigaben unter ')+'<code>shared/</code>'+t(', Gruppenordner unter ')+'<code>groups/&lt;gruppe&gt;/</code>'+t(') · max. ')+this.maxMB+t(' MB pro Datei')+'</div></div>'+
+      '<div class="muted" style="margin-top:10px">'+t('Netzlaufwerk / rclone / WinSCP: ')+'<code>'+esc(location.origin)+'/webdav/</code>'+t(' (Freigaben unter ')+'<code>shared/</code>'+t(', Gruppenordner unter ')+'<code>groups/&lt;gruppe&gt;/</code>'+t(') · max. ')+this.maxMB+t(' MB pro Datei')+this.quotaTxt()+'</div></div>'+
       '<div class="fdet" id="fdet" style="display:none"></div></div>';
     document.querySelectorAll('#main .ttl a[data-p]').forEach(a=>a.onclick=e=>{e.preventDefault();this.path=a.dataset.p;this.fsel=null;this.draw();});
     document.querySelectorAll('#main [data-k]').forEach(x=>{
@@ -2283,6 +2293,8 @@ S.set={
      '<div class="panel"><b>'+t('Videochat (externe Server)')+'</b> <small class="muted">'+t('Die Videochat-Server laufen außerhalb von cs-team. cs-team legt nur den Raum fest und lädt im Chat mit einem Link ein. Je Option einen Anbieter wählen oder abschalten.')+'</small>'+
      [0,1,2].map(i=>vdRow(i,(c.video||[])[i]||{})).join('')+'</div>'+
      rtcPanel(c.rtc||{})+
+     '<div class="panel"><b>'+t('Dateien')+'</b>'+
+     '<div class="row"><input id="sq" type="number" min="0" style="width:90px" value="'+(c.quotaMB||0)+'"> '+t('Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)')+'</div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -2297,6 +2309,8 @@ S.set={
       if($('#aikx2')&&$('#aikx2').checked)ab.altKey='';else if($('#aikey2').value)ab.altKey=$('#aikey2').value;
       const vo=vdCollect();if(!vo)return false;
       if(!await api('POST','/api/settings/video',{options:vo}))return false;
+      const qm=Math.round(+$('#sq').value);if(!(qm>=0)){alert(t('Kontingent: Zahl in MB (0 = unbegrenzt).'));return false;}
+      if(!await api('POST','/api/settings/quota',{mb:qm}))return false;
       const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
       if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
       if(!await api('POST','/api/settings/rtc',rb))return false;

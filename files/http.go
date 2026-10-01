@@ -19,6 +19,8 @@ func status(err error) int {
 		return http.StatusForbidden
 	case errors.Is(err, ErrTooLarge):
 		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, ErrQuota):
+		return http.StatusInsufficientStorage
 	case errors.Is(err, ErrBadName), errors.Is(err, ErrExists):
 		return http.StatusBadRequest
 	}
@@ -81,9 +83,15 @@ func (s *Svc) list(w http.ResponseWriter, r *http.Request) {
 		Shared  []row             `json:"shared"`
 		Folders []auth.FolderInfo `json:"folders"` // Gruppenordner, auf die ich zugreifen darf
 		MaxMB   int64             `json:"maxMB"`
-	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20}
+		Quota   int64             `json:"quota,omitempty"` // Kontingent in Bytes (0 = unbegrenzt)
+		Used    int64             `json:"used"`            // belegt (eigener Bereich)
+	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20, 0, 0}
+	if s.Quota != nil {
+		out.Quota = s.Quota()
+	}
 	for _, m := range own {
 		out.Own = append(out.Own, toRow(m, me))
+		out.Used += m.Size
 	}
 	for _, m := range shared {
 		out.Shared = append(out.Shared, toRow(m, me))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"cs-team/auth"
@@ -63,7 +64,17 @@ type live struct {
 	clients map[*client]struct{}
 	timer   *time.Timer
 	locks   map[string]lock
+	dead    bool // gelöscht: keine Clients, nichts mehr schreiben
+	watch   bool // Rechteprüfung läuft (watchRights)
 }
+
+// Abstand der Rechteprüfung offener Verbindungen (F4), in Nanosekunden; in Tests kürzer (SetRecheck).
+var recheckNs atomic.Int64
+
+func init() { recheckNs.Store(int64(15 * time.Second)) }
+
+// SetRecheck stellt den Abstand der Rechteprüfung ein (nur Tests).
+func SetRecheck(d time.Duration) { recheckNs.Store(int64(d)) }
 
 type Hub struct {
 	st   store.Store
@@ -225,6 +236,10 @@ func (l *live) unlockKey(c *client, k string) {
 func (l *live) persist() {
 	l.mu.Lock()
 	l.timer = nil
+	if l.dead { // gelöschtes Dokument: Snapshot nicht neu anlegen
+		l.mu.Unlock()
+		return
+	}
 	local := &Doc{Items: make(map[string]Item, len(l.doc.Items))}
 	for k, v := range l.doc.Items {
 		local.Items[k] = v
@@ -251,9 +266,77 @@ func (l *live) persist() {
 	}
 }
 
+// recheck prüft die Rechte aller verbundenen Clients neu und trennt, wen sich etwas geändert hat (Entzug, Gesperrt, Gruppenwechsel,
+// geändertes Schreibrecht): der Browser verbindet sich dann neu und bekommt den aktuellen Stand der Rechte (F4).
+func (l *live) recheck() {
+	l.mu.Lock()
+	cl := make([]*client, 0, len(l.clients))
+	for c := range l.clients {
+		cl = append(cl, c)
+	}
+	meta, dead := l.meta, l.dead
+	l.mu.Unlock()
+	var drop []*client
+	for _, c := range cl { // Rechteabfrage ohne l.mu (kann den Benutzerspeicher lesen)
+		rd, wr := meta.Level(c.user)
+		if ar, _ := auth.AreaAccess(c.user, Area(meta.Type)); dead || !rd || !ar || wr != c.write {
+			drop = append(drop, c)
+		}
+	}
+	if len(drop) == 0 {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, c := range drop {
+		if _, ok := l.clients[c]; !ok {
+			continue
+		}
+		close(c.out)
+		delete(l.clients, c)
+		for k, lk := range l.locks { // Sperren des getrennten Clients lösen
+			if lk.c == c {
+				delete(l.locks, k)
+				l.broadcast(msgOut{T: "unlock", K: k})
+			}
+		}
+	}
+}
+
+// watchRights: prüft regelmäßig, solange Clients verbunden sind (Kontosperre und Gruppenänderungen laufen nicht über share).
+func (l *live) watchRights() {
+	for {
+		time.Sleep(time.Duration(recheckNs.Load()))
+		l.mu.Lock()
+		if len(l.clients) == 0 || l.dead {
+			l.watch = false
+			l.mu.Unlock()
+			return
+		}
+		l.mu.Unlock()
+		l.recheck()
+	}
+}
+
+// kill: Dokument wurde gelöscht – alle trennen, nichts mehr schreiben (F4/F5).
+func (l *live) kill() {
+	l.mu.Lock()
+	l.dead = true
+	if l.timer != nil {
+		l.timer.Stop()
+		l.timer = nil
+	}
+	l.mu.Unlock()
+	l.recheck()
+}
+
 func (l *live) join(c *client) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if !l.watch {
+		l.watch = true
+		go l.watchRights()
+	}
 	l.clients[c] = struct{}{}
 	l.sweep()
 	lks := map[string]string{}

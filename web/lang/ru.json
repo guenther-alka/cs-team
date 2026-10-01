@@ -598,5 +598,12 @@
  "Mikrofon an": "Микрофон включён",
  "Mikrofon aus": "Микрофон выключен",
  "Kamera an": "Камера включена",
- "Kamera aus": "Камера выключена"
+ "Kamera aus": "Камера выключена",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Адрес чата (вебхук): {0}. Он содержит ключ доступа и виден и изменяем только самим пользователем и глобальными администраторами.",
+ "gesetzt": "задан",
+ "nicht gesetzt": "не задан",
+ "Kein Zugriff mehr auf dieses Dokument.": "У вас больше нет доступа к этому документу.",
+ "belegt {0} von {1}": "Занято {0} из {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Квота: число в МБ (0 = без ограничений).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Квота на пользователя и папку группы (МБ, 0 = без ограничений)"
 }

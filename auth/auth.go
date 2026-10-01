@@ -83,6 +83,9 @@ type Auth struct {
 	TrustProxy bool // X-Forwarded-For für die Client-IP verwenden (nur hinter eigenem Proxy!)
 
 	mu     sync.Mutex
+	lmu    sync.Mutex // ein Lader gleichzeitig (refresh)
+	gen    int        // zählt invalidate(); verwirft veraltete Ladeergebnisse
+	retry  time.Time  // nach einem Ladefehler: bis dahin den alten Stand benutzen
 	users  map[string]Account
 	groups map[string]Group
 	load   time.Time
@@ -104,29 +107,65 @@ func New(st store.Store) *Auth {
 
 // ---------- Laden / Ändern ----------
 
-func (a *Auth) invalidate() { a.mu.Lock(); a.load = time.Time{}; a.mu.Unlock() }
+func (a *Auth) invalidate() { a.mu.Lock(); a.load = time.Time{}; a.gen++; a.mu.Unlock() }
 
+// loadTimeout: so lange darf das Laden der Benutzer/Gruppen aus dem Speicher höchstens dauern (S-11).
+var loadTimeout = 5 * time.Second
+
+// refresh lädt Benutzer und Gruppen neu, wenn der Zwischenspeicher älter als cacheTTL ist. Der Speicherzugriff läuft ohne a.mu
+// (nur ein Lader gleichzeitig, mit Zeitlimit); ein hängender Speicher blockiert so keine Anfragen mit gültigem Zwischenspeicher.
+// Ist der Zwischenspeicher nur abgelaufen (nicht ungültig gemacht) und lädt gerade jemand, wird der alte Stand benutzt.
+// Nach einer Änderung (invalidate) wartet der Aufrufer auf frische Daten.
 func (a *Auth) refresh(ctx context.Context) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if time.Since(a.load) < cacheTTL {
+	fresh, have := time.Since(a.load) < cacheTTL, !a.load.IsZero()
+	a.mu.Unlock()
+	if fresh {
 		return
 	}
+	if have && time.Now().Before(a.retryAt()) {
+		return
+	}
+	if !a.lmu.TryLock() {
+		if have {
+			return
+		}
+		a.lmu.Lock()
+	}
+	defer a.lmu.Unlock()
+	a.mu.Lock()
+	fresh, gen := time.Since(a.load) < cacheTTL, a.gen
+	a.mu.Unlock()
+	if fresh {
+		return // ein anderer Lader war schneller
+	}
+	ctx, cancel := context.WithTimeout(ctx, loadTimeout)
+	defer cancel()
+	fail := func() { a.mu.Lock(); a.retry = time.Now().Add(2 * time.Second); a.mu.Unlock() }
 	m := map[string]Account{}
 	b, _, err := a.st.Get(ctx, usersKey)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 	case err != nil:
+		fail()
 		return
 	case json.Unmarshal(b, &m) != nil:
+		fail()
 		return
 	}
 	g, ok := a.loadGroups(ctx)
 	if !ok {
+		fail()
 		return
 	}
-	a.users, a.groups, a.load = m, g, time.Now()
+	a.mu.Lock()
+	if a.gen == gen { // währenddessen geändert: Ergebnis verwerfen, der nächste Aufruf lädt neu
+		a.users, a.groups, a.load = m, g, time.Now()
+	}
+	a.mu.Unlock()
 }
+
+func (a *Auth) retryAt() time.Time { a.mu.Lock(); defer a.mu.Unlock(); return a.retry }
 
 func (a *Auth) get(ctx context.Context, name string) (Account, bool) {
 	a.refresh(ctx)

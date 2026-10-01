@@ -598,5 +598,12 @@
  "Mikrofon an": "Microfono attivo",
  "Mikrofon aus": "Microfono disattivato",
  "Kamera an": "Videocamera attiva",
- "Kamera aus": "Videocamera disattivata"
+ "Kamera aus": "Videocamera disattivata",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Indirizzo chat (webhook): {0}. Contiene una chiave di accesso ed è visibile e modificabile solo dall'utente stesso e dagli amministratori globali.",
+ "gesetzt": "impostato",
+ "nicht gesetzt": "non impostato",
+ "Kein Zugriff mehr auf dieses Dokument.": "Non hai più accesso a questo documento.",
+ "belegt {0} von {1}": "{0} usati su {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Quota: numero in MB (0 = illimitata).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Quota per utente e cartella di gruppo (MB, 0 = illimitata)"
 }

@@ -137,6 +137,23 @@ func (a *Auth) SetContact(ctx_ context.Context, name, mailAddr, chat string) err
 	})
 }
 
+// SetMail setzt nur die E-Mail-Adresse (Gruppen-Admins dürfen die Webhook-Adresse eines anderen nicht ändern, S-09).
+func (a *Auth) SetMail(ctx_ context.Context, name, mailAddr string) error {
+	mailAddr, _, err := cleanContact(mailAddr, "")
+	if err != nil {
+		return err
+	}
+	return a.mutate(ctx_, func(m map[string]Account) error {
+		u, ok := m[name]
+		if !ok {
+			return ErrNoUser
+		}
+		u.Mail = mailAddr
+		m[name] = u
+		return nil
+	})
+}
+
 func (a *Auth) SetGroupModes(ctx_ context.Context, group string, chat, msg, chans, tasks *string) error {
 	if (chat != nil && !validMode(*chat)) || (msg != nil && !validMode(*msg)) || (chans != nil && !validMode(*chans)) || (tasks != nil && !validMode(*tasks)) {
 		return ErrBadMode
@@ -256,6 +273,16 @@ func (a *Auth) contactRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http
 		}
 		if !a.manages(r.Context(), r.PathValue("name")) { // globaler Admin oder Gruppen-Admin des Benutzers
 			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !IsAdmin(r.Context()) && r.PathValue("name") != User(r.Context()) { // Gruppen-Admin: nur die E-Mail-Adresse; Webhook (enthält Token) bleibt unberührt
+			if strings.TrimSpace(in.Chat) != "" {
+				http.Error(w, "chat address: only the owner or a global admin", http.StatusForbidden)
+				return
+			}
+			if err := a.SetMail(r.Context(), r.PathValue("name"), in.Mail); err != nil {
+				fail_(w, err)
+			}
 			return
 		}
 		if err := a.SetContact(r.Context(), r.PathValue("name"), in.Mail, in.Chat); err != nil {

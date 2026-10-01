@@ -598,5 +598,12 @@
  "Mikrofon an": "Microphone on",
  "Mikrofon aus": "Microphone off",
  "Kamera an": "Camera on",
- "Kamera aus": "Camera off"
+ "Kamera aus": "Camera off",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Chat address (webhook): {0}. It contains an access key and is visible and changeable only by the user and global admins.",
+ "gesetzt": "set",
+ "nicht gesetzt": "not set",
+ "Kein Zugriff mehr auf dieses Dokument.": "You no longer have access to this document.",
+ "belegt {0} von {1}": "{0} of {1} used",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Quota: number in MB (0 = unlimited).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Quota per user and group folder (MB, 0 = unlimited)"
 }

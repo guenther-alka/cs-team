@@ -114,7 +114,9 @@ func (h *Hub) share(w http.ResponseWriter, r *http.Request) {
 	l.mu.Unlock()
 	if _, err := h.st.Put(r.Context(), metaKey(l.id), b, ""); err != nil {
 		http.Error(w, err.Error(), 500)
+		return
 	}
+	l.recheck() // geänderte Freigabe gilt sofort auch für offene Verbindungen (F4)
 }
 
 func (h *Hub) remove(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +127,7 @@ func (h *Hub) remove(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	delete(h.docs, l.id)
 	h.mu.Unlock()
+	l.kill()
 	infos, _ := h.st.List(r.Context(), "doc/"+l.id+"/")
 	for _, i := range infos {
 		h.st.Delete(r.Context(), i.Key)

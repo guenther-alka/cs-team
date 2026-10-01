@@ -598,5 +598,12 @@
  "Mikrofon an": "تشغيل الميكروفون",
  "Mikrofon aus": "إيقاف الميكروفون",
  "Kamera an": "تشغيل الكاميرا",
- "Kamera aus": "إيقاف الكاميرا"
+ "Kamera aus": "إيقاف الكاميرا",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "عنوان الدردشة (Webhook): {0}. يحتوي على مفتاح وصول ولا يراه ولا يغيّره إلا المستخدم نفسه والمسؤولون العامون.",
+ "gesetzt": "معيّن",
+ "nicht gesetzt": "غير معيّن",
+ "Kein Zugriff mehr auf dieses Dokument.": "لم يعد لديك صلاحية الوصول إلى هذا المستند.",
+ "belegt {0} von {1}": "المستخدم {0} من {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "الحصة: رقم بالميغابايت (0 = غير محدود).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "الحصة لكل مستخدم ومجلد مجموعة (ميغابايت، 0 = غير محدود)"
 }

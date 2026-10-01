@@ -598,5 +598,12 @@
  "Mikrofon an": "Microphone activé",
  "Mikrofon aus": "Microphone coupé",
  "Kamera an": "Caméra activée",
- "Kamera aus": "Caméra coupée"
+ "Kamera aus": "Caméra coupée",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Adresse de chat (webhook) : {0}. Elle contient une clé d'accès et n'est visible et modifiable que par l'utilisateur lui-même et les administrateurs globaux.",
+ "gesetzt": "défini",
+ "nicht gesetzt": "non défini",
+ "Kein Zugriff mehr auf dieses Dokument.": "Vous n'avez plus accès à ce document.",
+ "belegt {0} von {1}": "{0} utilisés sur {1}",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Quota : nombre en Mo (0 = illimité).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Quota par utilisateur et dossier de groupe (Mo, 0 = illimité)"
 }

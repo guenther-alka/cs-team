@@ -598,5 +598,12 @@
  "Mikrofon an": "Mikrofon açık",
  "Mikrofon aus": "Mikrofon kapalı",
  "Kamera an": "Kamera açık",
- "Kamera aus": "Kamera kapalı"
+ "Kamera aus": "Kamera kapalı",
+ "Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.": "Sohbet adresi (webhook): {0}. Bir erişim anahtarı içerir ve yalnızca kullanıcının kendisi ile genel yöneticiler tarafından görülebilir ve değiştirilebilir.",
+ "gesetzt": "ayarlı",
+ "nicht gesetzt": "ayarlı değil",
+ "Kein Zugriff mehr auf dieses Dokument.": "Bu belgeye artık erişiminiz yok.",
+ "belegt {0} von {1}": "{0} / {1} kullanıldı",
+ "Kontingent: Zahl in MB (0 = unbegrenzt).": "Kota: MB cinsinden sayı (0 = sınırsız).",
+ "Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)": "Kullanıcı ve grup klasörü başına kota (MB, 0 = sınırsız)"
 }

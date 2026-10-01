@@ -23,6 +23,8 @@ type Settings struct {
 	Env SMTP // Vorgabe aus den Startparametern
 	// EnvPrivate: Vorgabe für "Webhooks in private Netze"
 	EnvPrivate bool
+	// EnvQuotaMB: Vorgabe für das Dateikontingent (Startparameter CS_QUOTA_MB)
+	EnvQuotaMB int64
 
 	mu  sync.RWMutex
 	cur stored
@@ -40,6 +42,7 @@ type stored struct {
 	Video   []VideoOpt `json:"video,omitempty"`   // Videochat-Server (bis zu 3)
 	VSecret string     `json:"vsecret,omitempty"` // Geheimnis für Raumnamen
 	RTC     RTCCfg     `json:"rtc"`               // eingebauter Videochat (WebRTC)
+	QuotaMB *int64     `json:"quotaMB,omitempty"` // Kontingent je Benutzer / Gruppenordner (MB, 0 = unbegrenzt)
 }
 
 const settingsKey = "settings.json"
@@ -74,6 +77,35 @@ func (s *Settings) AllowPrivate() bool {
 		return *s.cur.Private
 	}
 	return s.EnvPrivate
+}
+
+// QuotaMB: wirksames Dateikontingent je Benutzer und Gruppenordner in MB (0 = unbegrenzt).
+func (s *Settings) QuotaMB() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cur.QuotaMB != nil {
+		return *s.cur.QuotaMB
+	}
+	return s.EnvQuotaMB
+}
+
+// Quota: Kontingent in Byte (für files.Svc.Quota).
+func (s *Settings) Quota() int64 { return s.QuotaMB() << 20 }
+
+func (s *Settings) setQuota(mb int64) error {
+	if mb < 0 || mb > 1<<30 {
+		return errors.New("quota: 0..1073741824 MB")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.cur
+	n.QuotaMB = &mb
+	b, _ := json.Marshal(n)
+	if _, err := s.St.Put(context.Background(), settingsKey, b, ""); err != nil {
+		return err
+	}
+	s.cur = n
+	return nil
 }
 
 // PublicURL: öffentliche Adresse ohne Schrägstrich am Ende (leer = unbekannt).
@@ -165,8 +197,19 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			"public": own.Public, "private": s.AllowPrivate(), "enabled": c.Enabled(),
 			"envHost": s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
 			"video":   s.Video(),
+			"quotaMB": s.QuotaMB(),
 			"rtc":     map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
 		})
+	}))
+	mux.Handle("POST /api/settings/quota", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ MB int64 }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setQuota(in.MB); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
 	}))
 	mux.Handle("POST /api/settings/rtc", admin(func(w http.ResponseWriter, r *http.Request) {
 		var in rtcIn

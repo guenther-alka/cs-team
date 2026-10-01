@@ -66,7 +66,7 @@ Fix: Admins/Freigaben beim Löschen bereinigen; Namen gelöschter Nutzer zeitwei
 `Allowed` behandelt `g:users` als alle Benutzer; `validName` erlaubt eine neue Gruppe „users“.
 Fix: Name in `SetGroup` ablehnen oder Legacy-Mapping nach Migration entfernen.
 
-**S-09 | mittel | `auth/http.go:120-137, 169`, `contact.go:375-387` – Webhook-URLs für Gruppen-Admins sichtbar und überschreibbar**
+**S-09 | mittel | `auth/http.go:120-137, 169`, `contact.go:375-387` – Webhook-URLs für Gruppen-Admins sichtbar und überschreibbar – BEHOBEN 0.13.9**
 Chat-Webhook-URLs (Slack/ntfy/Telegram enthalten Tokens) gehen an Gruppen-Admins; diese können sie auch überschreiben.
 Fix: nur Besitzer/globaler Admin; Gruppen-Admins sehen `chatSet: bool`.
 
@@ -74,7 +74,7 @@ Fix: nur Besitzer/globaler Admin; Gruppen-Admins sehen `chatSet: bool`.
 FS lehnt `..`, leere Segmente, `\`, `\0` ab; S3 gibt Keys ungeprüft weiter.
 Fix: gemeinsame `validKey()` im `store`-Wrapper für beide Backends.
 
-**S-11 | mittel | `auth/auth.go:99-119` – `refresh` hält `a.mu` während S3-Zugriffen, Hilfsfunktionen ohne Timeout**
+**S-11 | mittel | `auth/auth.go:99-119` – `refresh` hält `a.mu` während S3-Zugriffen, Hilfsfunktionen ohne Timeout – BEHOBEN 0.13.9**
 Ein hängender S3-Zugriff blockiert alle Anfragen.
 Fix: ohne Lock laden und tauschen; 5-s-Kontext.
 
@@ -107,7 +107,7 @@ Fix: zeilenweise streamen, Zeilen/Spalten serverseitig begrenzen.
 
 **F3 →** siehe S-02.
 
-**F4 | mittel | `doc/http.go:141/152`, `hub.go:41` – Rechteentzug wirkt nicht auf offene WebSockets**
+**F4 | mittel | `doc/http.go:141/152`, `hub.go:41` – Rechteentzug wirkt nicht auf offene WebSockets – BEHOBEN 0.13.9**
 Schreibrecht wird nur beim Verbinden vergeben; nach `share` (Entzug) oder Kontosperre bleibt die Verbindung lese-/schreibfähig.
 Fix: nach `share`/`remove` Clients neu bewerten und trennen.
 
@@ -120,9 +120,9 @@ Bis 200000 Items × 64 KB ≈ 12,8 GB je Dokument; `h.docs` wird nie bereinigt.
 CSV schreibt `=…`/`+`/`-`/`@` roh; XLSX schreibt echte `<f>`-Formeln (auch `HYPERLINK`, `WEBSERVICE`).
 Fix: CSV mit `'` voranstellen; XLSX-Formeln nur aus Whitelist.
 
-**F8 | mittel | `files/files.go:278`, `main.go:174`** – kein Kontingent (nur Größe je Datei, Standard 100 MB).
+**F8 | mittel | `files/files.go:278`, `main.go:174` – BEHOBEN 0.13.9** – kein Kontingent (nur Größe je Datei, Standard 100 MB).
 
-**F9 | mittel | `files/files.go:97-124`, `doc/http.go:38-55`** – `Svc.all()` lädt alle Metadaten seriell unter Mutex (alle 20 s bei Cache-Miss).
+**F9 | mittel | `files/files.go:97-124`, `doc/http.go:38-55` – BEHOBEN 0.13.9** – `Svc.all()` lädt alle Metadaten seriell unter Mutex (alle 20 s bei Cache-Miss).
 
 **F10 | mittel | `conv/text.go:23/130`, `office.go:28/225`** – Zip-Import: 32 MB gezippt, je Teil bis 64 MB entpackt; parallele Importe → GBs.
 
@@ -147,7 +147,7 @@ Fix: beim PUT/Abo-Import Frequenzen < DAILY ablehnen, Zeitraum begrenzen.
 
 **K-04 | mittel | `cal/caldav.go:332-367, 394-396`** – kein Größenlimit bei CalDAV-PUT/REPORT, keine Inhaltsvalidierung; Ressourcen-Kalender lädt bei jedem Speichern alle Objekte.
 
-**K-05 | mittel | `cal/resource.go:32-60`** – Race bei Ressourcen-Doppelbuchung (`conflict()` und `Put` nicht atomar); RRULE/RECURRENCE-ID ignoriert; Meldung in Server-Zeitzone.
+**K-05 | mittel | `cal/resource.go:32-60` – BEHOBEN 0.13.9** – Race bei Ressourcen-Doppelbuchung (`conflict()` und `Put` nicht atomar); RRULE/RECURRENCE-ID ignoriert; Meldung in Server-Zeitzone.
 
 **K-06 | mittel | `cal/sub.go:96-168`** – Abo-Refresh ohne Serialisierung: jeder Leser kann parallele Fetches (bis 20 s) und Rewrites auslösen; bei Teilfehler halb ersetzte Termine. Fix: singleflight + Hintergrund-Goroutine.
 
@@ -204,7 +204,7 @@ Alle Routen laufen über `auth.Wrap` (Basic Auth, Lockout). Die Objekt-Autorisie
 | Benutzer/Gruppen/Organisationen/Einheiten (Schreiben) | globaler Admin; Gruppen-Admin eingeschränkt | siehe S-01, S-07 |
 | Einstellungen (`/api/settings*`) | nur globaler Admin | Passwort wird nicht zurückgegeben (`passSet`) |
 | Dateien/WebDAV | Bereich `files` + Dateirechte | `/pub/{token}` ohne Login (128-Bit-Token) |
-| Calc/Text (`/api/docs`, `/ws/{id}`) | Bereich `calc`/`text` + Level | Rechte nur beim Verbindungsaufbau (F4) |
+| Calc/Text (`/api/docs`, `/ws/{id}`) | Bereich `calc`/`text` + Level | Rechte beim Verbinden und laufend neu bewertet (F4, 0.13.9) |
 | Kalender/CalDAV | Bereich `cal`; Pfad-User == Login | Abos nur lesbar |
 | Aufgaben | angemeldet + `canSee`/`isOwner` je Objekt | Admin sieht alles |
 | Chat/Nachricht | Gruppenmitgliedschaft; Senden nur Gruppen-Admin (Standard) | 6 Sendungen/min |

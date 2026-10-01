@@ -70,7 +70,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.13.8"
+const version = "0.13.9"
 
 var started = time.Now()
 
@@ -199,7 +199,11 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	cs.Routes(mux, a.Wrap)
 	envSMTP := chat.SMTP{Host: os.Getenv("CS_SMTP_HOST"), Port: os.Getenv("CS_SMTP_PORT"), User: os.Getenv("CS_SMTP_USER"), Pass: os.Getenv("CS_SMTP_PASS"), From: os.Getenv("CS_SMTP_FROM"), TLS: os.Getenv("CS_SMTP_TLS")}
 	cfg := chat.NewSettings(st, envSMTP, os.Getenv("CS_CHAT_ALLOW_PRIVATE") == "1") // Einstellungen der Oberfläche; Umgebung nur als Vorgabe
-	cs.Cfg = cfg                                                                    // Videochat-Server aus den Einstellungen
+	if n, err := strconv.ParseInt(os.Getenv("CS_QUOTA_MB"), 10, 64); err == nil && n > 0 {
+		cfg.EnvQuotaMB = n
+	}
+	fsvc.Quota = cfg.Quota // Dateikontingent aus den Einstellungen
+	cs.Cfg = cfg           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
 	cfg.Routes(mux, a.Wrap, mailer)
 	mailer.Routes(mux, a.Wrap)
