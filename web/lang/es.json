@@ -698,5 +698,21 @@
  "Währung": "Moneda",
  "Prozent": "Porcentaje",
  "Nachkommastelle hinzufügen": "Añadir decimal",
- "Nachkommastelle entfernen": "Quitar decimal"
+ "Nachkommastelle entfernen": "Quitar decimal",
+ "Linksbündig": "Alinear a la izquierda",
+ "Zentriert": "Centrar",
+ "Rechtsbündig": "Alinear a la derecha",
+ "Zeilenumbruch": "Ajustar texto",
+ "Aufsteigend sortieren": "Orden ascendente",
+ "Absteigend sortieren": "Orden descendente",
+ "Zeile/Spalte fixieren": "Inmovilizar fila/columna",
+ "Fixierung aus": "Inmovilizar desactivado",
+ "Erste Zeile fixiert": "Primera fila inmovilizada",
+ "Erste Spalte fixiert": "Primera columna inmovilizada",
+ "Erste Zeile und Spalte fixiert": "Primera fila y columna inmovilizadas",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Seleccione varias filas para ordenar (sin encabezado).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "No se puede ordenar: celdas bloqueadas ({0}).",
+ "Inhalt löschen": "Borrar contenido",
+ "Format löschen": "Borrar formato",
+ "Alles löschen": "Borrar todo"
 }

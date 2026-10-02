@@ -1,5 +1,14 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.51.0 Calc-Ausbau. Neue Funktionen (englische und deutsche Namen): SUMIF/SUMMEWENN, COUNTIF/ZAEHLENWENN, AVERAGEIF/MITTELWERTWENN (Kriterien wie ">5", "<>x", "A*"), IFERROR/WENNFEHLER,
+                   VLOOKUP/SVERWEIS (wie Excel), CONCAT/VERKETTEN, LEFT/RIGHT/MID, LEN, UPPER, LOWER, TRIM, MEDIAN, MOD, INT, TODAY/HEUTE, NOW/JETZT, DATE/DATUM, YEAR/MONTH/DAY, TEXT(Wert;Format)
+                   (Zahlen 0,00 #.##0,00 0% und Datum tt.mm.jjjj / dd.mm.yyyy); Datumswerte sind Excel-Seriennummern, HEUTE/DATUM zeigen das Datum direkt an.
+                   Neu: Ausrichtung links/zentriert/rechts und Zeilenumbruch (Format-Tokens hl, hc, hr, w; Server-Whitelist erweitert); Spaltenbreite per Maus am Kopf ziehen
+                   (gemeinsam fuer alle, gespeichert als Zelle <Spalte>0, Doppelklick = Standard; Zeile 0 wird nie angezeigt oder exportiert).
+                   Neu: Sortieren der markierten Zeilen A-Z / Z-A nach der ersten Spalte (Format und Formeln wandern mit, ein Undo-Schritt, bei fremd gesperrten Zellen Abbruch mit Hinweis);
+                   Fixieren der ersten Zeile/Spalte (Ansicht im Browser); Rechtsklick-Menue Inhalt/Format/Alles loeschen.
+                   Getestet: Browser calc4-calc7 (Funktionen, Breite/Ausrichtung mit zweitem Benutzer, Sortieren inkl. Sperre und Undo, Menue), Go-Test TestValidFmtNumber erweitert.
+
 2026-10-02  0.50.0 Neue Zaehlung: die Versionen 0.1x waren die ersten Tests, 1.0 folgt, wenn cs-team ausgereifter ist; 0.50 (statt 0.5), damit Versionsvergleiche nach 0.15.3 richtig sortieren (0.50.0 ist inhaltlich der Stand von 0.15.3).
                    Neu: Mouseover auf den Titel "cs-team" oben links zeigt die Programmversion (Server nennt sie in /api/me; fuer Admins steht darunter "Einstellungen").
                    Neu: Calc Rueckgaengig/Wiederholen (Strg+Z, Strg+Y, Strg+Umschalt+Z): Eingabe, Einfuegen, Loeschen, Ausfuellen und Formatierung sind je ein Schritt (bis 100 je Blatt,

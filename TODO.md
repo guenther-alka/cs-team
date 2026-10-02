@@ -5,6 +5,12 @@
 Gea 2026-10-02: Zaehlung ab jetzt 0.50.0 (0.1x = erste Tests, 1.0 wenn ausgereifter). TODOs einzeln abarbeiten, je mit Empfehlung (AskUserQuestion) und Umsetzung nach Bestaetigung; nur wichtige Punkte, kleine zuerst; TODO.md nach jedem Punkt aktualisieren. Veroeffentlichung nur nach Gea-Go (Sync zuvor automatisch). Release-Skripte: rel/all<NNNN>.ps1 (Vorlage rel/all0153.ps1), Quellen/Skripte nach C:\opt\tmp\cs-team per device_commit_files (neue Dateinamen!).
 RELEASED 2026-10-02: 0.50.0 (vorher kurz als 0.5.0 veroeffentlicht, ersetzt; git f5964c2 + Umbenennung). Naechste Punkte: 4 Aufgaben, 5 Kalender-Stundenraster, 6 Calc-Ausbau, 7 Aufgaben-UI.
 PLAN ZUM ABSCHLUSS VON 0.50.0 (Gea 2026-10-02, Nutzungslimit knapp): nur noch (a) Handbuch de/en + README fuer Zahlenformate, (b) Release 0.50.0 nach Geas Go (Skripte wie 0.15.3). Punkte 4-7 (Aufgaben, Kalender-Stundenraster, Calc-Ausbau, Aufgaben-UI) NACH 0.50.0 als 0.6.x.
+0.51 CALC-AUSBAU (Gea 2026-10-02, alle vier bestaetigt; je Punkt einzeln, nach jedem TODO aktualisieren):
+ A. [erledigt, unveroeffentlicht; Tests calc4-7 gruen; Handbuch+CHANGELOG ok] Funktionen SUMIF/COUNTIF/AVERAGEIF, IFERROR, VLOOKUP, CONCAT, LEFT/RIGHT/MID, TEXT, TODAY/DATE, MEDIAN (+ deutsche Namen)
+ B. [erledigt, unveroeffentlicht; Tests calc4-7 gruen; Handbuch+CHANGELOG ok] Spaltenbreite per Maus (geteilt), Ausrichtung links/Mitte/rechts, Zeilenumbruch
+ C. [erledigt, unveroeffentlicht; Tests calc4-7 gruen; Handbuch+CHANGELOG ok] Sortieren (Bereich auf/ab) + erste Zeile/Spalte fixieren
+ D. [erledigt, unveroeffentlicht; Tests calc4-7 gruen; Handbuch+CHANGELOG ok] Kontextmenue (Rechtsklick) Inhalt/Format/Alles loeschen
+ Alle vier fertig; offen nur: main.go version 0.51.0, PDFs, Release 0.51.0 nach Geas Go (Skripte *0510, entry53, h510pdf).
 Reihenfolge (nach Nutzen):
 1. [erledigt, veroeffentlicht 0.50.0] Version-Tooltip am Titel "cs-team" + Versionsstand 0.50.0 (/api/me liefert version).
 2. [erledigt, veroeffentlicht 0.50.0] Calc Strg+Z/Y.

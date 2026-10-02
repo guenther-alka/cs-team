@@ -698,5 +698,21 @@
  "Währung": "Devise",
  "Prozent": "Pourcentage",
  "Nachkommastelle hinzufügen": "Ajouter une décimale",
- "Nachkommastelle entfernen": "Supprimer une décimale"
+ "Nachkommastelle entfernen": "Supprimer une décimale",
+ "Linksbündig": "Aligner à gauche",
+ "Zentriert": "Centrer",
+ "Rechtsbündig": "Aligner à droite",
+ "Zeilenumbruch": "Retour à la ligne",
+ "Aufsteigend sortieren": "Tri croissant",
+ "Absteigend sortieren": "Tri décroissant",
+ "Zeile/Spalte fixieren": "Figer ligne/colonne",
+ "Fixierung aus": "Figer désactivé",
+ "Erste Zeile fixiert": "Première ligne figée",
+ "Erste Spalte fixiert": "Première colonne figée",
+ "Erste Zeile und Spalte fixiert": "Première ligne et colonne figées",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Sélectionnez plusieurs lignes à trier (sans en-tête).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Tri impossible : cellules verrouillées ({0}).",
+ "Inhalt löschen": "Effacer le contenu",
+ "Format löschen": "Effacer le format",
+ "Alles löschen": "Tout effacer"
 }

@@ -697,5 +697,21 @@
  "Währung": "Währung",
  "Prozent": "Prozent",
  "Nachkommastelle hinzufügen": "Nachkommastelle hinzufügen",
- "Nachkommastelle entfernen": "Nachkommastelle entfernen"
+ "Nachkommastelle entfernen": "Nachkommastelle entfernen",
+ "Linksbündig": "Linksbündig",
+ "Zentriert": "Zentriert",
+ "Rechtsbündig": "Rechtsbündig",
+ "Zeilenumbruch": "Zeilenumbruch",
+ "Aufsteigend sortieren": "Aufsteigend sortieren",
+ "Absteigend sortieren": "Absteigend sortieren",
+ "Zeile/Spalte fixieren": "Zeile/Spalte fixieren",
+ "Fixierung aus": "Fixierung aus",
+ "Erste Zeile fixiert": "Erste Zeile fixiert",
+ "Erste Spalte fixiert": "Erste Spalte fixiert",
+ "Erste Zeile und Spalte fixiert": "Erste Zeile und Spalte fixiert",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Sortieren nicht möglich: Zellen sind gesperrt ({0}).",
+ "Inhalt löschen": "Inhalt löschen",
+ "Format löschen": "Format löschen",
+ "Alles löschen": "Alles löschen"
 }

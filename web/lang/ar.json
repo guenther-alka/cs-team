@@ -698,5 +698,21 @@
  "Währung": "عملة",
  "Prozent": "نسبة مئوية",
  "Nachkommastelle hinzufügen": "إضافة منزلة عشرية",
- "Nachkommastelle entfernen": "إزالة منزلة عشرية"
+ "Nachkommastelle entfernen": "إزالة منزلة عشرية",
+ "Linksbündig": "محاذاة لليسار",
+ "Zentriert": "توسيط",
+ "Rechtsbündig": "محاذاة لليمين",
+ "Zeilenumbruch": "التفاف النص",
+ "Aufsteigend sortieren": "فرز تصاعدي",
+ "Absteigend sortieren": "فرز تنازلي",
+ "Zeile/Spalte fixieren": "تثبيت الصف/العمود",
+ "Fixierung aus": "التثبيت متوقف",
+ "Erste Zeile fixiert": "الصف الأول مثبت",
+ "Erste Spalte fixiert": "العمود الأول مثبت",
+ "Erste Zeile und Spalte fixiert": "الصف والعمود الأول مثبتان",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "حدد عدة صفوف للفرز (بدون العنوان).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "لا يمكن الفرز: الخلايا مقفلة ({0}).",
+ "Inhalt löschen": "مسح المحتوى",
+ "Format löschen": "مسح التنسيق",
+ "Alles löschen": "مسح الكل"
 }

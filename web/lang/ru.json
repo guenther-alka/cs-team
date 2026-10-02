@@ -698,5 +698,21 @@
  "Währung": "Валюта",
  "Prozent": "Процент",
  "Nachkommastelle hinzufügen": "Добавить знак после запятой",
- "Nachkommastelle entfernen": "Убрать знак после запятой"
+ "Nachkommastelle entfernen": "Убрать знак после запятой",
+ "Linksbündig": "По левому краю",
+ "Zentriert": "По центру",
+ "Rechtsbündig": "По правому краю",
+ "Zeilenumbruch": "Перенос текста",
+ "Aufsteigend sortieren": "По возрастанию",
+ "Absteigend sortieren": "По убыванию",
+ "Zeile/Spalte fixieren": "Закрепить строку/столбец",
+ "Fixierung aus": "Закрепление выключено",
+ "Erste Zeile fixiert": "Первая строка закреплена",
+ "Erste Spalte fixiert": "Первый столбец закреплен",
+ "Erste Zeile und Spalte fixiert": "Первая строка и столбец закреплены",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Выделите несколько строк для сортировки (без заголовка).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Сортировка невозможна: ячейки заблокированы ({0}).",
+ "Inhalt löschen": "Очистить содержимое",
+ "Format löschen": "Очистить формат",
+ "Alles löschen": "Очистить все"
 }

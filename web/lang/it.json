@@ -698,5 +698,21 @@
  "Währung": "Valuta",
  "Prozent": "Percentuale",
  "Nachkommastelle hinzufügen": "Aggiungi decimale",
- "Nachkommastelle entfernen": "Rimuovi decimale"
+ "Nachkommastelle entfernen": "Rimuovi decimale",
+ "Linksbündig": "Allinea a sinistra",
+ "Zentriert": "Centra",
+ "Rechtsbündig": "Allinea a destra",
+ "Zeilenumbruch": "A capo automatico",
+ "Aufsteigend sortieren": "Ordina in modo crescente",
+ "Absteigend sortieren": "Ordina in modo decrescente",
+ "Zeile/Spalte fixieren": "Blocca riga/colonna",
+ "Fixierung aus": "Blocco disattivato",
+ "Erste Zeile fixiert": "Prima riga bloccata",
+ "Erste Spalte fixiert": "Prima colonna bloccata",
+ "Erste Zeile und Spalte fixiert": "Prima riga e colonna bloccate",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Seleziona più righe da ordinare (senza intestazione).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Impossibile ordinare: celle bloccate ({0}).",
+ "Inhalt löschen": "Cancella contenuto",
+ "Format löschen": "Cancella formato",
+ "Alles löschen": "Cancella tutto"
 }

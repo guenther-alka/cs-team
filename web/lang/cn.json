@@ -698,5 +698,21 @@
  "Währung": "货币",
  "Prozent": "百分比",
  "Nachkommastelle hinzufügen": "增加小数位",
- "Nachkommastelle entfernen": "减少小数位"
+ "Nachkommastelle entfernen": "减少小数位",
+ "Linksbündig": "左对齐",
+ "Zentriert": "居中",
+ "Rechtsbündig": "右对齐",
+ "Zeilenumbruch": "自动换行",
+ "Aufsteigend sortieren": "升序排序",
+ "Absteigend sortieren": "降序排序",
+ "Zeile/Spalte fixieren": "冻结行/列",
+ "Fixierung aus": "冻结已关闭",
+ "Erste Zeile fixiert": "首行已冻结",
+ "Erste Spalte fixiert": "首列已冻结",
+ "Erste Zeile und Spalte fixiert": "首行和首列已冻结",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "请选择多行进行排序（不含标题）。",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "无法排序：单元格已锁定（{0}）。",
+ "Inhalt löschen": "清除内容",
+ "Format löschen": "清除格式",
+ "Alles löschen": "全部清除"
 }

@@ -698,5 +698,21 @@
  "Währung": "Para birimi",
  "Prozent": "Yüzde",
  "Nachkommastelle hinzufügen": "Ondalık basamak ekle",
- "Nachkommastelle entfernen": "Ondalık basamak kaldır"
+ "Nachkommastelle entfernen": "Ondalık basamak kaldır",
+ "Linksbündig": "Sola hizala",
+ "Zentriert": "Ortala",
+ "Rechtsbündig": "Sağa hizala",
+ "Zeilenumbruch": "Metni kaydır",
+ "Aufsteigend sortieren": "Artan sırala",
+ "Absteigend sortieren": "Azalan sırala",
+ "Zeile/Spalte fixieren": "Satır/sütunu sabitle",
+ "Fixierung aus": "Sabitleme kapalı",
+ "Erste Zeile fixiert": "İlk satır sabit",
+ "Erste Spalte fixiert": "İlk sütun sabit",
+ "Erste Zeile und Spalte fixiert": "İlk satır ve sütun sabit",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Sıralamak için birkaç satır seçin (başlık olmadan).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Sıralanamaz: hücreler kilitli ({0}).",
+ "Inhalt löschen": "İçeriği sil",
+ "Format löschen": "Biçimi sil",
+ "Alles löschen": "Hepsini sil"
 }

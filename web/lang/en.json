@@ -698,5 +698,21 @@
  "Währung": "Currency",
  "Prozent": "Percent",
  "Nachkommastelle hinzufügen": "Add decimal place",
- "Nachkommastelle entfernen": "Remove decimal place"
+ "Nachkommastelle entfernen": "Remove decimal place",
+ "Linksbündig": "Align left",
+ "Zentriert": "Center",
+ "Rechtsbündig": "Align right",
+ "Zeilenumbruch": "Wrap text",
+ "Aufsteigend sortieren": "Sort ascending",
+ "Absteigend sortieren": "Sort descending",
+ "Zeile/Spalte fixieren": "Freeze row/column",
+ "Fixierung aus": "Freeze off",
+ "Erste Zeile fixiert": "First row frozen",
+ "Erste Spalte fixiert": "First column frozen",
+ "Erste Zeile und Spalte fixiert": "First row and column frozen",
+ "Zum Sortieren mehrere Zeilen markieren (ohne Überschrift).": "Select several rows to sort (without header).",
+ "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Cannot sort: cells are locked ({0}).",
+ "Inhalt löschen": "Clear contents",
+ "Format löschen": "Clear formatting",
+ "Alles löschen": "Clear all"
 }
