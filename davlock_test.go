@@ -265,7 +265,7 @@ func TestWebDAVLockIfHeader(t *testing.T) {
 	if c := put("If", `(["etag"])`); c != 412 {
 		t.Fatalf("falscher ETag: %d", c)
 	}
-	if c := put("If", "([" + etag() + "])"); !ok(c) {
+	if c := put("If", "(["+etag()+"])"); !ok(c) {
 		t.Fatalf("richtiger ETag: %d", c)
 	}
 	if c := put("If", "(Not ["+etag()+"])"); c != 412 {

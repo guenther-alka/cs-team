@@ -2,8 +2,8 @@ cs-team changelog (newest first)
 
 2026-10-02  0.15.1 WebDAV-Sperren nach litmus-Pruefung (WebDAV-Konformitaetssuite auf Proxmox .112) und Zeitzonen unter Windows. Der If-Header (RFC 4918, 10.4) wird
                    bei PUT, DELETE, MKCOL, MOVE, COPY und PROPPATCH ausgewertet: ein Sperr-Token, das nicht zur aktuellen Sperre der Datei passt (oder bei einer
-                   nicht gesperrten Datei), ergibt 412; Listen (ODER), "Not", DAV:no-lock und Ressourcen-Tags werden beachtet, Listen fuer andere Ressourcen und
-                   ETag-Bedingungen zaehlen nicht (gelten als erfuellt). Der Besitzer (<owner>) einer Sperre wird gespeichert und in LOCK-Antwort und PROPFIND
+                   nicht gesperrten Datei), ergibt 412; Listen (ODER), "Not", DAV:no-lock und Ressourcen-Tags werden beachtet, Listen fuer andere Ressourcen
+                   zaehlen nicht; ETag-Bedingungen werden gegen den aktuellen ETag geprueft; nennt der Header Sperr-Tokens und keines passt zur Sperre, ergibt das 412 (auch neben "Not <DAV:no-lock>"). Der Besitzer (<owner>) einer Sperre wird gespeichert und in LOCK-Antwort und PROPFIND
                    (lockdiscovery) genannt; nur als Text oder href, nie als rohes Client-XML (kein ungueltiges XML durch fremde Namensraeume). Ein erneutes LOCK desselben
                    Benutzers verlaengert die bestehende Sperre und liefert dasselbe Token (statt sie zu ersetzen und das Token eines anderen Fensters zu entwerten).
                    Unveraendert und gewollt: der Sperrende darf ohne Token schreiben (kein Aussperren nach Absturz des Clients); nicht unterstuetzt bleiben Sperren auf
