@@ -1,5 +1,29 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.15.0 Kalender: Erinnerungen, Teilnehmer mit Einladung, "dieser und folgende", Import/Export, Abo-Status; Zeitzonen fuer Apple/Outlook; Belegungsuebersicht;
+                   WebDAV-Sperren fuer Windows/Office. Erinnerung (VALARM): ein Auswahlfeld im Termin (zum Beginn, 5/10/15/30 Min., 1/2 Std., 1/2 Tage, 1 Woche; hoechstens
+                   4 Wochen), gespeichert im Termin (TRIGGER relativ zum Beginn); fremde Erinnerungen (auch RELATED=START) werden gelesen und angezeigt; ohne Angabe
+                   bleibt sie beim Bearbeiten erhalten; der Server verschickt keine Erinnerungs-Mails. Teilnehmer: ATTENDEE/ORGANIZER (Benutzername ueber auth.ContactOf oder
+                   E-Mail-Adresse, bis 50, Pruefung der Adresse); mit eingerichtetem SMTP gehen Einladung (neue Teilnehmer, METHOD:REQUEST mit .ics), Aktualisierung
+                   (bleibende Teilnehmer bei Aenderung von Titel/Ort/Zeit/Regel, SEQUENCE steigt) und Absage (entfernte Teilnehmer, ganzer Termin geloescht, METHOD:CANCEL)
+                   im Hintergrund hinaus; Zu-/Absagen werden nicht ausgewertet; Teilnehmer gelten fuer die ganze Serie; Missbrauchsschutz: je Benutzer hoechstens 100
+                   Empfaenger pro Stunde (darueber wird gespeichert, nicht gemailt, Antwort "mails":-1 mit Hinweis). chat.SMTP.SendICS und Mailer.Invite/MailEnabled neu.
+                   "Dieser und folgende" (PUT scope=following mit rid, DELETE ?scope=following&rid=): die alte Serie endet davor (UNTIL, spaetere Einzeltermine und
+                   Ausnahmen entfallen), beim Aendern beginnt eine neue Serie (neue Datei und UID) mit den neuen Angaben; eine feste Anzahl wird auf den Rest
+                   umgerechnet, ein Enddatum bleibt; erster Termin = ganze Serie. Antworten von POST/PUT liefern {"file","mails"}. Import/Export: GET /api/cal/{kal}/export.ics
+                   (alle Termine mit Zeitzonen) und POST /api/cal/{kal}/import (.ics bis 8 MB, 5000 Termine; bekannte UID wird aktualisiert, Dubletten entstehen nicht;
+                   zu feine Wiederholungen entschaerft, Doppelbuchung in Ressourcen uebersprungen; Antwort added/updated/skipped); Leiste unter dem Kalender fuer den
+                   gewaehlten Kalender. Abo-Status: meta.Tried/Err, calRow fetched/suberr; Fehler bleiben sichtbar, alte Termine erhalten, neuer Versuch nach 2 Min.,
+                   Knopf "Jetzt aktualisieren" (Verwalter); apiRefresh meldet nur noch bereinigte Fehlertexte. VTIMEZONE (cal/vtimezone.go): fuer Termine mit Zone
+                   wird die Definition (Sommer-/Winterzeit-Regeln 2007-2030, nur wenn die Regel stabil ist, sonst feste Uebergaenge; die Umstellungen werden durch Abtasten ermittelt, weil ZoneBounds bei den schlanken Zeitzonendaten unter Windows an Jahresgrenzen versagt) eingebettet, damit iOS, macOS und Outlook
+                   die Uhrzeit richtig zeigen. Belegungsuebersicht: GET /api/filesusage (nur Admins): je Besitzer Dateien, belegt, davon Papierkorb, Anteil am Kontingent,
+                   Summe; Einstellungen > Dateien > "Belegung anzeigen". WebDAV: PROPFIND nennt supportedlock und lockdiscovery (files/davprops.go), ohne die
+                   Windows und Office nicht schreiben; echter Test mit Explorer/Word/Excel steht aus (Handpruefung). Oberflaeche: Formularfelder Erinnerung und Teilnehmer,
+                   Wahl "Dieser und folgende", Knopf "Diesen und folgende loeschen", Anzeige von Erinnerung/Teilnehmern/Organisator im Termin; 31 neue Texte in allen
+                   Sprachen. Tests: cal_extras_test.go (Erinnerung, Teilnehmer mit Test-SMTP-Server, Serie teilen/loeschen, Import/Export), cal/extras_test.go (Limit,
+                   Trigger, Regelteile), cal_vtz_test.go, davlock_test.go (PROPFIND-Eigenschaften), trash_test.go (Belegung), TestCalendarSubscription (Status);
+                   go test -race ./... gruen; Browsertest (Chromium). Handbuch (de/en) Kapitel 4.4, 4.7, 4.11; README (de/en).
+
 2026-10-01  0.14.2 Papierkorb und WebDAV-Sperren. Papierkorb: Loeschen im Browser, per WebDAV und REST verschiebt die Datei (bei Ordnern jede Datei) nach
                    files/<besitzer>/.trash/<id> mit Metadaten (Ursprungspfad, Loescher, Zeit); der Name ".trash" ist fuer Dateien reserviert (ValidName). Neu in
                    store: Move (FS rename, Mem, S3 Kopie + Loeschen). Aufbewahrung in Tagen: Einstellungen > Dateien (Standard 30, Vorgabe CS_TRASH_DAYS, 0 = kein

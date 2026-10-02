@@ -71,7 +71,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.14.2"
+const version = "0.15.0"
 
 var started = time.Now()
 
@@ -212,6 +212,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
+	cb.Mail, cb.MailOK = mailer.Invite, mailer.MailEnabled
 	cfg.Routes(mux, a.Wrap, mailer)
 	mailer.Routes(mux, a.Wrap)
 	ts := tasks.New(st)

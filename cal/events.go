@@ -52,6 +52,9 @@ type evRow struct {
 	Ovr      bool     `json:"ovr,omitempty"`   // einzeln geänderter Termin einer Serie
 	Rid      string   `json:"rid,omitempty"`   // Vorkommen innerhalb der Serie (für Bearbeiten/Löschen "nur dieser")
 	Rule     *ruleOut `json:"rule,omitempty"`  // Regel der Serie
+	Alarm    *int     `json:"alarm,omitempty"` // Erinnerung: Minuten vor Beginn
+	Att      []attRow `json:"att,omitempty"`   // Teilnehmer
+	Org      string   `json:"org,omitempty"`   // Organisator
 }
 
 type ruleIn struct {
@@ -65,8 +68,10 @@ type evIn struct {
 	Summary, Location, Description, Start, End, TZ string
 	AllDay                                         bool
 	Rule                                           *ruleIn // nil = unverändert (Bearbeiten) bzw. keine (Anlegen)
-	Scope                                          string  // Bearbeiten/Löschen: "all" (Standard) | "one"
+	Scope                                          string  // Bearbeiten/Löschen: "all" (Standard) | "one" | "following"
 	Rid                                            string
+	Alarm                                          *int      // Minuten vor Beginn; nil = unverändert, <0 = keine
+	Att                                            *[]string // Teilnehmer (Benutzername oder E-Mail); nil = unverändert
 }
 
 const tsLocal = "2006-01-02T15:04:05"
@@ -163,6 +168,17 @@ func rowOf(file string, cal *ical.Calendar, sp span) evRow {
 	_, _, allDay, fl, _ := evTimes(ev)
 	row := evRow{UID: uid, File: file, Summary: sum, Location: loc, Desc: desc, AllDay: allDay, Float: fl && !allDay, TZ: zoneOf(ev)}
 	row.Start, row.End = tstr(sp.s, row.Float), tstr(sp.e, row.Float)
+	row.Alarm, row.Att = alarmMinutes(ev), attendeesOf(ev)
+	row.Org, _ = organizerOf(ev)
+	if m := masterOf(cal); m != nil && sp.ovr {
+		if row.Alarm == nil {
+			row.Alarm = alarmMinutes(m)
+		}
+		if len(row.Att) == 0 {
+			row.Att = attendeesOf(m)
+			row.Org, _ = organizerOf(m)
+		}
+	}
 	if sp.rec {
 		row.Rec, row.Ovr = true, sp.ovr
 		if m := masterOf(cal); m != nil {
@@ -366,6 +382,12 @@ func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		setRule(ev, rs)
 	}
+	me := auth.User(r.Context())
+	d, err := applyExtras(ev, in, me)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 	cal := newCal(ev)
 	defer lockCal(c.owner, c.kal)()
 	if msg := b.conflict(r.Context(), c, cal, ""); msg != "" {
@@ -373,6 +395,7 @@ func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var buf bytes.Buffer
+	addTimezones(cal)
 	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -381,7 +404,7 @@ func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]string{"file": id + ".ics"})
+	json.NewEncoder(w).Encode(map[string]any{"file": id + ".ics", "mails": b.notify(me, cal, d, false)})
 }
 
 // ---- Bearbeiten und Löschen ----
@@ -507,6 +530,7 @@ func (b *Backend) save(w http.ResponseWriter, r *http.Request, c *calRef, file s
 		return false
 	}
 	var buf bytes.Buffer
+	addTimezones(cal)
 	if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
 		http.Error(w, err.Error(), 400)
 		return false
@@ -548,6 +572,8 @@ func (b *Backend) apiPutEvent(w http.ResponseWriter, r *http.Request) {
 	master := masterOf(cal)
 	mStart, _, mAll, mFl, _ := evTimes(master)
 	series := master.Props.Get(ical.PropRecurrenceRule) != nil
+	me := auth.User(r.Context())
+	sigBefore := sig(master)
 	if in.TZ == "" { // ohne Angabe die Zeitzone des Haupttermins beibehalten
 		if l := lookupTZ(zoneOf(master)); l != nil {
 			loc = l
@@ -566,11 +592,29 @@ func (b *Backend) apiPutEvent(w http.ResponseWriter, r *http.Request) {
 		ov.Props.Set(framed(master, ical.PropRecurrenceID, rid))
 		setTimes(ov, start, end, in.AllDay, loc)
 		fillText(ov, in)
+		copyAttendees(ov, master) // Teilnehmer gelten für die ganze Serie
+		in.Att = nil
+		if _, err := applyExtras(ov, in, me); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
 		cal.Children = append(cal.Children, ov.Component)
 		if b.save(w, r, c, file, cal, etag) {
-			json.NewEncoder(w).Encode(map[string]string{"file": file})
+			n := b.notify(me, cal, attDiff{kept: attendeesOf(master)}, true)
+			json.NewEncoder(w).Encode(map[string]any{"file": file, "mails": n})
 		}
 		return
+	}
+	if in.Scope == "following" && series {
+		rid, err := parseTS(in.Rid)
+		if err != nil || !hasInstance(master, rid) {
+			http.Error(w, "no such occurrence", 404)
+			return
+		}
+		if !rid.Equal(mStart.UTC()) {
+			b.putFollowing(w, r, c, file, cal, etag, master, in, rid, start, end, loc)
+			return
+		}
 	}
 	// ganze Serie bzw. Einzeltermin: Haupttermin ändern
 	keyChanged := false
@@ -627,8 +671,17 @@ func (b *Backend) apiPutEvent(w http.ResponseWriter, r *http.Request) {
 	if keyChanged { // Einzeländerungen und Ausnahmen passen nicht mehr zu den neuen Vorkommen
 		clearSeries(cal, master)
 	}
+	d, err := applyExtras(master, in, me)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	changed := sig(master) != sigBefore
+	if changed && len(attendeesOf(master)) > 0 {
+		bumpSequence(master)
+	}
 	if b.save(w, r, c, file, cal, etag) {
-		json.NewEncoder(w).Encode(map[string]string{"file": file})
+		json.NewEncoder(w).Encode(map[string]any{"file": file, "mails": b.notify(me, cal, d, changed)})
 	}
 }
 
@@ -643,7 +696,8 @@ func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	if r.URL.Query().Get("scope") == "one" {
+	scope := r.URL.Query().Get("scope")
+	if scope == "one" || scope == "following" {
 		if !c.write {
 			http.Error(w, "read-only calendar", 403)
 			return
@@ -661,19 +715,25 @@ func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "no such occurrence", 404)
 				return
 			}
-			dropOverride(cal, rid)
-			master.Props.Add(framed(master, ical.PropExceptionDates, rid))
-			var buf bytes.Buffer
-			if err := ical.NewEncoder(&buf).Encode(cal); err != nil {
-				http.Error(w, err.Error(), 400)
+			if scope == "following" {
+				if b.delFollowing(w, r, c, file, cal, etag, master, rid) {
+					return
+				}
+			} else {
+				dropOverride(cal, rid)
+				master.Props.Add(framed(master, ical.PropExceptionDates, rid))
+				if b.save(w, r, c, file, cal, etag) {
+					b.notify(me, cal, attDiff{kept: attendeesOf(master)}, true)
+				}
 				return
 			}
-			if _, err := b.St.Put(r.Context(), key(c.owner, c.kal, file), buf.Bytes(), etag); errors.Is(err, store.ErrConflict) {
-				http.Error(w, "event was changed meanwhile, reload", http.StatusConflict)
-			} else if err != nil {
-				http.Error(w, err.Error(), 500)
-			}
-			return
+		}
+	}
+	var snap *ical.Calendar // Teilnehmer bekommen eine Absage
+	var gone []attRow
+	if b.mailOn() && c.write {
+		if cal, _, _, err := b.load(r, c, file); err == nil {
+			snap, gone = cal, attendeesOf(masterOf(cal))
 		}
 	}
 	if err := b.DeleteCalendarObject(r.Context(), davPath(me, c.cid, file)); err != nil {
@@ -682,5 +742,9 @@ func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
 			code = 403
 		}
 		http.Error(w, err.Error(), code)
+		return
+	}
+	if len(gone) > 0 {
+		b.notify(me, snap, attDiff{removed: gone}, false)
 	}
 }

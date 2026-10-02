@@ -251,6 +251,40 @@ func main() {
 		r = usr("DELETE", "/api/cal/default/events/"+fmt.Sprint(evs[1]["file"])+"?scope=all", nil)
 		ok("Serie löschen", r.Code == 200 || r.Code == 204, r.Code)
 	}
+	// Erinnerung, Teilnehmer, "dieser und folgende", Export/Import, VTIMEZONE
+	r = usr("POST", "/api/cal/default/events", []byte(`{"summary":"Live 0.15","start":"2027-03-15T08:00:00Z","end":"2027-03-15T09:00:00Z","tz":"Europe/Berlin","alarm":15,"att":["`+adminU+`","extern@live.invalid"],"rule":{"freq":"WEEKLY","count":4}}`))
+	var cr struct{ File string }
+	json.Unmarshal(r.B, &cr)
+	ok("Termin mit Erinnerung und Teilnehmern", r.Code == 200 && cr.File != "", r.Code, string(r.B))
+	r = usr("GET", "/api/cal/default/export.ics", nil)
+	ics := string(r.B)
+	ok("Export: VALARM, ATTENDEE, VTIMEZONE", r.Code == 200 && strings.Contains(ics, "BEGIN:VALARM") && strings.Contains(ics, "extern@live.invalid") && strings.Contains(ics, "BEGIN:VTIMEZONE"), r.Code)
+	r = usr("PUT", "/api/cal/default/events/"+cr.File, []byte(`{"summary":"Live 0.15 neu","start":"2027-03-29T09:00:00Z","end":"2027-03-29T10:00:00Z","tz":"Europe/Berlin","scope":"following","rid":"2027-03-29T07:00:00Z"}`))
+	ok("Dieser und folgende ändern", r.Code == 200, r.Code, string(r.B))
+	r = usr("GET", "/api/cal/default/events?from=2027-03-01&to=2027-05-01", nil)
+	var l2 []map[string]any
+	json.Unmarshal(r.B, &l2)
+	neu := 0
+	for _, e := range l2 {
+		if e["summary"] == "Live 0.15 neu" {
+			neu++
+		}
+	}
+	ok("Serie geteilt: 2 alte + 2 neue", len(l2) == 4 && neu == 2, len(l2), neu)
+	r = usr("POST", "/api/cal/default/import", []byte(ics), "Content-Type", "text/calendar")
+	ok("Import (bekannte UID: aktualisiert)", r.Code == 200 && strings.Contains(string(r.B), `"skipped":0`), r.Code, string(r.B))
+	r = usr("DELETE", "/api/cal/default/events/"+cr.File+"?scope=all", nil)
+	for _, e := range l2 {
+		if e["summary"] == "Live 0.15 neu" {
+			usr("DELETE", "/api/cal/default/events/"+fmt.Sprint(e["file"])+"?scope=all", nil)
+			break
+		}
+	}
+	// Belegungsübersicht (nur Admin)
+	r = usr("GET", "/api/filesusage", nil)
+	ok("Belegung: Benutzer gesperrt (403)", r.Code == 403, r.Code)
+	r = adm("GET", "/api/filesusage", "")
+	ok("Belegung: Admin sieht Benutzer", r.Code == 200 && strings.Contains(string(r.B), userB), r.Code)
 
 	// ---- KI-Widget: Konfiguration schaltet das Widget (ohne Provider-Aufruf)
 	r = usr("GET", "/api/ai/config", nil)

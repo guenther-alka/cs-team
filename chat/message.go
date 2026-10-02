@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -39,6 +40,43 @@ func noCRLF(s string) string { return strings.NewReplacer("\r", " ", "\n", " ").
 
 // Send versendet eine Textmail an alle Empfänger (Bcc: jeder sieht nur sich selbst als Empfänger).
 func (s SMTP) Send(to []string, subject, body, replyTo string) error {
+	return s.deliver(to, subject, replyTo, func(w io.Writer) (string, error) {
+		return "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n", nil
+	}, func(w io.Writer) error {
+		qp := quotedprintable.NewWriter(w)
+		if _, err := io.WriteString(qp, strings.ReplaceAll(body, "\n", "\r\n")); err != nil {
+			return err
+		}
+		return qp.Close()
+	})
+}
+
+// SendICS versendet eine Einladung (iMIP): Text und Kalenderdatei (METHOD=REQUEST/CANCEL), Mail- und Kalenderprogramme erkennen
+// die Einladung und bieten Zu-/Absage an.
+func (s SMTP) SendICS(to []string, subject, body, ics, method, replyTo string) error {
+	rnd := make([]byte, 8)
+	rand.Read(rnd)
+	bd := "cs-team-" + hex.EncodeToString(rnd)
+	return s.deliver(to, subject, replyTo, func(w io.Writer) (string, error) {
+		return "Content-Type: multipart/mixed; boundary=\"" + bd + "\"\r\n\r\n", nil
+	}, func(w io.Writer) error {
+		fmt.Fprintf(w, "--%s\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n", bd)
+		qp := quotedprintable.NewWriter(w)
+		io.WriteString(qp, strings.ReplaceAll(body, "\n", "\r\n"))
+		qp.Close()
+		fmt.Fprintf(w, "\r\n--%s\r\nContent-Type: text/calendar; charset=utf-8; method=%s\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"invite.ics\"\r\n\r\n", bd, method)
+		enc := base64.StdEncoding.EncodeToString([]byte(ics))
+		for len(enc) > 76 {
+			io.WriteString(w, enc[:76]+"\r\n")
+			enc = enc[76:]
+		}
+		io.WriteString(w, enc+"\r\n--"+bd+"--\r\n")
+		return nil
+	})
+}
+
+// deliver: SMTP-Sitzung; head liefert Content-Type/Encoding-Kopfzeilen samt Leerzeile, body schreibt den Inhalt.
+func (s SMTP) deliver(to []string, subject, replyTo string, head func(io.Writer) (string, error), body func(io.Writer) error) error {
 	if !s.Enabled() {
 		return errors.New("smtp not configured")
 	}
@@ -126,15 +164,14 @@ func (s SMTP) Send(to []string, subject, body, replyTo string) error {
 	h.WriteString("Subject: " + mime.QEncoding.Encode("utf-8", noCRLF(subject)) + "\r\n")
 	h.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
 	h.WriteString("Message-ID: <" + hex.EncodeToString(rnd) + "@cs-team>\r\n")
-	h.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n")
+	ch, _ := head(w)
+	h.WriteString("MIME-Version: 1.0\r\n" + ch)
 	if _, err = io.WriteString(w, h.String()); err != nil {
 		return err
 	}
-	qp := quotedprintable.NewWriter(w)
-	if _, err = io.WriteString(qp, strings.ReplaceAll(body, "\n", "\r\n")); err != nil {
+	if err = body(w); err != nil {
 		return err
 	}
-	qp.Close()
 	if err = w.Close(); err != nil {
 		return err
 	}
@@ -487,6 +524,18 @@ func (m *Mailer) Notify(ctx context.Context, user, subject, text string) {
 		hook(ctx, safeClient(m.allowPrivate()), chat, subject, text)
 	}
 }
+
+// Invite verschickt eine Termineinladung/-änderung/-absage (iMIP) per E-Mail; false = Mailversand nicht eingerichtet.
+func (m *Mailer) Invite(to []string, subject, body, ics, method, replyTo string) (bool, error) {
+	s := m.smtp()
+	if !s.Enabled() || len(to) == 0 {
+		return false, nil
+	}
+	return true, s.SendICS(to, noCRLF(subject), body, ics, method, replyTo)
+}
+
+// MailEnabled: ist E-Mail-Versand eingerichtet?
+func (m *Mailer) MailEnabled() bool { return m.smtp().Enabled() }
 
 func (m *Mailer) smtp() SMTP {
 	if m.Cfg != nil {

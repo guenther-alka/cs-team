@@ -225,3 +225,41 @@ func TestTrashQuotaEvicts(t *testing.T) {
 		t.Fatal("zweite aktive Datei:", c)
 	}
 }
+
+func TestFilesUsageAdmin(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	bob := func(m, p, b string) (int, string) { return req(t, srv, "bob", m, p, b) }
+	anna := func(m, p, b string) (int, string) { return req(t, srv, "anna", m, p, b) }
+	bob("POST", "/api/files?name=a.bin", strings.Repeat("x", 1000))
+	bob("POST", "/api/files?name=ordner/b.bin", strings.Repeat("y", 500))
+	bob("POST", "/api/filesdir?name=leer", "")
+	bob("POST", "/api/files?name=c.bin", strings.Repeat("z", 200))
+	bob("DELETE", "/api/files/bob/c.bin", "")
+	anna("POST", "/api/files?name=n.txt", "hallo")
+	if c, _ := bob("GET", "/api/filesusage", ""); c != 403 {
+		t.Fatal("bob darf die Übersicht nicht sehen:", c)
+	}
+	c, b := anna("GET", "/api/filesusage", "")
+	if c != 200 {
+		t.Fatal(c, b)
+	}
+	var u struct {
+		Quota int64
+		Rows  []struct {
+			Owner             string
+			Files, TrashItems int
+			Bytes, Trash      int64
+		}
+	}
+	if err := json.Unmarshal([]byte(b), &u); err != nil || len(u.Rows) != 2 {
+		t.Fatal(err, b)
+	}
+	// bob zuerst (1700 Byte einschließlich 200 im Papierkorb), 2 Dateien (Ordnermarker zählt nicht)
+	if r := u.Rows[0]; r.Owner != "bob" || r.Bytes != 1700 || r.Trash != 200 || r.TrashItems != 1 || r.Files != 2 {
+		t.Fatalf("bob: %+v", r)
+	}
+	if r := u.Rows[1]; r.Owner != "anna" || r.Bytes != 5 || r.Files != 1 {
+		t.Fatalf("anna: %+v", r)
+	}
+}

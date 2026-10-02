@@ -261,3 +261,11 @@ Vorschläge: Sicherheitsabschnitt (Mindestpasswortlänge, Sperrdauer, Anzeige �
 3. **Funktional:** RRULE-Anzeige und Zeitzonen-Fallback im Kalender, Terminbearbeitung, Metadaten beim Verschieben von Dateien, DOCX-Formatierung, Login-Formular mit Session-Cookie, Quota, Papierkorb.
 
 Nicht geprüft: Laufzeitverhalten (keine Exploits oder Lasttests), Go-Abhängigkeiten auf bekannte CVEs (`govulncheck` empfohlen), die Windows-Dienstintegration in csweb-gui, Reverse-Proxy-Setups.
+
+## 0.15.0 (Kalender-Erweiterungen) – Kurzprüfung
+
+- Einladungsmails: Betreff über `noCRLF`, Adresse per Regex (keine Leerzeichen/Komma/Anführungszeichen), Absender-Reply-To nur die hinterlegte Adresse des Benutzers; je Benutzer höchstens 100 Empfänger pro Stunde (`inviteAllow`), damit kein offenes Mail-Relais entsteht. Mails gehen nur bei eingerichtetem SMTP.
+- Import: `MaxBytesReader` 8 MB, 5000 Termine, zu feine `RRULE` wird wie bei Abos entschärft (`dropFineRRule`), Schreibrecht und Nicht-Abo vorausgesetzt, Ressourcen-Konflikte werden übersprungen; wiederholter Import ersetzt per UID.
+- Export: nur lesbare Kalender (`b.open`), Dateiname aus `slug`.
+- Abo-Fehler werden bereinigt gemeldet (`feedErr`), keine Resolver-/Netzwerkdetails.
+- Offen: iMIP-Antworten der Eingeladenen werden nicht ausgewertet; Einladungen für einzelne Serien-Ausnahmen gehen als Aktualisierung der ganzen Serie.

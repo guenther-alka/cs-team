@@ -33,7 +33,9 @@ type calRow struct {
 	Manage      bool   `json:"manage"`          // darf ich den Kalender löschen
 	URL         string `json:"url,omitempty"`   // Abo-URL (nur für Verwalter sichtbar)
 	Resource    bool   `json:"resource,omitempty"`
-	Sub         bool   `json:"sub,omitempty"` // Abo-Kalender (Internet-Feed)
+	Sub         bool   `json:"sub,omitempty"`     // Abo-Kalender (Internet-Feed)
+	Fetched     int64  `json:"fetched,omitempty"` // Abo: letzter erfolgreicher Abruf (Unix)
+	SubErr      string `json:"suberr,omitempty"`  // Abo: Fehler des letzten Versuchs
 }
 
 // Routes: einfache JSON-API für die Web-UI (CalDAV-Clients nutzen /dav/).
@@ -43,6 +45,8 @@ func (b *Backend) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handle
 	mux.Handle("POST /api/cal", f(b.apiCreate))
 	mux.Handle("DELETE /api/cal/{kal}", f(b.apiDelete))
 	mux.Handle("POST /api/cal/{kal}/refresh", f(b.apiRefresh))
+	mux.Handle("GET /api/cal/{kal}/export.ics", f(b.apiExport))
+	mux.Handle("POST /api/cal/{kal}/import", f(b.apiImport))
 	mux.Handle("GET /api/cal/{kal}/events", f(b.apiEvents))
 	mux.Handle("POST /api/cal/{kal}/events", f(b.apiAddEvent))
 	mux.Handle("PUT /api/cal/{kal}/events/{file}", f(b.apiPutEvent))
@@ -60,6 +64,9 @@ func (b *Backend) apiList(w http.ResponseWriter, r *http.Request) {
 		sc, g := scopeOf(c.owner)
 		out = append(out, calRow{ID: c.cid, Name: c.m.Name, Description: c.m.Description, Scope: sc, Group: g, Mode: c.m.Mode,
 			Write: c.write, Manage: c.manage && !(sc == "user" && c.kal == "default"), Sub: c.m.URL != "", Resource: c.m.Resource})
+		if c.m.URL != "" {
+			out[len(out)-1].Fetched, out[len(out)-1].SubErr = c.m.Fetched, c.m.Err
+		}
 		if c.manage {
 			out[len(out)-1].URL = c.m.URL
 		}

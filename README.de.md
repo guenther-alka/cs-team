@@ -4,7 +4,7 @@ Kleine, in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kale
 Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
 
 Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
-ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / alle"); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
+ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
 und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; neun Sprachen.
 Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
 Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
@@ -66,7 +66,15 @@ REST: `GET /api/trash`, `POST /api/trash/<besitzer>/<id>/restore` (bei belegtem 
 Ein Gruppenordner lässt sich erst löschen, wenn sein Papierkorb leer ist.
 
 REST: `GET/POST /api/files`, `GET/DELETE /api/files/<owner>/<name>`, `POST .../share`, `GET /pub/<token>`;
-Kalender: `GET/POST /api/cal`, `DELETE /api/cal/<id>`, `GET/POST /api/cal/<id>/events`, `DELETE .../events/<file>`.
+Kalender: `GET/POST /api/cal`, `DELETE /api/cal/<id>`, `GET/POST /api/cal/<id>/events`, `PUT/DELETE .../events/<file>`
+(`scope=one|following|all` mit `rid`), `GET /api/cal/<id>/export.ics`, `POST /api/cal/<id>/import` (Body: .ics), `POST /api/cal/<id>/refresh`.
+
+**Kalender (0.15.0).** Termine haben optional eine **Erinnerung** (`VALARM`, im Termin gespeichert, kein Mailversand durch den Server) und
+**Teilnehmer** (`ATTENDEE`/`ORGANIZER`; Benutzername oder E-Mail-Adresse). Ist SMTP eingerichtet, gehen Einladung, Aktualisierung und Absage als
+Mail mit .ics (iMIP, `METHOD:REQUEST`/`CANCEL`) hinaus, höchstens 100 Empfänger je Benutzer und Stunde; Zu-/Absagen werden nicht ausgewertet.
+"Dieser und folgende" trennt die Serie (alte Serie endet mit `UNTIL`, neue Datei/UID ab dem gewählten Termin). Für Termine mit Zeitzone wird eine
+`VTIMEZONE` eingebettet (iOS, macOS, Outlook). Abos zeigen letzten Abruf und Fehler und lassen sich sofort aktualisieren.
+Admins sehen unter Einstellungen > Dateien die **Belegung** je Besitzer (`GET /api/filesusage`).
 
 ## Export / Import (Text und Calc <-> Files)
 

@@ -22,7 +22,11 @@ import (
 
 const Prefix = "/dav"
 
-type Backend struct{ St store.Store }
+type Backend struct {
+	St     store.Store
+	Mail   MailFunc    // Einladungen per E-Mail (nil = aus)
+	MailOK func() bool // ist der Mailversand eingerichtet?
+}
 
 type calendarT = caldav.Calendar
 
@@ -41,7 +45,9 @@ type meta struct {
 	Mode        string `json:"mode,omitempty"`     // globale/Gruppenkalender: "ro" nur Admins schreiben, "rw" alle Berechtigten
 	Resource    bool   `json:"resource,omitempty"` // Ressource: keine überschneidenden Termine
 	URL         string `json:"url,omitempty"`      // Abo: ICS-Feed (Kalender ist dann nur lesbar)
-	Fetched     int64  `json:"fetched,omitempty"`
+	Fetched     int64  `json:"fetched,omitempty"`  // letzter erfolgreicher Abruf
+	Tried       int64  `json:"tried,omitempty"`    // letzter Versuch
+	Err         string `json:"err,omitempty"`      // Fehler des letzten Versuchs (bereinigt)
 }
 
 func he(code int, msg string) error { return webdav.NewHTTPError(code, errors.New(msg)) }

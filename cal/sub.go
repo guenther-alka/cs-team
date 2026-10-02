@@ -153,21 +153,34 @@ func (b *Backend) refresh(ctx context.Context, owner, kal string, m meta) error 
 		}
 	}
 	m.Fetched = time.Now().Unix()
+	m.Tried, m.Err = m.Fetched, ""
 	mb, _ := json.Marshal(m)
 	_, err = b.St.Put(ctx, key(owner, kal, "_meta.json"), mb, "")
 	return err
 }
 
+// subFailed merkt Zeit und Art des Fehlers, damit die Oberfläche den Zustand zeigen kann.
+func (b *Backend) subFailed(ctx context.Context, owner, kal string, m meta, err error) {
+	m.Tried, m.Err = time.Now().Unix(), feedErr(err)
+	mb, _ := json.Marshal(m)
+	b.St.Put(ctx, key(owner, kal, "_meta.json"), mb, "")
+}
+
 // autoRefresh: beim Öffnen, wenn der Feed älter als subTTL ist (Fehler unkritisch: alte Termine bleiben).
+// Nach einem Fehler wird frühestens nach zwei Minuten neu versucht.
 func (b *Backend) autoRefresh(ctx context.Context, c *calRef) {
-	if c.m.URL == "" || time.Since(time.Unix(c.m.Fetched, 0)) < subTTL {
+	if c.m.URL == "" {
+		return
+	}
+	wait, last := subTTL, c.m.Fetched
+	if c.m.Err != "" {
+		wait, last = 2*time.Minute, c.m.Tried
+	}
+	if time.Since(time.Unix(last, 0)) < wait {
 		return
 	}
 	if err := b.refresh(ctx, c.owner, c.kal, c.m); err != nil {
-		// Fehlversuch merken, damit nicht bei jedem Öffnen neu gewartet wird
-		c.m.Fetched = time.Now().Unix() - int64(subTTL/time.Second) + 120
-		mb, _ := json.Marshal(c.m)
-		b.St.Put(ctx, key(c.owner, c.kal, "_meta.json"), mb, "")
+		b.subFailed(ctx, c.owner, c.kal, c.m, err)
 	}
 }
 
@@ -182,7 +195,8 @@ func (b *Backend) apiRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := b.refresh(r.Context(), c.owner, c.kal, c.m); err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		b.subFailed(r.Context(), c.owner, c.kal, c.m, err)
+		http.Error(w, feedErr(err), http.StatusBadGateway)
 	}
 }
 

@@ -73,6 +73,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/trash/{owner}/{id}/restore", f(s.trashRestore)) // stellt wieder her, Antwort {"name":...}
 	mux.Handle("DELETE /api/trash/{owner}/{id}", f(s.trashDelete))        // endgültig löschen
 	mux.Handle("DELETE /api/trash", f(s.trashEmpty))                      // ?owner= leert den Papierkorb dieses Besitzers (Standard: eigener)
+	mux.Handle("GET /api/filesusage", f(s.usageList))                     // Admin: Belegung je Benutzer und Gruppenordner
 	mux.Handle("GET /pub/{token}", http.HandlerFunc(s.public))
 	mux.Handle("/webdav/", wrap(auth.Need("files", s.WebDAV())))
 	mux.Handle("/webdav", wrap(http.RedirectHandler("/webdav/", http.StatusMovedPermanently)))

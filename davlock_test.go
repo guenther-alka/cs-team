@@ -167,3 +167,33 @@ func TestWebDAVLockExpiry(t *testing.T) {
 		t.Fatal("nach Ablauf:", c)
 	}
 }
+
+func TestWebDAVLockProps(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	u := srv.URL
+	req(t, srv, "anna", "PUT", "/webdav/p.txt", "x")
+	// Windows/Office fragen die Sperr-Eigenschaften ausdrücklich ab: nicht 404, sondern 200
+	q := `<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:supportedlock/><D:lockdiscovery/><D:getcontentlength/></D:prop></D:propfind>`
+	resp, body := rawReq(t, u, "anna", "PROPFIND", "/webdav/p.txt", q, "Depth", "0", "Content-Type", "text/xml")
+	if resp.StatusCode != 207 || !strings.Contains(body, "lockentry") || !strings.Contains(body, "lockdiscovery") || strings.Contains(body, "404") {
+		t.Fatalf("propfind: %d %s", resp.StatusCode, body)
+	}
+	// ohne Body (allprop): Eigenschaften sind dabei, Ordner melden keine Sperrmöglichkeit
+	_, body = rawReq(t, u, "anna", "PROPFIND", "/webdav/", "", "Depth", "1")
+	if !strings.Contains(body, "lockentry") || !strings.Contains(body, "<D:supportedlock xmlns:D=\"DAV:\"></D:supportedlock>") {
+		t.Fatalf("allprop: %s", body)
+	}
+	// aktive Sperre erscheint in lockdiscovery mit Token
+	resp, _ = rawReq(t, u, "anna", "LOCK", "/webdav/p.txt", lockBody)
+	tok := strings.Trim(resp.Header.Get("Lock-Token"), "<>")
+	_, body = rawReq(t, u, "anna", "PROPFIND", "/webdav/p.txt", q, "Depth", "0", "Content-Type", "text/xml")
+	if !strings.Contains(body, "<D:activelock>") || !strings.Contains(body, tok) {
+		t.Fatalf("lockdiscovery: %s", body)
+	}
+	// andere Eigenschaften bleiben unverändert
+	_, body = rawReq(t, u, "anna", "PROPFIND", "/webdav/p.txt", `<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:getcontentlength/></D:prop></D:propfind>`, "Depth", "0", "Content-Type", "text/xml")
+	if strings.Contains(body, "lock") || !strings.Contains(body, "getcontentlength") {
+		t.Fatalf("plain propfind: %s", body)
+	}
+}

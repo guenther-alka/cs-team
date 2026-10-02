@@ -1146,7 +1146,7 @@ func TestCalendarSubscription(t *testing.T) {
 		"BEGIN:VEVENT\r\nUID:h2\r\nDTSTAMP:20260101T000000Z\r\nDTSTART;VALUE=DATE:20261225\r\nSUMMARY:Weihnachten\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 	cur := &feed
 	fs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/bad" {
+		if r.URL.Path == "/bad" || *cur == "DOWN" {
 			http.Error(w, "x", 500)
 			return
 		}
@@ -1190,6 +1190,31 @@ func TestCalendarSubscription(t *testing.T) {
 	_, ev = req(t, srv, "bob", "GET", "/api/cal/feiertage/events", "")
 	if strings.Contains(ev, "Heiligabend") || !strings.Contains(ev, "Weihnachten") {
 		t.Fatalf("after refresh: %s", ev)
+	}
+	// Status: letzter Abruf sichtbar, ohne Fehler
+	_, l = req(t, srv, "bob", "GET", "/api/cal", "")
+	if !strings.Contains(l, `"fetched":`) || strings.Contains(l, "suberr") {
+		t.Fatalf("status: %s", l)
+	}
+	// Feed fällt aus: Fehler wird gemerkt, alte Termine bleiben, nächster Erfolg löscht den Fehler
+	down := "DOWN"
+	cur = &down
+	if c, b := req(t, srv, "bob", "POST", "/api/cal/feiertage/refresh", ""); c != 502 || !strings.Contains(b, "HTTP 500") {
+		t.Fatalf("refresh error: %d %s", c, b)
+	}
+	_, l = req(t, srv, "bob", "GET", "/api/cal", "")
+	if !strings.Contains(l, `"suberr":"feed: HTTP 500"`) || !strings.Contains(l, `"fetched":`) {
+		t.Fatalf("error status: %s", l)
+	}
+	if _, ev = req(t, srv, "bob", "GET", "/api/cal/feiertage/events", ""); !strings.Contains(ev, "Weihnachten") {
+		t.Fatalf("old events must stay: %s", ev)
+	}
+	cur = &f2
+	if c, _ := req(t, srv, "bob", "POST", "/api/cal/feiertage/refresh", ""); c != 200 {
+		t.Fatal(c)
+	}
+	if _, l = req(t, srv, "bob", "GET", "/api/cal", ""); strings.Contains(l, "suberr") {
+		t.Fatalf("error not cleared: %s", l)
 	}
 }
 

@@ -9,6 +9,9 @@ import (
 type calEv struct {
 	UID, File, Summary, Location, Desc, Start, End, TZ, Rid string
 	AllDay, Float, Rec, Ovr                                 bool
+	Alarm                                                   *int
+	Org                                                     string
+	Att                                                     []struct{ Name, Mail, Status string }
 	Rule                                                    *struct {
 		Freq            string
 		Interval, Count int

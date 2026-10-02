@@ -42,6 +42,9 @@ func (s *Svc) WebDAV() http.Handler {
 			return
 		case http.MethodOptions:
 			w = &davHead{ResponseWriter: w, opts: true}
+		case "PROPFIND":
+			s.propfind(h, w, r)
+			return
 		}
 		h.ServeHTTP(w, r)
 	})
