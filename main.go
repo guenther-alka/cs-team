@@ -71,7 +71,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.5.0" // Zaehlung neu ab 0.5.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.50.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 

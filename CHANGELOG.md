@@ -1,6 +1,6 @@
 cs-team changelog (newest first)
 
-2026-10-02  0.5.0  Neue Zaehlung: die Versionen 0.1x waren die ersten Tests, 1.0 folgt, wenn cs-team ausgereifter ist (0.5.0 ist inhaltlich der Stand von 0.15.3).
+2026-10-02  0.50.0 Neue Zaehlung: die Versionen 0.1x waren die ersten Tests, 1.0 folgt, wenn cs-team ausgereifter ist; 0.50 (statt 0.5), damit Versionsvergleiche nach 0.15.3 richtig sortieren (0.50.0 ist inhaltlich der Stand von 0.15.3).
                    Neu: Mouseover auf den Titel "cs-team" oben links zeigt die Programmversion (Server nennt sie in /api/me; fuer Admins steht darunter "Einstellungen").
                    Neu: Calc Rueckgaengig/Wiederholen (Strg+Z, Strg+Y, Strg+Umschalt+Z): Eingabe, Einfuegen, Loeschen, Ausfuellen und Formatierung sind je ein Schritt (bis 100 je Blatt,
                    nur im Browser). Zurueckgesetzt werden nur Zellen, die seitdem niemand sonst geaendert hat und die nicht gesperrt sind; der Rest bleibt, ein Hinweis nennt die Anzahl.
