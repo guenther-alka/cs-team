@@ -1,5 +1,11 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.52.0 Kalender: Stundenraster in Tages- und Wochenansicht. Zeitachse 0-24 Uhr (48 px je Stunde, Start bei 7 Uhr, Position bleibt beim Neuzeichnen), Termine als Bloecke nach Beginn und Dauer,
+                   ueberlappende Termine nebeneinander, ganztaegige Termine oben, rote Linie fuer die aktuelle Zeit. Termin mit der Maus auf anderen Tag und andere Uhrzeit ziehen (Raster 15 Minuten),
+                   Dauer am unteren Rand ziehen; bei Serien fragt der Dialog (nur dieser / dieser und folgende / alle). Geaendert (Gea): neue Termine nur noch per Doppelklick
+                   (Monat: Tag, Woche/Tag: Zeitachse mit angeklickter Uhrzeit, 1 Stunde; im markierten Tagesbereich ganztaegiger Mehrtagestermin); ein einfacher Klick waehlt nur den Tag (Ziel fuer Strg+V).
+                   Getestet: Browser cal, cal2, cal3 (Bloecke, Ueberlappung, Doppelklick, Dauer ziehen, Verschieben, Serie nur dieses Vorkommen, Tagesansicht).
+
 2026-10-02  0.51.0 Calc-Ausbau. Neue Funktionen (englische und deutsche Namen): SUMIF/SUMMEWENN, COUNTIF/ZAEHLENWENN, AVERAGEIF/MITTELWERTWENN (Kriterien wie ">5", "<>x", "A*"), IFERROR/WENNFEHLER,
                    VLOOKUP/SVERWEIS (wie Excel), CONCAT/VERKETTEN, LEFT/RIGHT/MID, LEN, UPPER, LOWER, TRIM, MEDIAN, MOD, INT, TODAY/HEUTE, NOW/JETZT, DATE/DATUM, YEAR/MONTH/DAY, TEXT(Wert;Format)
                    (Zahlen 0,00 #.##0,00 0% und Datum tt.mm.jjjj / dd.mm.yyyy); Datumswerte sind Excel-Seriennummern, HEUTE/DATUM zeigen das Datum direkt an.

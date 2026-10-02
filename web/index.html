@@ -95,6 +95,19 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .mgrid>div.dro,.wgrid>div.dro,.dayl.dro{outline:2px dashed #3b82f6;outline-offset:-2px}
 #cclip{font-size:12px;color:#1e40af;margin:0 0 6px}#cclip:empty{display:none}#cclip a{margin-left:8px;color:#777;text-decoration:none}
 .more{font-size:11px;color:#666;cursor:pointer}
+.tg{max-height:68vh;overflow:auto;border:1px solid #ddd;background:#fff;user-select:none;-webkit-user-select:none}
+.tgin{display:grid;position:relative}
+.tgc,.tgd{position:sticky;top:0;z-index:6;background:#f3f4f6;height:24px;line-height:24px;font-size:12px;font-weight:600;text-align:center;border-bottom:1px solid #ccc;border-left:1px solid #ddd}
+.tgd.today{background:#dbeafe}.tgd .dn{cursor:pointer}
+.tgl,.tad{position:sticky;top:24px;z-index:5;background:#fff;min-height:22px;border-bottom:1px solid #ccc;border-left:1px solid #ddd;padding:1px 2px;overflow:hidden}
+.tgl{font-size:10.5px;color:#777;text-align:right;padding-right:4px;border-left:0}
+.tgt{position:relative;height:1152px}.tgt span{position:absolute;right:4px;font-size:10.5px;color:#777;transform:translateY(-50%)}
+.tcol{position:relative;height:1152px;border-left:1px solid #ddd;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 47px,#e5e7eb 47px,#e5e7eb 48px);cursor:cell}
+.tcol.today{background-color:#f3f8ff}.tcol.dsel,.tad.dsel{background-color:#dbeafe}.tcol.dro{outline:2px dashed #3b82f6;outline-offset:-2px}
+.tcol .ev.tb{position:absolute;white-space:normal;margin:0;box-sizing:border-box;overflow:hidden;font-size:11.5px;padding:1px 4px 6px;border:1px solid rgba(255,255,255,.75);line-height:1.25}
+.tb .rz{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize;background:rgba(0,0,0,.12)}
+.nowl{position:absolute;left:0;right:0;height:2px;background:#e11d48;z-index:3;pointer-events:none}
+.tsel{position:absolute;left:2px;right:2px;background:rgba(59,130,246,.3);border:1px solid #2563eb;border-radius:3px;pointer-events:none;z-index:2;font-size:11px;color:#1e3a8a;padding:1px 3px}
 .wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-top:1px solid #ddd;border-left:1px solid #ddd}
 .wgrid>div{border-right:1px solid #ddd;border-bottom:1px solid #ddd;min-height:320px;padding:4px;background:#fff}
 .wgrid>div.today{background:#eef5ff}
@@ -836,6 +849,29 @@ S.cal={
     const k=this.keyOf(x),cl=(this.curKey==k?' cur':'')+(this.clip&&this.clip.cut&&this.clip.key==k?' cut':'');
     return '<div class="ev'+(x.allDay?' ad':'')+cl+'" style="background:'+x.color+'" data-i="'+x.id+'" title="'+esc(x.c.name+': '+x.e.summary)+'">'+(x.allDay?'':esc(hhmm(x.s))+' ')+(x.e.rec?'↻ ':'')+esc(x.e.summary)+'</div>';
   },
+  /* Stundenraster (Tag/Woche): Zeitachse, Termine als Blöcke nach Beginn/Dauer, Ganztägige oben; 48 px je Stunde */
+  grid(evs,days,today){
+    const PH=48,n=days.length,now=new Date();
+    let h='<div class="tg" id="tg"><div class="tgin" style="grid-template-columns:44px repeat('+n+',1fr)"><div class="tgc"></div>';
+    days.forEach(d=>{h+='<div class="tgd'+(dkey(d)==today?' today':'')+'"><span class="dn" data-d="'+dkey(d)+'">'+WD[(d.getDay()+6)%7]+' '+d.getDate()+'.</span></div>';});
+    h+='<div class="tgl">'+esc(t('ganztägig'))+'</div>';
+    days.forEach(d=>{h+='<div class="tad" data-day="'+dkey(d)+'">'+this.onDay(evs,d).filter(x=>x.allDay).map(x=>this.chip(x)).join('')+'</div>';});
+    h+='<div class="tgt">';for(let i=1;i<24;i++)h+='<span style="top:'+i*PH+'px">'+pad2(i)+':00</span>';h+='</div>';
+    days.forEach(d=>{
+      const d0=sod(d),d1=addDays(d0,1),l=this.onDay(evs,d).filter(x=>!x.allDay).map(x=>{const s0=x.s<d0?d0:x.s,e0=x.en>d1?d1:x.en;
+        const m0=(s0-d0)/6e4,m1=Math.max((e0-d0)/6e4,m0+20);return {x,m0,m1:Math.min(m1,1440),lane:0,lanes:1};}).sort((p,q)=>p.m0-q.m0||q.m1-p.m1);
+      // Überlappungen: Gruppen zusammenhängender Termine, darin Spalten nebeneinander
+      let grp=[],gend=-1;const flush=()=>{const L=Math.max(0,...grp.map(z=>z.lane))+1;grp.forEach(z=>z.lanes=L);grp=[];};
+      for(const z of l){if(z.m0>=gend&&grp.length)flush();const used=grp.filter(y=>y.m1>z.m0).map(y=>y.lane);let k=0;while(used.includes(k))k++;z.lane=k;grp.push(z);gend=Math.max(gend,z.m1);}
+      if(grp.length)flush();
+      h+='<div class="tcol'+(dkey(d)==today?' today':'')+'" data-day="'+dkey(d)+'">'+l.map(z=>this.block(z,PH)).join('')+(dkey(d)==today?'<div class="nowl" style="top:'+((now-d0)/6e4*PH/60)+'px"></div>':'')+'</div>';
+    });
+    return h+'</div></div>';
+  },
+  block(z,PH){
+    const x=z.x,k=this.keyOf(x),cl=(this.curKey==k?' cur':'')+(this.clip&&this.clip.cut&&this.clip.key==k?' cut':''),top=z.m0*PH/60,ht=Math.max(18,(z.m1-z.m0)*PH/60-1),w=100/z.lanes;
+    return '<div class="ev tb'+cl+'" style="background:'+x.color+';top:'+top+'px;height:'+ht+'px;left:calc('+z.lane*w+'% + 1px);width:calc('+w+'% - 3px)" data-i="'+x.id+'" title="'+esc(x.c.name+': '+x.e.summary+' ('+hhmm(x.s)+'–'+hhmm(x.en)+')')+'">'+esc(hhmm(x.s))+' '+(x.e.rec?'↻ ':'')+esc(x.e.summary)+(x.c.write?'<div class="rz"></div>':'')+'</div>';
+  },
   async draw(){if(!this.covered())await this.loadEvents();this.paint();},
   paint(){
     const a=this.anchor,v=this.view;let title='',body='';
@@ -849,27 +885,25 @@ S.cal={
         body+='<div data-day="'+dkey(d)+'" class="'+(d.getMonth()!=a.getMonth()?'oth ':'')+(dkey(d)==today?'today':'')+'"><span class="dn" data-d="'+dkey(d)+'">'+d.getDate()+'</span>'+l.slice(0,4).map(x=>this.chip(x)).join('')+(l.length>4?'<div class="more" data-d="'+dkey(d)+'">'+t('+ {0} weitere',l.length-4)+'</div>':'')+'</div>';
       }
       body+='</div>';
-    }else if(v=='week'){
-      const st=addDays(sod(a),-((a.getDay()+6)%7)),en=addDays(st,6);
-      title=st.getDate()+'. '+MONTHS[st.getMonth()].slice(0,3)+' – '+en.getDate()+'. '+MONTHS[en.getMonth()].slice(0,3)+' '+en.getFullYear();
-      body='<div class="wgrid">';
-      for(let i=0;i<7;i++){const d=addDays(st,i);body+='<div data-day="'+dkey(d)+'" class="'+(dkey(d)==today?'today':'')+'"><h5><span class="dn" data-d="'+dkey(d)+'">'+WD[i]+' '+d.getDate()+'.</span></h5>'+this.onDay(evs,d).map(x=>this.chip(x)).join('')+'</div>';}
-      body+='</div>';
-    }else if(v=='day'){
-      title=WD[(a.getDay()+6)%7]+', '+a.getDate()+'. '+MONTHS[a.getMonth()]+' '+a.getFullYear();
-      const l=this.onDay(evs,a);
-      body='<div class="dayl" data-day="'+dkey(a)+'" style="max-width:640px;min-height:240px">'+(l.length?l.map(x=>this.chip(x)).join(''):'<div class="muted">'+t('keine Termine')+'</div>')+'</div>';
+    }else if(v=='week'||v=='day'){
+      let days;
+      if(v=='week'){const st=addDays(sod(a),-((a.getDay()+6)%7)),en=addDays(st,6);
+        title=st.getDate()+'. '+MONTHS[st.getMonth()].slice(0,3)+' – '+en.getDate()+'. '+MONTHS[en.getMonth()].slice(0,3)+' '+en.getFullYear();days=[0,1,2,3,4,5,6].map(i=>addDays(st,i));}
+      else{title=WD[(a.getDay()+6)%7]+', '+a.getDate()+'. '+MONTHS[a.getMonth()]+' '+a.getFullYear();days=[sod(a)];}
+      body=this.grid(evs,days,today);
     }else{
       title=t('Agenda (nächste 60 Tage)');
       const st=sod(new Date());
       for(let i=0;i<60;i++){const d=addDays(st,i),l=this.onDay(evs,d);if(l.length)body+='<div class="agd">'+WD[(d.getDay()+6)%7]+' '+d.getDate()+'. '+MONTHS[d.getMonth()]+'</div>'+l.map(x=>this.chip(x)).join('');}
       if(!body)body='<div class="muted">'+t('keine Termine')+'</div>';
     }
+    const og=document.getElementById('tg');if(og)this.tgs=og.scrollTop;
     const vb=(k,l)=>'<button data-v="'+k+'" class="'+(v==k?'on':'')+'">'+l+'</button>';
     $('#main').innerHTML='<div class="ctool"><button id="ctd">'+t('Heute')+'</button><button id="cpv">&lsaquo;</button><button id="cnx">&rsaquo;</button><span class="ttl">'+esc(title)+'</span>'+
       vb('day',t('Tag'))+vb('week',t('Woche'))+vb('month',t('Monat'))+vb('agenda',t('Agenda'))+' <button id="cnew">'+t('+ Neuer Termin')+'</button></div><div id="cclip"></div>'+body+
       this.bar()+'<div class="muted" style="margin-top:8px">'+t('Kalender links ein-/ausblenden. CalDAV (Thunderbird, iOS, DAVx5): ')+'<code>'+esc(location.origin)+'/dav/</code></div><div id="cdet">'+(this.note?'<div class="panel">'+esc(this.note)+'</div>':'')+'</div>';
     this.note='';
+    {const tg=$('#tg');if(tg)tg.scrollTop=this.tgs!=null?this.tgs:7*48;}
     this.barBind();
     $('#ctd').onclick=()=>{this.anchor=new Date();this.draw();};
     const step=n=>{const x=new Date(this.anchor);if(v=='month')x.setMonth(x.getMonth()+n);else if(v=='week')x.setDate(x.getDate()+7*n);else x.setDate(x.getDate()+n);this.anchor=x;this.draw();};
@@ -881,18 +915,41 @@ S.cal={
       el.onclick=()=>{this.curKey=this.keyOf(x);this.markCur();if(x.c.write)this.form(x);else this.detail(x);};
       if(x.c.write&&cell){
         el.draggable=true;
-        el.ondragstart=ev=>{this.drag={x,from:cell.dataset.day};this.curKey=this.keyOf(x);this.markCur();ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',x.e.summary);};
+        el.ondragstart=ev=>{this.drag={x,from:cell.dataset.day,off:ev.clientY-el.getBoundingClientRect().top,cm:el.classList.contains('tb')?Math.round(parseFloat(el.style.top)*60/48):0};this.curKey=this.keyOf(x);this.markCur();ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',x.e.summary);};
         el.ondragend=()=>{this.drag=null;document.querySelectorAll('#main .dro').forEach(c=>c.classList.remove('dro'));};
       }
     });
-    document.querySelectorAll('#main [data-day]').forEach(c=>{
+    document.querySelectorAll('#main .ev .rz').forEach(rz=>{   // Dauer ändern: unteren Rand ziehen
+      const el=rz.closest('.ev'),x=this._evs[+el.dataset.i];
+      rz.onmousedown=ev=>{ev.preventDefault();ev.stopPropagation();el.draggable=false;const y0=ev.clientY,h0=el.offsetHeight;let dm=0;
+        const mv=e2=>{dm=Math.round((e2.clientY-y0)*60/48/15)*15;el.style.height=Math.max(18,h0+dm*48/60)+'px';},
+          up=async()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);el.draggable=true;
+            if(dm){const ok=await this.moveEv(x,0,0,dm*6e4);if(!ok)this.paint();}};
+        document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);};
+      rz.onclick=ev=>ev.stopPropagation();
+    });
+    document.querySelectorAll('#main .tcol').forEach(c=>{   // Zeitspalte: Klick/Ziehen = neuer Termin, Termin hierher ziehen = Tag+Uhrzeit
+      const mins=(ev,snap)=>{const m=(ev.clientY-c.getBoundingClientRect().top)*60/48;return Math.max(0,Math.min(1440,Math.round(m/15)*15+(snap||0)));};
+      c.onmouseenter=()=>{this.hover=c.dataset.day;};c.onmouseleave=()=>{if(this.hover==c.dataset.day)this.hover=null;};
+      c.onclick=ev=>{if(ev.target.closest('.ev'))return;this.rng=null;this.selDay=c.dataset.day;this.markSel();};   // Klick wählt den Tag, neue Termine nur per Doppelklick
+      c.ondblclick=ev=>{if(ev.target.closest('.ev'))return;const m0=Math.min(1425,Math.floor((ev.clientY-c.getBoundingClientRect().top)*60/48/15)*15);
+        this.rng=null;this.selDay=c.dataset.day;this.markSel();this.form(null,{day:this.pd(c.dataset.day),t0:m0,t1:Math.min(m0+60,1440)});};
+      c.ondragover=ev=>{if(!this.drag||this.drag.x.allDay)return;ev.preventDefault();ev.dataTransfer.dropEffect='move';c.classList.add('dro');};
+      c.ondragleave=ev=>{if(!c.contains(ev.relatedTarget))c.classList.remove('dro');};
+      c.ondrop=ev=>{ev.preventDefault();c.classList.remove('dro');const d=this.drag;this.drag=null;if(!d||d.x.allDay)return;
+        const m=Math.max(0,Math.min(1425,Math.round(((ev.clientY-c.getBoundingClientRect().top-d.off)*60/48)/15)*15));
+        this.moveEv(d.x,this.dayDiff(d.from,c.dataset.day),(m-d.cm)*6e4);};
+    });
+    document.querySelectorAll('#main [data-day]:not(.tcol)').forEach(c=>{
       c.onclick=ev=>{if(ev.target.closest('.ev,.dn,.more'))return;this.dayClick(c.dataset.day,ev.shiftKey);};
+      c.ondblclick=ev=>{if(ev.target.closest('.ev,.dn,.more'))return;this.dayNew(c.dataset.day);};
       c.onmouseenter=()=>{this.hover=c.dataset.day;};
       c.onmouseleave=()=>{if(this.hover==c.dataset.day)this.hover=null;};
       c.ondragover=ev=>{if(!this.drag)return;ev.preventDefault();ev.dataTransfer.dropEffect='move';c.classList.add('dro');};
       c.ondragleave=ev=>{if(!c.contains(ev.relatedTarget))c.classList.remove('dro');};
       c.ondrop=ev=>{ev.preventDefault();c.classList.remove('dro');const d=this.drag;this.drag=null;if(d)this.moveEv(d.x,this.dayDiff(d.from,c.dataset.day));};
     });
+    this.markSel();
     $('#cnew').onclick=()=>this.newEvent();
     this.markSel();this.clipBar();
   },
@@ -907,6 +964,11 @@ S.cal={
       const f=document.querySelector('#cdet .panel b');if(f&&f.textContent==t('Neuer Termin'))$('#cdet').innerHTML='';
       return;
     }
+    if(this.rng&&k>=this.rng.a&&k<=this.rng.b)return;   // Klick im Bereich behält ihn (Doppelklick legt den Mehrtagestermin an)
+    this.rng=null;this.selDay=k;this.markSel();
+  },
+  /* Doppelklick auf einen Tag: neuer Termin (im markierten Bereich: ganztägiger Mehrtagestermin) */
+  dayNew(k){
     if(this.rng&&k>=this.rng.a&&k<=this.rng.b){this.form(null,{from:this.pd(this.rng.a),to:this.pd(this.rng.b)});return;}
     this.rng=null;this.selDay=k;this.markSel();this.form(null,{day:this.pd(k)});
   },
@@ -934,19 +996,19 @@ S.cal={
     });
   },
   /* Termin x um nd Tage verschieben (Drag & Drop, Ausschneiden/Einfügen); true bei Erfolg */
-  async moveEv(x,nd){
-    if(!nd||!x.c.write)return false;
+  async moveEv(x,nd,dms,dEnd){
+    dms=dms||0;dEnd=dEnd||0;if((!nd&&!dms&&!dEnd)||!x.c.write)return false;
     const e=x.e,rec=!!e.rec;let sc='all';
-    if(rec){sc=await this.askScope(t('Dieser Termin gehört zu einer Serie. Was soll verschoben werden?'));if(!sc)return false;}
-    const body=this.evBody(x,nd);
+    if(rec){sc=await this.askScope(dEnd&&!nd&&!dms?t('Dieser Termin gehört zu einer Serie. Was soll geändert werden?'):t('Dieser Termin gehört zu einer Serie. Was soll verschoben werden?'));if(!sc)return false;}
+    const body=this.evBody(x,nd,dms,dEnd);
     if(rec){body.rid=e.rid;if(sc!='all')body.scope=sc;}
     const res=await J('PUT','/api/cal/'+encodeURIComponent(x.c.id)+'/events/'+encodeURIComponent(e.file),body);
     if(!res)return false;
     this.afterSave(res);return true;
   },
   /* Anfragekörper mit Text, Zeit (um nd Tage verschoben) und Zone des Termins */
-  evBody(x,nd){
-    const e=x.e,ns=addDays(x.s,nd),ne=addDays(x.en,nd);
+  evBody(x,nd,dms,dEnd){
+    dms=dms||0;const e=x.e,ns=new Date(+addDays(x.s,nd)+dms),ne=new Date(+addDays(x.en,nd)+dms+(dEnd||0));
     const body={summary:e.summary,location:e.location||'',description:e.desc||'',allDay:x.allDay,tz:e.tz||BTZ};
     if(x.allDay){const u=d=>new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())).toISOString();body.start=u(ns);body.end=u(ne);}
     else{body.start=ns.toISOString();body.end=ne.toISOString();}
@@ -1066,6 +1128,7 @@ S.cal={
     const cur=ed?x.c:(w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0]);
     let a=new Date(pre&&pre.day?pre.day:this.anchor),b0;
     if(ed){a=new Date(x.s);b0=new Date(x.en);}
+    else if(pre&&pre.t0!=null){a=new Date(pre.day);a.setHours(0,pre.t0,0,0);b0=new Date(pre.day);b0.setHours(0,pre.t1,0,0);}
     else if(pre&&pre.from){a=new Date(pre.from);b0=addDays(new Date(pre.to),1);}
     else{a.setMinutes(0,0,0);if(dkey(a)==dkey(new Date()))a.setHours(new Date().getHours()+1);else a.setHours(9);b0=new Date(+a+3600e3);}
     const ad0=ed?!!x.allDay:!!(pre&&pre.from),loc=d=>dkey(d)+'T'+hhmm(d);
