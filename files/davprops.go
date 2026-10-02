@@ -55,7 +55,7 @@ func (s *Svc) lockProps(me, href string, dir bool) (sup, disc string) {
 			d = time.Second
 		}
 		disc = `<D:lockdiscovery xmlns:D="DAV:"><D:activelock><D:locktype><D:write/></D:locktype><D:lockscope><D:exclusive/></D:lockscope><D:depth>0</D:depth>` +
-			`<D:owner><D:href>` + xmlEsc(cp.user) + `</D:href></D:owner><D:timeout>Second-` + itoa(int(d.Seconds())) + `</D:timeout>` +
+			`<D:owner>` + ownerOf(&cp) + `</D:owner><D:timeout>Second-` + itoa(int(d.Seconds())) + `</D:timeout>` +
 			`<D:locktoken><D:href>` + cp.token + `</D:href></D:locktoken><D:lockroot><D:href>` + xmlEsc(cp.root) + `</D:href></D:lockroot></D:activelock></D:lockdiscovery>`
 	}
 	return

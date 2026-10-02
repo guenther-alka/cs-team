@@ -45,6 +45,11 @@ func (s *Svc) WebDAV() http.Handler {
 		case "PROPFIND":
 			s.propfind(h, w, r)
 			return
+		case http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH":
+			if !s.ifOK(auth.User(r.Context()), r) { // If-Header mit Sperr-Token, das nicht passt
+				http.Error(w, "If precondition failed", http.StatusPreconditionFailed)
+				return
+			}
 		}
 		h.ServeHTTP(w, r)
 	})

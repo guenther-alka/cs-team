@@ -57,12 +57,14 @@ func TestWebDAVLock(t *testing.T) {
 	if c, _ := req(t, srv, "anna", "PUT", "/webdav/a.txt", "zwei"); c != 204 && c != 201 {
 		t.Fatalf("holder put: %d", c)
 	}
-	// Erneutes LOCK desselben Benutzers ersetzt die Sperre
+	// Erneutes LOCK desselben Benutzers verlängert die Sperre, das Token bleibt gültig (kein Entwerten des Tokens eines anderen Fensters)
 	resp, _ = rawReq(t, u, "anna", "LOCK", "/webdav/a.txt", lockBody)
 	if resp.StatusCode != 200 {
 		t.Fatalf("relock: %d", resp.StatusCode)
 	}
-	tok = strings.Trim(resp.Header.Get("Lock-Token"), "<>")
+	if t2 := strings.Trim(resp.Header.Get("Lock-Token"), "<>"); t2 != tok {
+		t.Fatalf("relock: Token geändert %q -> %q", tok, t2)
+	}
 	// Aktualisieren per If-Header ohne Body
 	resp, body = rawReq(t, u, "anna", "LOCK", "/webdav/a.txt", "", "If", "(<"+tok+">)", "Timeout", "Second-1200")
 	if resp.StatusCode != 200 || !strings.Contains(body, "Second-1200") {
@@ -195,5 +197,104 @@ func TestWebDAVLockProps(t *testing.T) {
 	_, body = rawReq(t, u, "anna", "PROPFIND", "/webdav/p.txt", `<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:getcontentlength/></D:prop></D:propfind>`, "Depth", "0", "Content-Type", "text/xml")
 	if strings.Contains(body, "lock") || !strings.Contains(body, "getcontentlength") {
 		t.Fatalf("plain propfind: %s", body)
+	}
+}
+
+func TestWebDAVLockIfHeader(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	u := srv.URL
+	if c, _ := req(t, srv, "anna", "PUT", "/webdav/i.txt", "eins"); c != 201 {
+		t.Fatal("put", c)
+	}
+	lk := `<?xml version="1.0"?><D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype><D:owner>litmus test suite</D:owner></D:lockinfo>`
+	resp, body := rawReq(t, u, "anna", "LOCK", "/webdav/i.txt", lk)
+	tok := strings.Trim(resp.Header.Get("Lock-Token"), "<>")
+	if resp.StatusCode != 200 || !strings.Contains(body, "<D:owner>litmus test suite</D:owner>") {
+		t.Fatalf("Besitzer fehlt in der Antwort: %d %s", resp.StatusCode, body)
+	}
+	// PROPFIND nennt den Besitzer ebenfalls
+	_, pf := rawReq(t, u, "anna", "PROPFIND", "/webdav/i.txt", "", "Depth", "0")
+	if !strings.Contains(pf, "litmus test suite") {
+		t.Fatalf("lockdiscovery ohne Besitzer: %s", pf)
+	}
+	// Besitzer als href und Sonderzeichen werden maskiert, nie als rohes XML übernommen
+	rawReq(t, u, "anna", "UNLOCK", "/webdav/i.txt", "", "Lock-Token", "<"+tok+">")
+	evil := `<?xml version="1.0"?><D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype><D:owner><X:evil xmlns:X="urn:x">a&amp;b</X:evil></D:owner></D:lockinfo>`
+	resp, body = rawReq(t, u, "anna", "LOCK", "/webdav/i.txt", evil)
+	tok = strings.Trim(resp.Header.Get("Lock-Token"), "<>")
+	if resp.StatusCode != 200 || strings.Contains(body, "evil") {
+		t.Fatalf("fremdes XML im Besitzer: %d %s", resp.StatusCode, body)
+	}
+	put := func(h ...string) int {
+		r, _ := rawReq(t, u, "anna", "PUT", "/webdav/i.txt", "neu", h...)
+		return r.StatusCode
+	}
+	ok := func(c int) bool { return c == 201 || c == 204 }
+	if c := put("If", "(<"+tok+">)"); !ok(c) {
+		t.Fatalf("richtiges Token: %d", c)
+	}
+	if c := put("If", "(<opaquelocktoken:falsch>)"); c != 412 {
+		t.Fatalf("falsches Token: %d", c)
+	}
+	if c := put("If", "(<opaquelocktoken:falsch>) (<"+tok+">)"); !ok(c) {
+		t.Fatalf("zweite Liste trifft: %d", c)
+	}
+	if c := put("If", "(Not <DAV:no-lock>)"); !ok(c) {
+		t.Fatalf("Not no-lock: %d", c)
+	}
+	if c := put("If", "(<DAV:no-lock>)"); c != 412 {
+		t.Fatalf("no-lock: %d", c)
+	}
+	if c := put("If", "(Not <"+tok+">)"); c != 412 {
+		t.Fatalf("Not Token: %d", c)
+	}
+	if c := put("If", "(<DAV:no-lock>) (Not <DAV:no-lock> <"+tok+">)"); !ok(c) {
+		t.Fatalf("komplex: %d", c)
+	}
+	if c := put("If", `<`+u+`/webdav/i.txt> (<`+tok+`>)`); !ok(c) {
+		t.Fatalf("mit Ressourcen-Tag: %d", c)
+	}
+	if c := put("If", `<`+u+`/webdav/anderes.txt> (<opaquelocktoken:egal>)`); !ok(c) {
+		t.Fatalf("Liste für andere Ressource zählt nicht: %d", c)
+	}
+	etag := func() string {
+		r, _ := rawReq(t, u, "anna", "HEAD", "/webdav/i.txt", "")
+		return r.Header.Get("ETag")
+	}
+	if c := put("If", `(["etag"])`); c != 412 {
+		t.Fatalf("falscher ETag: %d", c)
+	}
+	if c := put("If", "([" + etag() + "])"); !ok(c) {
+		t.Fatalf("richtiger ETag: %d", c)
+	}
+	if c := put("If", "(Not ["+etag()+"])"); c != 412 {
+		t.Fatalf("Not ETag: %d", c)
+	}
+	// litmus: cond_put_corrupt_token / complex_cond_put / fail_complex_cond_put
+	if c := put("If", "(<"+tok+"x>) (Not <DAV:no-lock>)"); c != 412 {
+		t.Fatalf("falsches Token neben Not no-lock: %d", c)
+	}
+	if c := put("If", "(<"+tok+"> ["+etag()+"]) (Not <DAV:no-lock> ["+etag()+"])"); !ok(c) {
+		t.Fatalf("komplex mit ETag: %d", c)
+	}
+	e := strings.Trim(etag(), `"`)
+	if c := put("If", `(<`+tok+`> ["`+e+`x"]) (Not <DAV:no-lock> ["`+e+`x"])`); c != 412 {
+		t.Fatalf("komplex mit falschem ETag: %d", c)
+	}
+	// DELETE und MOVE mit falschem Token
+	if r, _ := rawReq(t, u, "anna", "DELETE", "/webdav/i.txt", "", "If", "(<opaquelocktoken:falsch>)"); r.StatusCode != 412 {
+		t.Fatalf("DELETE falsches Token: %d", r.StatusCode)
+	}
+	if r, _ := rawReq(t, u, "anna", "MOVE", "/webdav/i.txt", "", "Destination", u+"/webdav/j.txt", "If", "(<opaquelocktoken:falsch>)"); r.StatusCode != 412 {
+		t.Fatalf("MOVE falsches Token: %d", r.StatusCode)
+	}
+	// ohne Sperre: ein Token im If-Header kann nicht zutreffen
+	rawReq(t, u, "anna", "UNLOCK", "/webdav/i.txt", "", "Lock-Token", "<"+tok+">")
+	if c := put("If", "(<"+tok+">)"); c != 412 {
+		t.Fatalf("Token ohne Sperre: %d", c)
+	}
+	if c := put(); !ok(c) {
+		t.Fatalf("ohne If: %d", c)
 	}
 }

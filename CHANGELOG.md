@@ -1,5 +1,16 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.15.1 WebDAV-Sperren nach litmus-Pruefung (WebDAV-Konformitaetssuite auf Proxmox .112) und Zeitzonen unter Windows. Der If-Header (RFC 4918, 10.4) wird
+                   bei PUT, DELETE, MKCOL, MOVE, COPY und PROPPATCH ausgewertet: ein Sperr-Token, das nicht zur aktuellen Sperre der Datei passt (oder bei einer
+                   nicht gesperrten Datei), ergibt 412; Listen (ODER), "Not", DAV:no-lock und Ressourcen-Tags werden beachtet, Listen fuer andere Ressourcen und
+                   ETag-Bedingungen zaehlen nicht (gelten als erfuellt). Der Besitzer (<owner>) einer Sperre wird gespeichert und in LOCK-Antwort und PROPFIND
+                   (lockdiscovery) genannt; nur als Text oder href, nie als rohes Client-XML (kein ungueltiges XML durch fremde Namensraeume). Ein erneutes LOCK desselben
+                   Benutzers verlaengert die bestehende Sperre und liefert dasselbe Token (statt sie zu ersetzen und das Token eines anderen Fensters zu entwerten).
+                   Unveraendert und gewollt: der Sperrende darf ohne Token schreiben (kein Aussperren nach Absturz des Clients); nicht unterstuetzt bleiben Sperren auf
+                   Ordner, geteilte Sperren und PROPPATCH (Explorer und Office sperren Dateien). Tests: davlock_test.go TestWebDAVLockIfHeader; litmus: locks
+                   und http-Suite geprueft. Kalender: Test mit Fremd-Software (Python icalendar/caldav/recurring-ical-events, 5 Zeitzonen mit je 29000 Stichproben,
+                   CalDAV-Client, Einladungsmail an Test-SMTP) bestanden.
+
 2026-10-02  0.15.0 Kalender: Erinnerungen, Teilnehmer mit Einladung, "dieser und folgende", Import/Export, Abo-Status; Zeitzonen fuer Apple/Outlook; Belegungsuebersicht;
                    WebDAV-Sperren fuer Windows/Office. Erinnerung (VALARM): ein Auswahlfeld im Termin (zum Beginn, 5/10/15/30 Min., 1/2 Std., 1/2 Tage, 1 Woche; hoechstens
                    4 Wochen), gespeichert im Termin (TRIGGER relativ zum Beginn); fremde Erinnerungen (auch RELATED=START) werden gelesen und angezeigt; ohne Angabe
