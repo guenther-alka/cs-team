@@ -17,3 +17,16 @@ func TestValidRuns(t *testing.T) {
 		t.Fatal("ValidFmt o")
 	}
 }
+
+func TestValidFmtNumber(t *testing.T) {
+	for _, f := range []string{"d0", "d9", "pc", "cu d2", "b pc d1", "cu"} {
+		if !ValidFmt(f) {
+			t.Fatal("soll gueltig sein:", f)
+		}
+	}
+	for _, f := range []string{"d", "d10", "dd", "pcx", "cu;", "d-1", "pc  cu x"} {
+		if ValidFmt(f) {
+			t.Fatal("soll ungueltig sein:", f)
+		}
+	}
+}

@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "副本包含参与者:将发送邀请。是否继续?",
  "Zwischenablage leeren": "清空剪贴板",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "已跳过 {0} 个单元格:{1} 正在编辑。",
- "Die Zelle wird gerade von {0} bearbeitet.": "{0} 正在编辑该单元格。"
+ "Die Zelle wird gerade von {0} bearbeitet.": "{0} 正在编辑该单元格。",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "有 {0} 个单元格未撤销:已被修改或已锁定。",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "有 {0} 个单元格未重做:已被修改或已锁定。",
+ "Währung": "货币",
+ "Prozent": "百分比",
+ "Nachkommastelle hinzufügen": "增加小数位",
+ "Nachkommastelle entfernen": "减少小数位"
 }

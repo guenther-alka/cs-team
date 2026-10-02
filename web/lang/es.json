@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "La copia contiene asistentes: se enviarán invitaciones. ¿Continuar?",
  "Zwischenablage leeren": "Vaciar portapapeles",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} celda(s) omitida(s): {1} la está editando.",
- "Die Zelle wird gerade von {0} bearbeitet.": "{0} está editando la celda."
+ "Die Zelle wird gerade von {0} bearbeitet.": "{0} está editando la celda.",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "{0} celda(s) no deshecha(s): cambiada(s) entretanto o bloqueada(s).",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "{0} celda(s) no rehecha(s): cambiada(s) entretanto o bloqueada(s).",
+ "Währung": "Moneda",
+ "Prozent": "Porcentaje",
+ "Nachkommastelle hinzufügen": "Añadir decimal",
+ "Nachkommastelle entfernen": "Quitar decimal"
 }

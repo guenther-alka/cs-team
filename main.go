@@ -71,9 +71,11 @@ func loadConf() {
 	}
 }
 
-const version = "0.15.3"
+const version = "0.5.0" // Zaehlung neu ab 0.5.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
+
+func init() { auth.Version = version }
 
 func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "version" || os.Args[1] == "-v" || os.Args[1] == "--version") {

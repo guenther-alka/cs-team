@@ -19,6 +19,9 @@ import (
 	"cs-team/store"
 )
 
+// Version: Programmversion (von main gesetzt), erscheint in /api/me für die Oberfläche.
+var Version string
+
 // ForceChange: Startpasswörter (Admin/Import) müssen beim ersten Login geändert werden. Nur Tests schalten ab.
 var ForceChange = true
 

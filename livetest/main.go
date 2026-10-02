@@ -132,6 +132,7 @@ func main() {
 	if r.Code != 200 {
 		os.Exit(2)
 	}
+	ok("Version in /api/me", strings.Contains(string(r.B), `"version":"`), string(r.B))
 	ok("Falsches Passwort abgewiesen", do(adminU, "falsch-falsch", "GET", "/api/me", nil).Code == 401)
 	r = adm("POST", "/api/users", js(map[string]any{"name": userB, "password": passB, "groups": []string{"alluser"}}))
 	ok("Benutzer anlegen", r.Code == 200, r.Code, string(r.B))

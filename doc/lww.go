@@ -87,8 +87,9 @@ func ValidKey(typ, k string) bool {
 }
 
 // reFmt: erlaubte Formatierung (Whitelist, landet im Client in style-Attributen): b fett, i kursiv, u unterstrichen,
-// l Aufzählung, o Nummerierung, sNN Schriftgröße (px), nN Einrückung, c#rrggbb Textfarbe, g#rrggbb Hintergrund.
-var reFmt = regexp.MustCompile(`^(?:(?:b|i|u|l|o|s[0-9]{1,2}|n[0-8]|[cg]#[0-9a-fA-F]{6})(?: |$))*$`)
+// l Aufzählung, o Nummerierung, sNN Schriftgröße (px), nN Einrückung, c#rrggbb Textfarbe, g#rrggbb Hintergrund,
+// dN Nachkommastellen, pc Prozent, cu Währung (nur Calc-Zahlenanzeige).
+var reFmt = regexp.MustCompile(`^(?:(?:b|i|u|l|o|s[0-9]{1,2}|n[0-8]|d[0-9]|pc|cu|[cg]#[0-9a-fA-F]{6})(?: |$))*$`)
 
 func ValidFmt(f string) bool { return len(f) <= 80 && reFmt.MatchString(f) }
 

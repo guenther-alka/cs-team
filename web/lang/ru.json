@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "Копия содержит участников: будут отправлены приглашения. Продолжить?",
  "Zwischenablage leeren": "Очистить буфер",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "Пропущено ячеек: {0} – сейчас редактирует {1}.",
- "Die Zelle wird gerade von {0} bearbeitet.": "Ячейку сейчас редактирует {0}."
+ "Die Zelle wird gerade von {0} bearbeitet.": "Ячейку сейчас редактирует {0}.",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "Не отменено ячеек: {0} – изменены или заблокированы.",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "Не повторено ячеек: {0} – изменены или заблокированы.",
+ "Währung": "Валюта",
+ "Prozent": "Процент",
+ "Nachkommastelle hinzufügen": "Добавить знак после запятой",
+ "Nachkommastelle entfernen": "Убрать знак после запятой"
 }

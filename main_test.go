@@ -1984,3 +1984,14 @@ func TestSheetRectLock(t *testing.T) {
 		}
 	}
 }
+
+// /api/me nennt die Programmversion (Tooltip am Titel der Oberfläche).
+func TestMeVersion(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	c, b := req(t, srv, "anna", "GET", "/api/me", "")
+	var m struct{ Version string }
+	if c != 200 || json.Unmarshal([]byte(b), &m) != nil || m.Version != version || m.Version == "" {
+		t.Fatalf("version: %d %s", c, b)
+	}
+}

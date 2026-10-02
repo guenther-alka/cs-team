@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "Kopyada katılımcılar var: davetler gönderilecek. Devam edilsin mi?",
  "Zwischenablage leeren": "Panoyu temizle",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} hücre atlandı: şu anda {1} düzenliyor.",
- "Die Zelle wird gerade von {0} bearbeitet.": "Hücre şu anda {0} tarafından düzenleniyor."
+ "Die Zelle wird gerade von {0} bearbeitet.": "Hücre şu anda {0} tarafından düzenleniyor.",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "{0} hücre geri alınmadı: arada değiştirildi veya kilitli.",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "{0} hücre yinelenmedi: arada değiştirildi veya kilitli.",
+ "Währung": "Para birimi",
+ "Prozent": "Yüzde",
+ "Nachkommastelle hinzufügen": "Ondalık basamak ekle",
+ "Nachkommastelle entfernen": "Ondalık basamak kaldır"
 }

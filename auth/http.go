@@ -56,7 +56,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			}
 		}
 		u, _ := a.get(r.Context(), User(r.Context()))
-		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context())})
+		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "version": Version})
 	})))
 
 	// eigene Oberflächensprache speichern ("" = automatisch)

@@ -1,5 +1,16 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.5.0  Neue Zaehlung: die Versionen 0.1x waren die ersten Tests, 1.0 folgt, wenn cs-team ausgereifter ist (0.5.0 ist inhaltlich der Stand von 0.15.3).
+                   Neu: Mouseover auf den Titel "cs-team" oben links zeigt die Programmversion (Server nennt sie in /api/me; fuer Admins steht darunter "Einstellungen").
+                   Neu: Calc Rueckgaengig/Wiederholen (Strg+Z, Strg+Y, Strg+Umschalt+Z): Eingabe, Einfuegen, Loeschen, Ausfuellen und Formatierung sind je ein Schritt (bis 100 je Blatt,
+                   nur im Browser). Zurueckgesetzt werden nur Zellen, die seitdem niemand sonst geaendert hat und die nicht gesperrt sind; der Rest bleibt, ein Hinweis nennt die Anzahl.
+                   Neu: Calc Zahlenformate. Knoepfe Waehrung, %, .0+ und .0- in der Formatleiste (Zellformat-Kuerzel d0-d9, pc, cu; Server-Whitelist erweitert). Der Zellwert bleibt eine
+                   Zahl, nur die Anzeige aendert sich (Prozent = Wert x 100, Waehrung mit Tausendertrennung und 2 Stellen, Komma/Punkt und Symbol nach Sprache). Eingabe wird erkannt:
+                   "12,5%" wird 0,125 im Prozentformat, "12,50 EUR"/"$12.50" wird Zahl im Waehrungsformat (auch beim Einfuegen von Text); in einer Prozentzelle bedeutet "5" 5 %.
+                   Nicht enthalten: xlsx-Export/Import der Formate.
+                   Getestet: Go-Test TestValidFmtNumber, Browser calc3 (24 Pruefungen, auch Deutsch und zweiter Benutzer).
+                   Getestet: Go-Test TestMeVersion, livetest (Version in /api/me), Browser (Tooltip; Calc-Undo mit zwei Benutzern, fremde Aenderung bleibt erhalten).
+
 2026-10-02  0.15.3 Kalender: Maussteuerung; Calc: Sperre schon beim Markieren. Klick in einen Tag (Monat, Woche, Tag) legt einen neuen Termin an (die Tageszahl oeffnet weiter die Tagesansicht);
                    Umschalt+Klick markiert einen Bereich von Tagen, ein Klick in den Bereich legt einen ganztaegigen Mehrtagestermin an (Esc hebt die Markierung auf).
                    Klick auf einen Termin oeffnet direkt das Bearbeiten-Formular (mit Loeschen und den Zusagen der Teilnehmer; schreibgeschuetzte Kalender zeigen

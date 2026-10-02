@@ -1,5 +1,19 @@
 # TODO
 
+## Arbeitsstand (zum Wiederaufnehmen nach Unterbrechung)
+
+Gea 2026-10-02: Zaehlung ab jetzt 0.5.0 (0.1x = erste Tests, 1.0 wenn ausgereifter). TODOs einzeln abarbeiten, je mit Empfehlung (AskUserQuestion) und Umsetzung nach Bestaetigung; nur wichtige Punkte, kleine zuerst; TODO.md nach jedem Punkt aktualisieren. Veroeffentlichung nur nach Gea-Go (Sync zuvor automatisch). Release-Skripte: rel/all<NNNN>.ps1 (Vorlage rel/all0153.ps1), Quellen/Skripte nach C:\opt\tmp\cs-team per device_commit_files (neue Dateinamen!).
+PLAN ZUM ABSCHLUSS VON 0.5.0 (Gea 2026-10-02, Nutzungslimit knapp): nur noch (a) Handbuch de/en + README fuer Zahlenformate, (b) Release 0.5.0 nach Geas Go (Skripte wie 0.15.3). Punkte 4-7 (Aufgaben, Kalender-Stundenraster, Calc-Ausbau, Aufgaben-UI) NACH 0.5.0 als 0.6.x.
+Reihenfolge (nach Nutzen):
+1. [erledigt, unveroeffentlicht] Version-Tooltip am Titel "cs-team" + Versionsstand 0.5.0 (/api/me liefert version).
+2. [erledigt, unveroeffentlicht] Calc Strg+Z/Y.
+3. [erledigt, unveroeffentlicht 0.5.0] Calc Zahlenformate: Knoepfe EUR/%/.0+/.0-, Tokens d0-d9/pc/cu (reFmt), Eingabe-Erkennung (12,5% / 12,50 EUR, in Prozentzellen 5 = 5 %), Tests doc/lww_test.go + e2e calc3.py gruen. Offen: Handbuch de/en + CHANGELOG-Text fuer Zahlenformate; xlsx-Export/Import schreibt Formate (auch fett etc.) generell noch nicht - eigener Punkt; Einfuegen intern uebernimmt Zellformat noch nicht.
+4. Aufgaben: globale Admins duerfen fuer jede Gruppe anlegen; "Bitte bearbeiten"-Aufgabe fuer Mitglieder in Gruppen mit Modus "nur Gruppen-Admins" (sichtbar/uebernehmbar fuer alle Mitglieder).
+5. Kalender: Stundenraster (Tages-/Wochenansicht), danach Freie-Zeiten-Pruefung, Belegungsplan, Mehrfachbuchung.
+6. Calc: Spaltenbreite, Ausrichtung, Rahmen, Funktionen (SUMIF, COUNTIF, VLOOKUP, IFERROR, CONCAT, LEFT/RIGHT/MID, TEXT, TODAY/DATE, MEDIAN), Sortieren/Filtern/Fixieren, Diagramme, KI-Anbindung.
+7. Aufgaben-UI (Schnellzeile, Tafel, Abhaken, Kalender-Markierung), KI-Aufgabenvorschlaege.
+Nach jedem Punkt: Test (Go + Browser), Handbuch de/en, CHANGELOG, diese Liste.
+
 - (nichts offen) Handbuch cs-team_de.pdf / cs-team_en.pdf am 2026-10-01 auf Stand 0.13 aktualisiert (Quellen: C:\opt\tmp\cs-team\man_src).
 - Audit 0.11-Liste in 0.13.2 umgesetzt (S-03/04, S-06, S-07, S-08, S-10, K-02/C-10, K-03, C-06, F7). Mittel-Punkte S-09, S-11, K-05, F4, F8, F9 in 0.13.9 umgesetzt; A-04 (beabsichtigt), C-07, C-08/C-09, C-11, C-13/C-14 in 0.14.1. Offen aus AUDIT.md: C-12 (nur Dokumentation), WebDAV-Range im RAM-Speicher; LOCK und Papierkorb in 0.14.2 umgesetzt; Quota-Uebersicht fuer Admins in 0.15.0.
 - KI Stufe 2 erledigt fuer neue Dokumente (0.13.3); KI liest PDFs erledigt (0.13.5, Text-PDFs, kein OCR); offen: Aufgaben/Termine per KI vorschlagen, KI-Vorlagenentwuerfe, OCR fuer gescannte PDFs.
@@ -11,5 +25,9 @@
 - Calc: Sperre beim Markieren und Kopieren aus gesperrten Zellen in 0.15.3 umgesetzt.
 - Leitlinie Kalender (Gea, 2026-10-02): flexibel und KISS, intuitives Arbeiten hat Vorrang; fuer komplexe Vorgaenge (Terminsuche mit mehreren Personen/Ressourcen, Mehrfachbuchung, Serien verschieben) KI-Unterstuetzung einplanen.
 - Kalender/Ressourcen (Ideen, Reihenfolge): 1 Stundenraster in Tages-/Wochenansicht (Ziehen/Verschieben mit Uhrzeit), 3 Freie-Zeiten-Pruefung im Formular (wer hat gebucht, naechster freier Termin), 2 Belegungsplan je Ressource, 4 Mehrfachbuchung Raum+Beamer, 5 Eigenschaften/Gruppen von Ressourcen, 6 Genehmigung, 7 Schule: Vertretung, Ferien auslassen, Druck/PDF. Komplexes per KI.
+- Calc: Spalten-/Zeilenkopf-Klick markiert schon die ganze Spalte/Zeile (Entf = Inhalt, x-Knopf = Format loeschen). Offen: Kontextmenue 'Inhalt/Format/Alles loeschen'; spaeter Zeilen/Spalten einfuegen+loeschen mit Formelanpassung (gross). Entf loescht heute nur Inhalt, Format bleibt (Gea 2026-10-02).
 - Calc-Ausbau (Vorschlag, Gea fragte 2026-10-02): Version 'Calc 1': Strg+Z/Y, Zahlenformate (Waehrung, Prozent, Datum, Nachkommastellen), Spaltenbreite per Maus, Ausrichtung, Rahmen, Zeilenumbruch, Funktionen SUMIF/COUNTIF/AVERAGEIF, VLOOKUP/XLOOKUP, IFERROR, CONCAT, LEFT/RIGHT/MID, TEXT, TODAY/DATE, MEDIAN; danach Sortieren/Filtern/Fixieren; Diagramme und KI-Anbindung (Zellen setzen/formatieren/erklaeren); gross: mehrere Blaetter.
 - Aufgaben (Fragen Gea 2026-10-02): (1) globale Admins duerfen Aufgaben fuer jede Gruppe anlegen (heute nur als Mitglied, canCreate); (2) 'Bitte bearbeiten'-Aufgabe fuer Mitglieder in Gruppen mit Modus 'nur Gruppen-Admins': fuer alle Gruppenmitglieder sichtbar und uebernehmbar (Filter 'Bitte bearbeiten' und Uebernehmen gibt es schon), Ersteller/Admins aendern und nehmen ab; optional Admin-Freigabe vorher. UI: Schnellzeile (Titel+Enter, Kuerzel/KI fuer @Person, Datum, Prioritaet), Tafelansicht mit Ziehen, Abhaken in der Liste + Zaehler, Faelligkeiten im Kalender, Gruppieren/Sortieren/Filter nach Gruppe+Person, Projekt-Zeitleiste; KI: Aufgaben aus Chat/Text vorschlagen, Wochenueberblick, Aufgabe in Meilensteine zerlegen. Wartet auf Gea-Freigabe.
+- Versionierung (Gea 2026-10-02): ab jetzt 0.5.0 (0.1x = erste Tests), 1.0 wenn ausgereifter. Punkt 'Version beim Mouseover auf cs-team' umgesetzt (0.5.0, noch nicht veroeffentlicht).
+- Abarbeitung (Gea): alle TODOs einzeln, je mit Empfehlung und Umsetzung nach Bestaetigung; Reihenfolge nach Nutzen, kleine zuerst.
+- Calc Strg+Z/Y umgesetzt (0.5.0, noch nicht veroeffentlicht). Naechster Punkt: Zahlenformate.

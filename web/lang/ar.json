@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "تحتوي النسخة على مشاركين: سيتم إرسال الدعوات. هل تريد المتابعة؟",
  "Zwischenablage leeren": "مسح الحافظة",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "تم تخطي {0} خلية: يحررها {1} حاليًا.",
- "Die Zelle wird gerade von {0} bearbeitet.": "يحرر {0} هذه الخلية حاليًا."
+ "Die Zelle wird gerade von {0} bearbeitet.": "يحرر {0} هذه الخلية حاليًا.",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "لم يتم التراجع عن {0} خلية: تم تغييرها أو قفلها.",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "لم يتم إعادة {0} خلية: تم تغييرها أو قفلها.",
+ "Währung": "عملة",
+ "Prozent": "نسبة مئوية",
+ "Nachkommastelle hinzufügen": "إضافة منزلة عشرية",
+ "Nachkommastelle entfernen": "إزالة منزلة عشرية"
 }

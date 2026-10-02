@@ -692,5 +692,11 @@
  "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "La copie contient des participants : des invitations seront envoyées. Continuer ?",
  "Zwischenablage leeren": "Vider le presse-papiers",
  "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} cellule(s) ignorée(s) : en cours de modification par {1}.",
- "Die Zelle wird gerade von {0} bearbeitet.": "La cellule est en cours de modification par {0}."
+ "Die Zelle wird gerade von {0} bearbeitet.": "La cellule est en cours de modification par {0}.",
+ "{0} Zelle(n) nicht zurückgesetzt: inzwischen geändert oder gesperrt.": "{0} cellule(s) non annulée(s) : modifiée(s) entre-temps ou verrouillée(s).",
+ "{0} Zelle(n) nicht wiederholt: inzwischen geändert oder gesperrt.": "{0} cellule(s) non rétablie(s) : modifiée(s) entre-temps ou verrouillée(s).",
+ "Währung": "Devise",
+ "Prozent": "Pourcentage",
+ "Nachkommastelle hinzufügen": "Ajouter une décimale",
+ "Nachkommastelle entfernen": "Supprimer une décimale"
 }
