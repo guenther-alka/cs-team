@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "لا يمكن الفرز: الخلايا مقفلة ({0}).",
  "Inhalt löschen": "مسح المحتوى",
  "Format löschen": "مسح التنسيق",
- "Alles löschen": "مسح الكل"
+ "Alles löschen": "مسح الكل",
+ "Anfrage": "طلب",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} يطلب من المجموعة تولي المهمة (طلب)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "في هذه المجموعة يعيّن مديرو المجموعة المهام فقط: ستصبح مهمتك طلباً ظاهراً لجميع الأعضاء ويمكن لأي عضو تولّيها."
 }

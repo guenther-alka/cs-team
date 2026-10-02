@@ -57,3 +57,27 @@ func TestSpawnAndTick(t *testing.T) {
 		t.Fatal(sent)
 	}
 }
+
+func TestRights(t *testing.T) {
+	type c struct {
+		found               bool
+		mode                string
+		admin, member, gadm bool
+		ok, req             bool
+	}
+	for i, x := range []c{
+		{true, "member", false, true, false, true, false},  // Mitglied, Modus alle
+		{true, "admin", false, true, false, true, true},    // Mitglied, Modus nur Admins: Anfrage
+		{true, "admin", false, true, true, true, false},    // Gruppen-Admin
+		{true, "admin", false, false, false, false, false}, // Fremder
+		{true, "member", true, false, false, true, false},  // globaler Admin ohne Mitgliedschaft
+		{true, "admin", true, false, false, true, false},
+		{true, "off", true, true, true, false, false}, // abgeschaltet gilt für alle
+		{false, "", true, false, false, false, false}, // Gruppe unbekannt
+	} {
+		ok, req := rights(x.found, x.mode, x.admin, x.member, x.gadm)
+		if ok != x.ok || req != x.req {
+			t.Fatalf("Fall %d: %v %v", i, ok, req)
+		}
+	}
+}

@@ -713,5 +713,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Sortieren nicht möglich: Zellen sind gesperrt ({0}).",
  "Inhalt löschen": "Inhalt löschen",
  "Format löschen": "Format löschen",
- "Alles löschen": "Alles löschen"
+ "Alles löschen": "Alles löschen",
+ "Anfrage": "Anfrage",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} bittet die Gruppe um Bearbeitung (Anfrage)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen."
 }

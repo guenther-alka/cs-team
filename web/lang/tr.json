@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Sıralanamaz: hücreler kilitli ({0}).",
  "Inhalt löschen": "İçeriği sil",
  "Format löschen": "Biçimi sil",
- "Alles löschen": "Hepsini sil"
+ "Alles löschen": "Hepsini sil",
+ "Anfrage": "Talep",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} grubun ilgilenmesini istiyor (talep)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "Bu grupta görevleri yalnızca grup yöneticileri atar: göreviniz tüm üyelerin görebildiği bir talep olur; herhangi bir üye üstlenebilir."
 }

@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Impossibile ordinare: celle bloccate ({0}).",
  "Inhalt löschen": "Cancella contenuto",
  "Format löschen": "Cancella formato",
- "Alles löschen": "Cancella tutto"
+ "Alles löschen": "Cancella tutto",
+ "Anfrage": "Richiesta",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} chiede al gruppo di occuparsene (richiesta)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "In questo gruppo solo gli admin del gruppo assegnano attività: la sua attività diventa una richiesta («da gestire») visibile a tutti i membri; chiunque può prenderla in carico."
 }

@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "无法排序：单元格已锁定（{0}）。",
  "Inhalt löschen": "清除内容",
  "Format löschen": "清除格式",
- "Alles löschen": "全部清除"
+ "Alles löschen": "全部清除",
+ "Anfrage": "请求",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} 请小组处理此任务（请求）",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "在此小组中只有小组管理员可分配任务：您的任务将成为对所有成员可见的请求，任何成员都可以接手。"
 }

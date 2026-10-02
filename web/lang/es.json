@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "No se puede ordenar: celdas bloqueadas ({0}).",
  "Inhalt löschen": "Borrar contenido",
  "Format löschen": "Borrar formato",
- "Alles löschen": "Borrar todo"
+ "Alles löschen": "Borrar todo",
+ "Anfrage": "Solicitud",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} pide al grupo que se encargue (solicitud)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "En este grupo solo los admins del grupo asignan tareas: su tarea será una solicitud («por favor, encargarse») visible para todos los miembros; cualquiera puede asumirla."
 }

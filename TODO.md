@@ -13,6 +13,7 @@ PLAN ZUM ABSCHLUSS VON 0.50.0 (Gea 2026-10-02, Nutzungslimit knapp): nur noch (a
  Alle vier fertig; offen nur: main.go version 0.51.0, PDFs, Release 0.51.0 nach Geas Go (Skripte *0510, entry53, h510pdf).
 0.52 KALENDER-STUNDENRASTER (Gea 2026-10-02, 0.51.0 ist auf GitHub verifiziert): Umfang vollstaendig, Raster 15 Min: Zeitachse Tag/Woche mit Terminbloecken, Klick/Ziehen auf Leerflaeche = neuer Termin mit Zeit,
  Termin ziehen = Tag+Uhrzeit, unteren Rand ziehen = Dauer, Jetzt-Linie, Standard-Scroll 7:00. [erledigt, unveroeffentlicht: 0.52.0; neue Termine nur per Doppelklick (Gea); Tests cal/cal2/cal3 gruen; Handbuch+CHANGELOG ok; offen: Release nach Go; Touch-Bedienung; Jetzt-Linie aktualisiert sich nur beim Neuzeichnen] Danach Freie-Zeiten-Pruefung, Belegungsplan, Mehrfachbuchung.
+0.53 AUFGABEN-RECHTE (Gea 2026-10-02): [erledigt, unveroeffentlicht] globale Admins legen in jeder Gruppe an; Anfrage-Modus fuer Mitglieder bei 'nur Gruppen-Admins' (direkt sichtbar+uebernehmbar). Offen: Release nach Go; Aufgaben-UI (Schnellzeile, Tafel, Abhaken, Kalender-Markierung), KI-Vorschlaege.
 Reihenfolge (nach Nutzen):
 1. [erledigt, veroeffentlicht 0.50.0] Version-Tooltip am Titel "cs-team" + Versionsstand 0.50.0 (/api/me liefert version).
 2. [erledigt, veroeffentlicht 0.50.0] Calc Strg+Z/Y.

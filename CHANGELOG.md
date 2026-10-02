@@ -1,5 +1,11 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.53.0 Aufgaben: Globale Admins duerfen in jeder Gruppe mit eingeschalteten Aufgaben Aufgaben anlegen und Gruppenmitglieder zuweisen (auch ohne Mitglied zu sein).
+                   Neu: Anfrage ("Bitte bearbeiten"): In Gruppen mit Modus "nur Gruppen-Admins" duerfen normale Mitglieder jetzt Aufgaben anlegen; sie werden als Anfrage ohne Zustaendigen
+                   gespeichert (Feld req, Protokollzeile), sind fuer alle Gruppenmitglieder sichtbar und von jedem uebernehmbar. Der Ersteller aendert den Text, bestimmt aber keinen Zustaendigen;
+                   Gruppen-Admins und globale Admins aendern und nehmen ab. Die Gruppenauswahl markiert solche Gruppen mit "Anfrage", das Feld Bearbeiter ist dann gesperrt.
+                   Getestet: Go-Test TestRights, API-Test tasks1.py (Mitglied/Gruppen-Admin/globaler Admin/Fremder, Uebernehmen), Browser-Regression.
+
 2026-10-02  0.52.0 Kalender: Stundenraster in Tages- und Wochenansicht. Zeitachse 0-24 Uhr (48 px je Stunde, Start bei 7 Uhr, Position bleibt beim Neuzeichnen), Termine als Bloecke nach Beginn und Dauer,
                    ueberlappende Termine nebeneinander, ganztaegige Termine oben, rote Linie fuer die aktuelle Zeit. Termin mit der Maus auf anderen Tag und andere Uhrzeit ziehen (Raster 15 Minuten),
                    Dauer am unteren Rand ziehen; bei Serien fragt der Dialog (nur dieser / dieser und folgende / alle). Geaendert (Gea): neue Termine nur noch per Doppelklick

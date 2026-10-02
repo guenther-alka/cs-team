@@ -2716,6 +2716,7 @@ function tkSys(e){
   switch(e.T||e.t){
     case 'new':return t('{0} hat die Aufgabe angelegt',b);
     case 'take':return t('{0} hat die Aufgabe übernommen',b);
+    case 'req':return t('{0} bittet die Gruppe um Bearbeitung (Anfrage)',b);
     case 'give':return t('{0} hat die Aufgabe zurückgegeben',b);
     case 'status':return t('{0}: Status {1}',b,esc(tkStat(a[0])));
     case 'assign':return a[0]?t('{0} hat die Aufgabe {1} zugewiesen',b,esc(a[0])):t('{0} hat die Zuweisung aufgehoben',b);
@@ -2738,7 +2739,7 @@ S.task={
     const seen=TK.seen||{};
     TK.tasks.filter(x=>tkMatch(TK.filter,x)).sort((a,b)=>(a.due||'9')<(b.due||'9')?-1:(a.due||'9')>(b.due||'9')?1:b.updated-a.updated)
       .forEach(x=>it.push({k:x.id,label:(tkMine(x)&&x.status!='closed'&&x.last&&x.last.by!=me.name&&x.updated>(seen[x.id]||0)?'● ':'')+x.title,color:tkDot(x),
-        sub:(x.assignee||t('frei'))+(x.due?' · '+tkDate(x.due):'')}));
+        sub:(x.assignee||(x.req?t('Anfrage'):t('frei')))+(x.due?' · '+tkDate(x.due):'')}));
     return it;
   },
   async load(){await tkLoad();tkStart();this.items=this.mk();setList(this.items);},
@@ -2789,7 +2790,7 @@ function tkDraw(x){
   const miles=(x.miles||[]).map(m=>{const ov=!m.done&&m.due&&m.due<tkToday();
     return '<div class="tkm'+(m.done?' dn':'')+(ov?' ov':'')+'"><label><input type="checkbox" data-mile="'+m.id+'"'+(m.done?' checked':'')+(mine||own?'':' disabled')+'> '+esc(m.text)+'</label>'+(m.due?' <small>'+tkDate(m.due)+'</small>':'')+'</div>';}).join('');
   $('#tkhead').innerHTML='<div class="tkh"><h3>'+esc(x.title)+'</h3><span class="tkst st-'+x.status+'">'+esc(tkStat(x.status))+'</span>'+(tkOver(x)?' <span class="tkst st-over">'+t('überfällig')+'</span>':'')+'</div>'+
-    '<div class="muted tkmeta">'+t('Auftraggeber')+': <b>'+esc(x.by)+'</b> · '+t('Bearbeiter')+': <b>'+esc(x.assignee||t('frei'))+'</b>'+(x.group?' · '+t('Gruppe')+': '+esc(x.group):'')+
+    '<div class="muted tkmeta">'+t('Auftraggeber')+': <b>'+esc(x.by)+'</b> · '+t('Bearbeiter')+': <b>'+esc(x.assignee||t('frei'))+'</b>'+(x.req?' · <b>'+t('Anfrage')+'</b>':'')+(x.group?' · '+t('Gruppe')+': '+esc(x.group):'')+
     ' · '+t('Priorität')+': '+esc(tkPrio(x.prio))+(x.due?' · '+t('Fällig')+': <b'+(x.due<tkToday()&&tkLive(x)?' style="color:#dc2626"':'')+'>'+tkDate(x.due)+'</b>':'')+(x.repeat?' · '+t('Wiederholung')+': '+esc(tkRep(x.repeat)):'')+
     ((x.watch||[]).length?' · '+t('Beteiligte')+': '+esc(x.watch.join(', ')):'')+'</div>'+
     '<div class="row">'+b+'</div>'+(x.desc?'<div class="tkdesc">'+chFmt(x.desc)+'</div>':'')+
@@ -2834,7 +2835,8 @@ function tkForm(x){
   $('#main').innerHTML='<h3>'+(x?t('Aufgabe bearbeiten'):t('Neue Aufgabe'))+'</h3>'+
    '<div class="row"><input id="tkt" style="width:100%;max-width:560px;box-sizing:border-box" maxlength="200" placeholder="'+t('Titel')+'" value="'+esc(x?x.title:'')+'"></div>'+
    '<div class="row"><textarea id="tkd" rows="6" style="width:100%;max-width:560px;box-sizing:border-box" placeholder="'+t('Beschreibung')+'">'+esc(x?x.desc||'':'')+'</textarea></div>'+
-   '<div class="row">'+t('Gruppe')+': '+(x?'<b>'+esc(x.group||t('keine (persönlich)'))+'</b>':'<select id="tkg"><option value="">'+esc(t('keine (persönlich)'))+'</option>'+TK.groups.map(g=>opt(g.name,g.name,'')).join('')+'</select>')+'</div>'+
+   '<div class="row">'+t('Gruppe')+': '+(x?'<b>'+esc(x.group||t('keine (persönlich)'))+'</b>':'<select id="tkg"><option value="">'+esc(t('keine (persönlich)'))+'</option>'+TK.groups.map(g=>opt(g.name,g.req?g.name+' ('+t('Anfrage')+')':g.name,'')).join('')+'</select>')+'</div>'+
+   '<div class="muted row" id="tkrq" style="display:none">'+t('In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.')+'</div>'+
    '<div class="row">'+t('Bearbeiter')+': <input id="tka" list="tkpp" value="'+esc(x?x.assignee||'':'')+'" placeholder="'+t('leer = bitte bearbeiten')+'"> &nbsp; '+t('Beteiligte')+': <input id="tkw" list="tkpp" style="width:240px" value="'+esc(x?(x.watch||[]).join(', '):'')+'" placeholder="'+t('Benutzernamen, Komma getrennt')+'">'+ppl+'</div>'+
    '<div class="row">'+t('Priorität')+': <select id="tkp">'+[0,1,2].map(p=>opt(p,tkPrio(p),x?x.prio:1)).join('')+'</select> &nbsp; '+t('Fällig')+': <input type="date" id="tku" value="'+esc(x?x.due||'':'')+'"> &nbsp; '+
      t('Wiederholung')+': <select id="tkr">'+['','daily','weekly','monthly','yearly'].map(r=>opt(r,tkRep(r),x?x.repeat||'':'')).join('')+'</select></div>'+
@@ -2846,6 +2848,9 @@ function tkForm(x){
     d.innerHTML='<input class="mt" style="width:300px" maxlength="200" placeholder="'+t('Text')+'" value="'+esc(m?m.text:'')+'"> <input type="date" class="md" value="'+esc(m?m.due||'':'')+'"> <button class="mx" title="'+t('löschen')+'">[x]</button>';
     d.querySelector('.mx').onclick=()=>d.remove();$('#tkml').append(d);};
   ((x&&x.miles)||[]).forEach(addM);$('#tkma').onclick=()=>addM(null);
+  const rq=()=>{const g=$('#tkg'),r=g?TK.groups.find(y=>y.name==g.value):null,on=!!(r&&r.req);$('#tkrq').style.display=on?'':'none';
+    if(on){$('#tka').value='';}$('#tka').disabled=on;};
+  if($('#tkg')){$('#tkg').onchange=rq;rq();}
   $('#tkx').onclick=()=>{if(x)tkShow(x.id,false);else S.task.home();};
   $('#tks').onclick=async()=>{
     const b={title:$('#tkt').value,desc:$('#tkd').value,group:x?x.group||'':$('#tkg').value,assignee:$('#tka').value.trim(),watch:names($('#tkw').value),

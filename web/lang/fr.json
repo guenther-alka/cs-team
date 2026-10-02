@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Tri impossible : cellules verrouillées ({0}).",
  "Inhalt löschen": "Effacer le contenu",
  "Format löschen": "Effacer le format",
- "Alles löschen": "Tout effacer"
+ "Alles löschen": "Tout effacer",
+ "Anfrage": "Demande",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} demande à le groupe de traiter la tâche (demande)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "Dans ce groupe, seuls les admins du groupe attribuent des tâches : votre tâche devient une demande (« à traiter ») visible par tous les membres, chacun peut la prendre."
 }

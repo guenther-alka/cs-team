@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Сортировка невозможна: ячейки заблокированы ({0}).",
  "Inhalt löschen": "Очистить содержимое",
  "Format löschen": "Очистить формат",
- "Alles löschen": "Очистить все"
+ "Alles löschen": "Очистить все",
+ "Anfrage": "Запрос",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} просит группу взяться за задачу (запрос)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "В этой группе задачи назначают только админы группы: ваша задача станет запросом («прошу выполнить»), видимым всем участникам; любой участник может взять её."
 }

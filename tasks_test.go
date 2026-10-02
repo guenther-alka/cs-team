@@ -100,8 +100,15 @@ func TestTasks(t *testing.T) {
 	}
 	// Gruppenmodus: nur Admins dürfen anlegen / aus
 	req(t, srv, "anna", "POST", "/api/groups/t1", `{"tasks":"admin"}`)
-	if c, _ := req(t, srv, "bob", "POST", "/api/tasks", `{"title":"y","group":"t1"}`); c != 403 {
-		t.Fatal("Modus admin", c)
+	// Mitglied in „nur Admins“-Gruppe: Anfrage ohne Zuständigen, für Gruppenmitglieder sichtbar
+	if c, b := req(t, srv, "bob", "POST", "/api/tasks", `{"title":"Anfrage","group":"t1","assignee":"bob"}`); c != 200 {
+		t.Fatal("Anfrage", c)
+	} else {
+		id := b[strings.Index(b, `"id":"`)+6:]
+		id = id[:strings.Index(id, `"`)]
+		if _, g := req(t, srv, "bob", "GET", "/api/tasks/"+id, ""); !strings.Contains(g, `"req":true`) || strings.Contains(g, `"assignee":"bob"`) {
+			t.Fatal("Anfrage-Flag", g)
+		}
 	}
 	if c, _ := req(t, srv, "anna", "POST", "/api/tasks", `{"title":"y","group":"t1"}`); c != 200 {
 		t.Fatal("Gruppen-Admin darf", c)

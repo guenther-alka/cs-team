@@ -205,6 +205,22 @@ func GroupInfoOf(name string) (GInfo, bool) {
 	return GInfo{Name: name, Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), Admins: adminsOf(std, name, g)}, true
 }
 
+// AllGroupNames: Namen aller Gruppen (sortiert).
+func AllGroupNames() []string {
+	if std == nil {
+		return nil
+	}
+	std.refresh(context.Background())
+	std.mu.Lock()
+	defer std.mu.Unlock()
+	out := make([]string, 0, len(std.groups))
+	for n := range std.groups {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // adminsOf: Gruppen-Admins; bei der Standardgruppe die aktiven globalen Admins. (Aufrufer hält a.mu)
 func adminsOf(a *Auth, name string, g Group) []string {
 	if name != DefaultGroup {

@@ -714,5 +714,8 @@
  "Sortieren nicht möglich: Zellen sind gesperrt ({0}).": "Cannot sort: cells are locked ({0}).",
  "Inhalt löschen": "Clear contents",
  "Format löschen": "Clear formatting",
- "Alles löschen": "Clear all"
+ "Alles löschen": "Clear all",
+ "Anfrage": "Request",
+ "{0} bittet die Gruppe um Bearbeitung (Anfrage)": "{0} asks the group to handle this (request)",
+ "In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.": "In this group only group admins assign tasks: your task becomes a request (\"please handle\") visible to all group members; any member can take it."
 }

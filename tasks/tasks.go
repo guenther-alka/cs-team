@@ -58,8 +58,9 @@ type Task struct {
 	Group    string   `json:"group,omitempty"`
 	Assignee string   `json:"assignee,omitempty"`
 	Watch    []string `json:"watch,omitempty"`
-	Status   string   `json:"status"` // open | doing | done | closed
-	Prio     int      `json:"prio"`   // 0 niedrig, 1 normal, 2 hoch
+	Req      bool     `json:"req,omitempty"` // Anfrage („Bitte bearbeiten“) eines Mitglieds
+	Status   string   `json:"status"`        // open | doing | done | closed
+	Prio     int      `json:"prio"`          // 0 niedrig, 1 normal, 2 hoch
 	Due      string   `json:"due,omitempty"`
 	Repeat   string   `json:"repeat,omitempty"` // daily | weekly | monthly | yearly
 	Miles    []Mile   `json:"miles,omitempty"`
@@ -143,17 +144,37 @@ func isOwner(user string, t *Task) bool {
 }
 
 func canCreate(user, group string) bool {
-	if _, _, ok := auth.ContactOf(user); !ok {
-		return false
+	ok, _ := createRight(user, group)
+	return ok
+}
+
+// createRight: darf user in group Aufgaben anlegen, und ist es dann eine Anfrage ("Bitte bearbeiten": Mitglied in einer
+// Gruppe mit Modus „nur Gruppen-Admins“, ohne Zuständigen, für alle Gruppenmitglieder sichtbar und übernehmbar)?
+func createRight(user, group string) (ok, req bool) {
+	if _, _, c := auth.ContactOf(user); !c {
+		return false, false
 	}
 	if group == "" {
-		return true
+		return true, false
 	}
-	info, ok := auth.GroupInfoOf(group)
-	if !ok || !auth.IsMember(user, group) {
-		return false
+	info, found := auth.GroupInfoOf(group)
+	return rights(found, info.Tasks, auth.IsAdminUser(user), auth.IsMember(user, group), auth.IsGroupAdmin(user, group))
+}
+
+func rights(found bool, mode string, admin, member, gadmin bool) (ok, req bool) {
+	if !found || mode == auth.ModeOff {
+		return false, false
 	}
-	return info.Tasks == auth.ModeMember || (info.Tasks == auth.ModeAdmin && auth.IsGroupAdmin(user, group))
+	if admin { // globale Admins dürfen für jede Gruppe mit aktivierten Aufgaben anlegen
+		return true, false
+	}
+	if !member {
+		return false, false
+	}
+	if mode == auth.ModeMember || gadmin {
+		return true, false
+	}
+	return true, true // Modus „nur Gruppen-Admins“: Mitglieder stellen eine Anfrage
 }
 
 func (s *Svc) view(user string, t *Task, full bool) View {
@@ -387,8 +408,12 @@ func (s *Svc) ext(actor, to string, t *Task, what string) {
 // ---- Aktionen ----
 
 func (s *Svc) Create(user string, m meta) (*Task, error) {
-	if !canCreate(user, m.Group) {
+	ok, req := createRight(user, m.Group)
+	if !ok {
 		return nil, ErrForbidden
+	}
+	if req {
+		m.Assignee = "" // Anfrage: übernehmen kann jedes Gruppenmitglied
 	}
 	if err := s.check(user, &m, m.Group); err != nil {
 		return nil, err
@@ -405,11 +430,14 @@ func (s *Svc) Create(user string, m meta) (*Task, error) {
 		return nil, errors.New("too many tasks")
 	}
 	t := &Task{ID: s.newID(), Title: m.Title, Desc: m.Desc, By: user, Group: m.Group, Assignee: m.Assignee, Watch: m.Watch,
-		Status: "open", Prio: m.Prio, Due: m.Due, Repeat: m.Repeat, Link: m.Link, Created: now.Unix()}
+		Req: req, Status: "open", Prio: m.Prio, Due: m.Due, Repeat: m.Repeat, Link: m.Link, Created: now.Unix()}
 	for i, ml := range m.Miles {
 		t.Miles = append(t.Miles, Mile{ID: i + 1, Text: ml.Text, Due: ml.Due})
 	}
 	sys(t, user, "new")
+	if req {
+		sys(t, user, "req")
+	}
 	if t.Assignee != "" {
 		sys(t, user, "assign", t.Assignee)
 		s.ext(user, t.Assignee, t, user+" hat dir eine Aufgabe zugewiesen.")
@@ -431,6 +459,9 @@ func (s *Svc) Update(user, id string, m meta) error {
 		return ErrForbidden
 	}
 	m.Group = t.Group // Gruppe bleibt
+	if t.Req && !auth.IsAdminUser(user) && !auth.IsGroupAdmin(user, t.Group) {
+		m.Assignee = t.Assignee // Ersteller einer Anfrage ändert den Text, bestimmt aber keinen Zuständigen
+	}
 	if err := s.check(user, &m, t.Group); err != nil {
 		return err
 	}
@@ -696,11 +727,17 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		sort.Slice(list, func(i, j int) bool { return list[i].Updated > list[j].Updated })
 		type gr struct {
 			Name string `json:"name"`
+			Req  bool   `json:"req,omitempty"`
 		}
 		groups := []gr{}
-		for _, g := range auth.GroupsOf(me) {
-			if canCreate(me, g) {
-				groups = append(groups, gr{g})
+		cand := auth.GroupsOf(me)
+		if auth.IsAdminUser(me) {
+			cand = cand[:0:0]
+			cand = append(cand, auth.AllGroupNames()...)
+		}
+		for _, g := range cand {
+			if ok, req := createRight(me, g); ok {
+				groups = append(groups, gr{g, req})
 			}
 		}
 		out(w, map[string]any{"tasks": list, "people": auth.PeersOf(me), "groups": groups})
