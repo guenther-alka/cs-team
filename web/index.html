@@ -56,8 +56,8 @@ code{background:#eef;padding:1px 4px;border-radius:3px}
 #ced{box-sizing:border-box;font:inherit;padding:2px 5px;border:2px solid #2b6fd4;background:#fff;z-index:4;outline:0}
 #sbar{display:flex;gap:6px;align-items:center;margin:4px 0}#sname{min-width:70px;font-weight:600;text-align:center}#fx{flex:1;font:inherit;padding:3px 6px;border:1px solid #bbb}
 #sstat{min-height:1.4em;padding:3px 4px;font-size:12.5px;color:#333}#shint{font-size:12px}
-.par{display:block;width:100%;box-sizing:border-box;border-bottom:1px dotted #ddd;font:inherit;padding:4px;min-height:1.5em;white-space:pre-wrap;overflow-wrap:anywhere;outline:0}
-.par:focus{background:#fafcff}.par a{color:#1a56c4;text-decoration:underline;cursor:pointer}
+.par{display:block;width:100%;box-sizing:border-box;border-bottom:1px dotted #ddd;background:#eeeff1;border-radius:3px;margin-bottom:6px;font:inherit;padding:4px;min-height:1.5em;white-space:pre-wrap;overflow-wrap:anywhere;outline:0}
+.par.cur{background:#e8f0fb}#doc:focus{outline:0}#doc[contenteditable=true]{cursor:text}.par a{color:#1a56c4;text-decoration:underline;cursor:pointer}
 .par.l>div,.par.o>div{padding-left:1.7em;text-indent:-1.7em}
 .par.l>div::before,.par.o>div::before{content:attr(data-m);display:inline-block;width:1.7em;text-indent:0;user-select:none;-webkit-user-select:none}
 #fbar{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:6px 0;padding:4px 6px;border:1px solid #d5d5d5;border-radius:4px;background:#f6f7f9}
@@ -84,6 +84,12 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .today .dn{background:#3b82f6;color:#fff}
 .ev{font-size:11.5px;border-radius:3px;padding:1px 4px;margin:1px 0;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-left:3px solid rgba(0,0,0,.25)}
 .ev.ad{font-weight:600}
+.ev.cur{outline:2px solid #1e40af;outline-offset:-1px}.ev.cut{opacity:.45}
+.mgrid,.wgrid,.dayl{user-select:none;-webkit-user-select:none}
+.mgrid>div[data-day]:hover,.wgrid>div[data-day]:hover,.dayl:hover{box-shadow:inset 0 0 0 1px #b6d0f7}
+.mgrid>div.dsel,.wgrid>div.dsel,.dayl.dsel{background:#dbeafe!important}
+.mgrid>div.dro,.wgrid>div.dro,.dayl.dro{outline:2px dashed #3b82f6;outline-offset:-2px}
+#cclip{font-size:12px;color:#1e40af;margin:0 0 6px}#cclip:empty{display:none}#cclip a{margin-left:8px;color:#777;text-decoration:none}
 .more{font-size:11px;color:#666;cursor:pointer}
 .wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;border-top:1px solid #ddd;border-left:1px solid #ddd}
 .wgrid>div{border-right:1px solid #ddd;border-bottom:1px solid #ddd;min-height:320px;padding:4px;background:#fff}
@@ -764,7 +770,7 @@ const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x;};
 const sod=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const hhmm=d=>pad2(d.getHours())+':'+pad2(d.getMinutes());
 S.cal={
-  items:[],cals:[],ev:{},range:null,_evs:[],note:'',vis:lsGet('cs.cal.vis',{}),view:lsGet('cs.cal.view','month'),anchor:new Date(),
+  items:[],cals:[],ev:{},range:null,_evs:[],note:'',rng:null,selDay:null,curKey:'',clip:null,drag:null,hover:null,vis:lsGet('cs.cal.vis',{}),view:lsGet('cs.cal.view','month'),anchor:new Date(),
   colorOf(c){let h=0;for(const ch of c.id)h=(h*31+ch.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];},
   isVis(id){return this.vis[id]!==false;},
   async load(){
@@ -796,7 +802,7 @@ S.cal={
       if(head!==last){it.push({head});last=head;}
       it.push({k:c.id,label:c.name,color:this.colorOf(c),chk:this.isVis(c.id),sub:c.sub?t('(Abo)'):c.resource?t('(Ressource)'):c.write?'':t('(nur lesen)')});
     }
-    this.items=it;setList(it);
+    this.items=it;if(sec=="cal")setList(it);
   },
   toggle(id,on){this.vis[id]=on;lsSet('cs.cal.vis',this.vis);this.draw();},
   home(){this.draw();},
@@ -817,11 +823,14 @@ S.cal={
       }
     }
     out.sort((a,b)=>(b.allDay-a.allDay)||(a.s-b.s));
+    out.forEach((x,i)=>x.id=i);   // Index nach dem Sortieren (data-i der Chips)
     return out;
   },
   onDay(evs,day){const a=sod(day),b=addDays(a,1);return evs.filter(x=>x.s<b&&(x.en>a||(+x.en==+x.s&&x.s>=a)));},
+  keyOf:x=>x.c.id+'|'+x.e.file+'|'+(x.e.rid||''),
   chip(x){
-    return '<div class="ev'+(x.allDay?' ad':'')+'" style="background:'+x.color+'" data-i="'+x.id+'" title="'+esc(x.c.name+': '+x.e.summary)+'">'+(x.allDay?'':esc(hhmm(x.s))+' ')+(x.e.rec?'↻ ':'')+esc(x.e.summary)+'</div>';
+    const k=this.keyOf(x),cl=(this.curKey==k?' cur':'')+(this.clip&&this.clip.cut&&this.clip.key==k?' cut':'');
+    return '<div class="ev'+(x.allDay?' ad':'')+cl+'" style="background:'+x.color+'" data-i="'+x.id+'" title="'+esc(x.c.name+': '+x.e.summary)+'">'+(x.allDay?'':esc(hhmm(x.s))+' ')+(x.e.rec?'↻ ':'')+esc(x.e.summary)+'</div>';
   },
   async draw(){if(!this.covered())await this.loadEvents();this.paint();},
   paint(){
@@ -833,19 +842,19 @@ S.cal={
       body='<div class="mgrid">'+WD.map(d=>'<div class="dh">'+d+'</div>').join('');
       for(let i=0;i<42;i++){
         const d=addDays(start,i),l=this.onDay(evs,d);
-        body+='<div class="'+(d.getMonth()!=a.getMonth()?'oth ':'')+(dkey(d)==today?'today':'')+'"><span class="dn" data-d="'+dkey(d)+'">'+d.getDate()+'</span>'+l.slice(0,4).map(x=>this.chip(x)).join('')+(l.length>4?'<div class="more" data-d="'+dkey(d)+'">'+t('+ {0} weitere',l.length-4)+'</div>':'')+'</div>';
+        body+='<div data-day="'+dkey(d)+'" class="'+(d.getMonth()!=a.getMonth()?'oth ':'')+(dkey(d)==today?'today':'')+'"><span class="dn" data-d="'+dkey(d)+'">'+d.getDate()+'</span>'+l.slice(0,4).map(x=>this.chip(x)).join('')+(l.length>4?'<div class="more" data-d="'+dkey(d)+'">'+t('+ {0} weitere',l.length-4)+'</div>':'')+'</div>';
       }
       body+='</div>';
     }else if(v=='week'){
       const st=addDays(sod(a),-((a.getDay()+6)%7)),en=addDays(st,6);
       title=st.getDate()+'. '+MONTHS[st.getMonth()].slice(0,3)+' – '+en.getDate()+'. '+MONTHS[en.getMonth()].slice(0,3)+' '+en.getFullYear();
       body='<div class="wgrid">';
-      for(let i=0;i<7;i++){const d=addDays(st,i);body+='<div class="'+(dkey(d)==today?'today':'')+'"><h5><span class="dn" data-d="'+dkey(d)+'">'+WD[i]+' '+d.getDate()+'.</span></h5>'+this.onDay(evs,d).map(x=>this.chip(x)).join('')+'</div>';}
+      for(let i=0;i<7;i++){const d=addDays(st,i);body+='<div data-day="'+dkey(d)+'" class="'+(dkey(d)==today?'today':'')+'"><h5><span class="dn" data-d="'+dkey(d)+'">'+WD[i]+' '+d.getDate()+'.</span></h5>'+this.onDay(evs,d).map(x=>this.chip(x)).join('')+'</div>';}
       body+='</div>';
     }else if(v=='day'){
       title=WD[(a.getDay()+6)%7]+', '+a.getDate()+'. '+MONTHS[a.getMonth()]+' '+a.getFullYear();
       const l=this.onDay(evs,a);
-      body=l.length?'<div class="dayl" style="max-width:640px">'+l.map(x=>this.chip(x)).join('')+'</div>':'<div class="muted">'+t('keine Termine')+'</div>';
+      body='<div class="dayl" data-day="'+dkey(a)+'" style="max-width:640px;min-height:240px">'+(l.length?l.map(x=>this.chip(x)).join(''):'<div class="muted">'+t('keine Termine')+'</div>')+'</div>';
     }else{
       title=t('Agenda (nächste 60 Tage)');
       const st=sod(new Date());
@@ -854,7 +863,7 @@ S.cal={
     }
     const vb=(k,l)=>'<button data-v="'+k+'" class="'+(v==k?'on':'')+'">'+l+'</button>';
     $('#main').innerHTML='<div class="ctool"><button id="ctd">'+t('Heute')+'</button><button id="cpv">&lsaquo;</button><button id="cnx">&rsaquo;</button><span class="ttl">'+esc(title)+'</span>'+
-      vb('day',t('Tag'))+vb('week',t('Woche'))+vb('month',t('Monat'))+vb('agenda',t('Agenda'))+' <button id="cnew">'+t('+ Neuer Termin')+'</button></div>'+body+
+      vb('day',t('Tag'))+vb('week',t('Woche'))+vb('month',t('Monat'))+vb('agenda',t('Agenda'))+' <button id="cnew">'+t('+ Neuer Termin')+'</button></div><div id="cclip"></div>'+body+
       this.bar()+'<div class="muted" style="margin-top:8px">'+t('Kalender links ein-/ausblenden. CalDAV (Thunderbird, iOS, DAVx5): ')+'<code>'+esc(location.origin)+'/dav/</code></div><div id="cdet">'+(this.note?'<div class="panel">'+esc(this.note)+'</div>':'')+'</div>';
     this.note='';
     this.barBind();
@@ -863,8 +872,119 @@ S.cal={
     $('#cpv').onclick=()=>step(-1);$('#cnx').onclick=()=>step(1);
     document.querySelectorAll('#main button[data-v]').forEach(b=>b.onclick=()=>{this.view=b.dataset.v;lsSet('cs.cal.view',this.view);this.draw();});
     document.querySelectorAll('#main [data-d]').forEach(x=>x.onclick=()=>{const p=x.dataset.d.split('-');this.anchor=new Date(+p[0],+p[1]-1,+p[2]);this.view='day';this.draw();});
-    document.querySelectorAll('#main .ev').forEach(x=>x.onclick=()=>this.detail(this._evs[+x.dataset.i]));
+    document.querySelectorAll('#main .ev').forEach(el=>{
+      const x=this._evs[+el.dataset.i],cell=el.closest('[data-day]');
+      el.onclick=()=>{this.curKey=this.keyOf(x);this.markCur();if(x.c.write)this.form(x);else this.detail(x);};
+      if(x.c.write&&cell){
+        el.draggable=true;
+        el.ondragstart=ev=>{this.drag={x,from:cell.dataset.day};this.curKey=this.keyOf(x);this.markCur();ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',x.e.summary);};
+        el.ondragend=()=>{this.drag=null;document.querySelectorAll('#main .dro').forEach(c=>c.classList.remove('dro'));};
+      }
+    });
+    document.querySelectorAll('#main [data-day]').forEach(c=>{
+      c.onclick=ev=>{if(ev.target.closest('.ev,.dn,.more'))return;this.dayClick(c.dataset.day,ev.shiftKey);};
+      c.onmouseenter=()=>{this.hover=c.dataset.day;};
+      c.onmouseleave=()=>{if(this.hover==c.dataset.day)this.hover=null;};
+      c.ondragover=ev=>{if(!this.drag)return;ev.preventDefault();ev.dataTransfer.dropEffect='move';c.classList.add('dro');};
+      c.ondragleave=ev=>{if(!c.contains(ev.relatedTarget))c.classList.remove('dro');};
+      c.ondrop=ev=>{ev.preventDefault();c.classList.remove('dro');const d=this.drag;this.drag=null;if(d)this.moveEv(d.x,this.dayDiff(d.from,c.dataset.day));};
+    });
     $('#cnew').onclick=()=>this.newEvent();
+    this.markSel();this.clipBar();
+  },
+  pd(k){const p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]);},
+  dayDiff(a,b){const p=this.pd(a),q=this.pd(b);return Math.round((Date.UTC(q.getFullYear(),q.getMonth(),q.getDate())-Date.UTC(p.getFullYear(),p.getMonth(),p.getDate()))/864e5);},
+  /* Klick auf einen Tag: neuer Termin; Shift+Klick markiert einen Bereich, Klick in den Bereich legt einen mehrtägigen Termin an */
+  dayClick(k,shift){
+    if(shift){
+      if(!this.selDay)this.selDay=k;
+      let a=this.selDay,b=k;if(b<a)[a,b]=[b,a];
+      this.rng={a,b};this.markSel();
+      const f=document.querySelector('#cdet .panel b');if(f&&f.textContent==t('Neuer Termin'))$('#cdet').innerHTML='';
+      return;
+    }
+    if(this.rng&&k>=this.rng.a&&k<=this.rng.b){this.form(null,{from:this.pd(this.rng.a),to:this.pd(this.rng.b)});return;}
+    this.rng=null;this.selDay=k;this.markSel();this.form(null,{day:this.pd(k)});
+  },
+  markSel(){const r=this.rng,s=this.selDay;document.querySelectorAll('#main [data-day]').forEach(c=>{const k=c.dataset.day;c.classList.toggle('dsel',r?(k>=r.a&&k<=r.b):k==s);});},
+  markCur(){document.querySelectorAll('#main .ev').forEach(el=>{const x=this._evs[+el.dataset.i];el.classList.toggle('cur',!!x&&this.keyOf(x)==this.curKey);});},
+  clipBar(){
+    const c=this.clip,b=$('#cclip');
+    document.querySelectorAll('#main .ev').forEach(el=>{const x=this._evs[+el.dataset.i];el.classList.toggle('cut',!!(c&&c.cut&&x&&this.keyOf(x)==c.key));});
+    if(!b)return;
+    b.innerHTML=c?esc(t(c.cut?'„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.':'„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.',c.x.e.summary))+'<a href="#" id="cclx" title="'+esc(t('Zwischenablage leeren'))+'">&times;</a>':'';
+    if(c)$('#cclx').onclick=ev=>{ev.preventDefault();this.clip=null;this.clipBar();};
+  },
+  flash(msg){$('#cdet').innerHTML='<div class="panel">'+esc(msg)+'</div>';},
+  /* Auswahl bei Serientermin: 'one' | 'following' | 'all' | null */
+  askScope(msg){
+    return new Promise(res=>{
+      const o=document.createElement('div');
+      o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999';
+      o.innerHTML='<div class="panel" style="background:#fff;padding:14px 16px;max-width:420px;margin:0"><div>'+esc(msg)+'</div><div class="row"><button data-s="one">'+t('Nur dieser Termin')+'</button> <button data-s="following">'+t('Dieser und folgende')+'</button> <button data-s="all">'+t('Alle Termine der Serie')+'</button> <button data-s="">'+t('Abbrechen')+'</button></div><div class="muted">'+t('Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.')+'</div></div>';
+      const done=v=>{document.removeEventListener('keydown',kd,true);o.remove();res(v||null);};
+      const kd=ev=>{if(ev.key=='Escape'){ev.stopPropagation();done('');}};
+      document.addEventListener('keydown',kd,true);
+      o.onclick=ev=>{if(ev.target===o)done('');const b=ev.target.closest('button');if(b)done(b.dataset.s);};
+      document.body.appendChild(o);
+    });
+  },
+  /* Termin x um nd Tage verschieben (Drag & Drop, Ausschneiden/Einfügen); true bei Erfolg */
+  async moveEv(x,nd){
+    if(!nd||!x.c.write)return false;
+    const e=x.e,rec=!!e.rec;let sc='all';
+    if(rec){sc=await this.askScope(t('Dieser Termin gehört zu einer Serie. Was soll verschoben werden?'));if(!sc)return false;}
+    const body=this.evBody(x,nd);
+    if(rec){body.rid=e.rid;if(sc!='all')body.scope=sc;}
+    const res=await J('PUT','/api/cal/'+encodeURIComponent(x.c.id)+'/events/'+encodeURIComponent(e.file),body);
+    if(!res)return false;
+    this.afterSave(res);return true;
+  },
+  /* Anfragekörper mit Text, Zeit (um nd Tage verschoben) und Zone des Termins */
+  evBody(x,nd){
+    const e=x.e,ns=addDays(x.s,nd),ne=addDays(x.en,nd);
+    const body={summary:e.summary,location:e.location||'',description:e.desc||'',allDay:x.allDay,tz:e.tz||BTZ};
+    if(x.allDay){const u=d=>new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())).toISOString();body.start=u(ns);body.end=u(ne);}
+    else{body.start=ns.toISOString();body.end=ne.toISOString();}
+    return body;
+  },
+  async afterSave(res){
+    if(res.mails>0)this.note=t('{0} Einladung(en) per E-Mail versendet.',res.mails);else if(res.mails<0)this.note=t('Einladungen nicht versendet: Stundenlimit erreicht.');
+    this.rng=null;this.range=null;await this.load();this.paint();
+  },
+  /* Kopie: alles außer dem Tag (Uhrzeit, Ort, Text, Erinnerung, Teilnehmer, Wiederholung) */
+  async copyEv(x,nd){
+    const e=x.e,att=(e.att||[]).map(a=>a.name||a.mail);
+    if(att.length&&!confirm(t('Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?')))return false;
+    const body=this.evBody(x,nd);
+    if(e.alarm!=null)body.alarm=e.alarm;
+    if(att.length)body.att=att;
+    const r=e.rule;
+    if(r&&r.simple){const ru={freq:r.freq,interval:r.interval||1};if(r.count)ru.count=r.count;else if(r.until)ru.until=dkey(addDays(this.pd(r.until),nd));body.rule=ru;}
+    const res=await J('POST','/api/cal/'+encodeURIComponent(x.c.id)+'/events',body);
+    if(!res)return false;
+    this.afterSave(res);return true;
+  },
+  async paste(){
+    const c=this.clip;if(!c)return;
+    const k=this.hover||this.selDay||(this.view=='day'?dkey(this.anchor):null);
+    if(!k){this.flash(t('Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.'));return;}
+    const nd=this.dayDiff(dkey(c.x.s),k);
+    if(c.cut){if(!nd){this.clip=null;this.clipBar();return;}if(await this.moveEv(c.x,nd))this.clip=null;}
+    else await this.copyEv(c.x,nd);
+  },
+  keys(ev){
+    if(sec!="cal")return;
+    const tg=ev.target;if(tg&&tg.closest&&tg.closest('input,textarea,select,[contenteditable=true]'))return;
+    if(ev.key=='Escape'){if(this.clip||this.rng){this.clip=null;this.rng=null;this.clipBar();this.markSel();}return;}
+    if(!(ev.ctrlKey||ev.metaKey)||ev.altKey)return;
+    const k=ev.key.toLowerCase();
+    if(k=='v'){if(!this.clip)return;ev.preventDefault();this.paste();return;}
+    if(k!='x'&&k!='c')return;
+    if(String(getSelection()).trim())return;
+    const x=this._evs.find(y=>this.keyOf(y)==this.curKey);
+    if(!x||!x.c.write)return;
+    ev.preventDefault();this.clip={key:this.curKey,cut:k=='x',x};this.clipBar();
   },
   alarmText(m){
     if(m==null)return '';
@@ -933,17 +1053,18 @@ S.cal={
     if(rec){$('#cdel1').onclick=()=>del(true);$('#cdelf').onclick=()=>del('f');}
     $('#cedt').onclick=()=>this.form(x);
   },
-  newEvent(){this.form(null);},
+  newEvent(){this.form(null,this.rng?{from:this.pd(this.rng.a),to:this.pd(this.rng.b)}:this.selDay?{day:this.pd(this.selDay)}:null);},
   /* Formular für neuen (x=null) oder zu bearbeitenden Termin (x aus events()) */
-  form(x){
+  form(x,pre){
     const w=this.cals.filter(c=>c.write);
     if(!w.length){alert(t('Kein beschreibbarer Kalender'));return;}
     const ed=!!x,e=x?x.e:null,rec=!!(e&&e.rec),r=e&&e.rule?e.rule:null;
     const cur=ed?x.c:(w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0]);
-    let a=new Date(this.anchor),b0;
+    let a=new Date(pre&&pre.day?pre.day:this.anchor),b0;
     if(ed){a=new Date(x.s);b0=new Date(x.en);}
+    else if(pre&&pre.from){a=new Date(pre.from);b0=addDays(new Date(pre.to),1);}
     else{a.setMinutes(0,0,0);if(dkey(a)==dkey(new Date()))a.setHours(new Date().getHours()+1);else a.setHours(9);b0=new Date(+a+3600e3);}
-    const ad0=ed&&x.allDay,loc=d=>dkey(d)+'T'+hhmm(d);
+    const ad0=ed?!!x.allDay:!!(pre&&pre.from),loc=d=>dkey(d)+'T'+hhmm(d);
     const v0=ad0?dkey(a):loc(a),e0=ad0?dkey(addDays(b0,-1)):loc(b0);
     const opt=(v,l,sel)=>'<option value="'+v+'"'+(sel?' selected':'')+'>'+l+'</option>';
     const fr=r?r.freq:'';
@@ -958,13 +1079,14 @@ S.cal={
       '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
       '<div class="row">'+t('von ')+'<input id="eb" type="'+(ad0?'date':'datetime-local')+'" value="'+v0+'"> '+t('bis')+' <input id="ee" type="'+(ad0?'date':'datetime-local')+'" value="'+e0+'"></div>'+
       (rec?'<div class="row"><label><input type="radio" name="esc" value="one" checked> '+t('Nur dieser Termin')+'</label> &nbsp; <label><input type="radio" name="esc" value="following"> '+t('Dieser und folgende')+'</label> &nbsp; <label><input type="radio" name="esc" value="all"> '+t('Alle Termine der Serie')+'</label></div>':'')+
+      (ed&&e.att&&e.att.length?'<div class="row muted">'+t('Teilnehmer: ')+e.att.map(a=>this.attText(a)).join(', ')+(e.org?' · '+t('Organisator: ')+esc(e.org):'')+'</div>':'')+
       '<div class="row">'+t('Erinnerung: ')+'<select id="eal">'+alOpts+'</select></div>'+
       '<div class="row" id="eatw">'+t('Teilnehmer: ')+'<input id="eat" style="width:380px" placeholder="'+t('Benutzername oder E-Mail, durch Komma getrennt')+'" value="'+esc(att0)+'"><div class="muted">'+t('Teilnehmer erhalten eine Einladung per E-Mail (wenn der Mailversand eingerichtet ist). Zu- und Absagen werden nicht ausgewertet.')+'</div></div>'+
       '<div class="row" id="erw">'+t('Wiederholung: ')+'<select id="erp"'+(rulable?'':' disabled')+'>'+opt('',t('keine'),!fr)+opt('DAILY',t('täglich'),fr=='DAILY')+opt('WEEKLY',t('wöchentlich'),fr=='WEEKLY')+opt('MONTHLY',t('monatlich'),fr=='MONTHLY')+opt('YEARLY',t('jährlich'),fr=='YEARLY')+(rulable?'':opt('X',esc(this.ruleText(r)),true))+'</select> '+
        '<span id="erx" style="display:none">'+t('Intervall')+' <input id="eri" type="number" min="1" max="99" style="width:55px" value="'+((r&&r.interval)||1)+'"> '+t('Ende')+': <select id="ere">'+opt('n',t('nie'),!(r&&(r.count||r.until)))+opt('c',t('nach Anzahl'),!!(r&&r.count))+opt('u',t('am Datum'),!!(r&&r.until&&!r.count))+'</select> '+
        '<input id="erc" type="number" min="1" max="999" style="width:70px" value="'+((r&&r.count)||10)+'"> <input id="eru" type="date" value="'+((r&&r.until)||'')+'"></span></div>'+
       (rec?'<div class="muted" id="ern">'+t('Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.')+'</div>':'')+
-      '<div class="row"><button id="ego">'+t('Speichern')+'</button> <button id="ecx">'+t('Abbrechen')+'</button></div></div>';
+      '<div class="row"><button id="ego">'+t('Speichern')+'</button> <button id="ecx">'+t('Abbrechen')+'</button>'+(ed?' <button id="edl">'+t('Löschen')+'</button>':'')+'</div></div>';
     $('#cdet').scrollIntoView({block:'nearest'});
     const scope=()=>{const q=document.querySelector('input[name=esc]:checked');return q?q.value:'all';};
     const syncRule=()=>{
@@ -977,8 +1099,14 @@ S.cal={
     ['erp','ere'].forEach(i=>$('#'+i).onchange=syncRule);
     document.querySelectorAll('input[name=esc]').forEach(q=>q.onchange=syncRule);syncRule();
     $('#ead').onchange=ev=>{const on=ev.target.checked,dd=on?'date':'datetime-local';$('#eb').type=dd;$('#ee').type=dd;
-      $('#eb').value=on?dkey(a):loc(a);$('#ee').value=on?dkey(a):loc(b0);};
+      const ld=addDays(b0,-1);$('#eb').value=on?dkey(a):loc(a);$('#ee').value=on?dkey(ld>a?ld:a):loc(b0);};
     $('#ecx').onclick=()=>{$('#cdet').innerHTML='';};
+    if(ed)$('#edl').onclick=async()=>{
+      const sc=rec?scope():'all';
+      if(!confirm(sc=='following'?t('Diesen und alle folgenden Termine löschen?'):sc=='one'?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
+      const q=sc=='following'?'?scope=following&rid='+encodeURIComponent(e.rid):sc=='one'?'?scope=one&rid='+encodeURIComponent(e.rid):'';
+      if(await api('DELETE','/api/cal/'+encodeURIComponent(cur.id)+'/events/'+encodeURIComponent(e.file)+q)){$('#cdet').innerHTML='';await this.load();this.paint();}
+    };
     $('#ego').onclick=async()=>{
       const adn=$('#ead').checked,b=$('#eb').value,en=$('#ee').value;if(!b||!$('#es').value.trim()){alert(t('Titel und Beginn angeben'));return;}
       const body={summary:$('#es').value,location:$('#el').value,description:$('#ed').value,allDay:adn,tz:(ed&&e.tz)||BTZ};
@@ -989,6 +1117,7 @@ S.cal={
       const alv=+$('#eal').value;if(ed?alv!=al0:alv>=0)body.alarm=alv;
       if(!one){const at=names($('#eat').value);if(at.join(',')!=names(att0).join(','))body.att=at;}
       if(sc=='following'){body.scope='following';body.rid=e.rid;}
+      else if(rec&&sc=='all')body.rid=e.rid; // Serie vom angeklickten Vorkommen aus: Server verschiebt den Serienbeginn passend
       if(one){body.scope='one';body.rid=e.rid;if(alv==al0)delete body.alarm;}
       else if(rulable){
         const f=$('#erp').value,em=$('#ere').value,iv=Math.max(1,+$('#eri').value||1);
@@ -1002,7 +1131,7 @@ S.cal={
       }
       const url='/api/cal/'+encodeURIComponent(ed?cur.id:$('#ec').value)+'/events';
       const res=await J(ed?'PUT':'POST',ed?url+'/'+encodeURIComponent(e.file):url,body);
-      if(res){if(res.mails>0)this.note=t('{0} Einladung(en) per E-Mail versendet.',res.mails);else if(res.mails<0)this.note=t('Einladungen nicht versendet: Stundenlimit erreicht.');$('#cdet').innerHTML='';this.range=null;await this.load();this.paint();}};
+      if(res){if(res.mails>0)this.note=t('{0} Einladung(en) per E-Mail versendet.',res.mails);else if(res.mails<0)this.note=t('Einladungen nicht versendet: Stundenlimit erreicht.');$('#cdet').innerHTML='';this.rng=null;this.range=null;await this.load();this.paint();}};
   },
   add(){
     const gm=me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);
@@ -1023,6 +1152,10 @@ S.cal={
     if(await api('DELETE','/api/cal/'+encodeURIComponent(sel))){sel=null;await this.load();this.draw();upd();}
   }
 };
+
+document.addEventListener('keydown',e=>S.cal.keys(e));
+/* Calc: Markierungssperre lösen, wenn der Fokus das Blatt verlässt (anderes Fenster, anderer Bereich) */
+document.addEventListener('focusout',()=>{if(!cur||dtype!='sheet')return;setTimeout(()=>{const a=document.activeElement;if(!document.hasFocus()||!a||!a.closest||!a.closest('#grid,#sbar'))selRelease();},300);});
 
 /* ---------- Calc + Text (gemeinsame Dokumentliste) ---------- */
 const exportFormats=type=>(type=='sheet'?[['csv','.csv (Excel)'],['xlsx','.xlsx (Excel)'],['cscalc','.cscalc (cs-team)']]:
@@ -1081,10 +1214,10 @@ function docSection(type){
 }
 S.calc=docSection('sheet');S.text=docSection('text');
 
-let items={},dtype,drw,locks={},curKey=null,hbKey=null,unlockT=null;
+let items={},dtype,drw,locks={},curKey=null,hbKey=null,unlockT=null,selT=null,selHeld=false,selSig='';
 let wsFail=0;   // Verbindungsversuche ohne init in Folge (Zugriff entzogen?)
 function openDoc(id){
-  if(ws)ws.close();cur=id;locks={};curKey=null;hbKey=null;
+  if(ws)ws.close();cur=id;locks={};curKey=null;hbKey=null;selHeld=false;selSig='';clearTimeout(selT);H.u=[];H.r=[];H.cur=null;prevFK=null;
   const w=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host+'/ws/'+encodeURIComponent(id));ws=w;
   w.onmessage=e=>{const m=JSON.parse(e.data);
     if(m.t=='init'){w.got=true;wsFail=0;items=m.items||{};dtype=m.type;drw=m.rw;locks={};for(const k in (m.locks||{}))if(m.locks[k]!=me.name)locks[k]={by:m.locks[k],ts:Date.now()};dtype=='sheet'?renderSheet():renderText();}
@@ -1092,17 +1225,19 @@ function openDoc(id){
       if(!c||m.item.ts>c.ts||(m.item.ts==c.ts&&m.item.by>c.by)){items[m.k]=m.item;dtype=='sheet'?updCell(m.k):renderText();}
       else if(m.item.ts==c.ts){dtype=='sheet'?updCell(m.k):renderText();}}   // Server schickt bei verworfener Änderung den alten Stand zurück
     else if(m.t=='lock'){if(m.by!=me.name){locks[m.k]={by:m.by,ts:Date.now()};lockUI(m.k);}}
-    else if(m.t=='unlock'){delete locks[m.k];lockUI(m.k);}};
+    else if(m.t=='unlock'){delete locks[m.k];lockUI(m.k);}
+    else if(m.t=='locks'){if(m.by!=me.name)for(const k of m.ks||[]){locks[k]={by:m.by,ts:Infinity};lockUI(k);}}   // Calc: Bereichssperre (Server meldet das Ende selbst)
+    else if(m.t=='unlocks'){for(const k of m.ks||[]){delete locks[k];lockUI(k);}}};
   w.onclose=()=>{if(cur!=id||ws!==w)return;
     if(!w.got&&++wsFail>=3){wsFail=0;cur=null;alert(t('Kein Zugriff mehr auf dieses Dokument.'));location.reload();return;}   // Recht entzogen oder Dokument gelöscht
     setTimeout(()=>{if(cur==id)openDoc(id);},1500);}; // Reconnect -> init = Resync (auch nach Rechteänderung)
 }
 const send=o=>ws&&ws.readyState==1&&ws.send(JSON.stringify(o));
 /* Weiche Sperre: wer in einer Zelle/einem Absatz schreibt, sperrt sie für andere (Heartbeat alle 10 s, Server löst nach 30 s) */
-setInterval(()=>{if(cur&&hbKey)send({t:'lock',k:hbKey});const n=Date.now();for(const k in locks)if(n-locks[k].ts>45000){delete locks[k];lockUI(k);}},10000);
+setInterval(()=>{if(cur&&hbKey)send({t:'lock',k:hbKey});if(cur&&dtype=='sheet'&&selHeld)sendSel(true);const n=Date.now();for(const k in locks)if(n-locks[k].ts>45000){delete locks[k];lockUI(k);}},10000);
 const lockedBy=k=>locks[k]&&locks[k].by;
-function lockFocus(k){clearTimeout(unlockT);curKey=k;if(drw&&!lockedBy(k)){hbKey=k;send({t:'lock',k});}}
-function lockBlur(k){clearTimeout(unlockT);unlockT=setTimeout(()=>{const a=document.activeElement;if(a&&a.dataset&&a.dataset.k==k)return;if(hbKey==k){send({t:'unlock',k});hbKey=null;}},250);}
+function lockFocus(k){clearTimeout(unlockT);curKey=k;if(dtype=='sheet')return;if(drw&&!lockedBy(k)){hbKey=k;send({t:'lock',k});}}
+function lockBlur(k){clearTimeout(unlockT);if(dtype=='sheet')return;unlockT=setTimeout(()=>{const a=document.activeElement;if(a&&a.dataset&&a.dataset.k==k)return;if(hbKey==k){send({t:'unlock',k});hbKey=null;}},250);}
 function lockUI(k){
   if(dtype=='sheet')lockCell(k);
   else renderText();
@@ -1129,10 +1264,11 @@ function rangeParas(ls){const ks=paras().map(x=>x[0]),i1=ks.indexOf(ls.k),i2=ks.
 const edOf=k=>document.querySelector('#doc .par[data-k="'+k+'"]');
 function textPara(patch){   // Text: Absatzformat (Liste, Nummerierung, Einrückung) für alle Absätze der Auswahl
   const ls=lastSel;if(!ls||!drw)return;let n=0;
+  hBegin(rangeParas(ls).map(x=>x.k).filter(k=>!lockedBy(k)));
   for(const x of rangeParas(ls)){const it=items[x.k],ed=edOf(x.k);if(!it||it.del||!ed||lockedBy(x.k))continue;
     const o=fmtObj(parF(it.f));patch(o);if(o.l)o.o=0;const f=fmtStr({l:o.l,o:o.o,n:o.n}),m=readEd(ed),r=runsStr(m.fm);
     items[x.k]=Object.assign({},it,{v:m.v,r,f});send({t:'set',k:x.k,v:m.v,r,pos:it.pos||0,f});n++;}
-  if(n)ovr={k:ls.k,a:ls.a,k2:ls.k2,b:ls.b};renderText();
+  hEnd();if(n)ovr={k:ls.k,a:ls.a,k2:ls.k2,b:ls.b};renderText();
 }
 const chAll=(fm,a,b,key)=>{for(let i=a;i<b;i++)if(!fmtObj(fm[i])[key])return false;return true;};
 function chApply(fm,a,b,key,val,all){for(let i=a;i<b;i++){if(key=='*'){fm[i]='';continue;}const o=fmtObj(fm[i]);o[key]=val==='toggle'?(all?0:1):(val||0);fm[i]=cfmt(fmtStr(o));}}
@@ -1144,15 +1280,16 @@ function textChar(key,val){   // Text: Zeichenformat auf die Markierung (val: 't
     if(!pend||pend.k!=ls.k||pend.pos!=ls.a)pendClear(),pend={k:ls.k,pos:ls.a,ch:{}};
     if(val==='toggle'&&pend.ch[key]==='toggle')delete pend.ch[key];else pend.ch[key]=val;
     const bt=document.querySelector('#fbar button[data-f="'+key+'"]');if(bt)bt.classList.toggle('on',pend.ch[key]==='toggle');
-    const ed=edOf(ls.k);ed.focus();setSel(ed,ls.a,ls.a);return;}
+    const ed=edOf(ls.k);$('#doc').focus({preventScroll:true});setSel(ed,ls.a,ls.a);return;}
   const mods=[];
   for(const x of rangeParas(ls)){const ed=edOf(x.k);if(!ed||!items[x.k]||items[x.k].del||lockedBy(x.k))continue;
     const m=readEd(ed),a=Math.min(x.from,m.v.length),b=Math.min(x.to,m.v.length);if(a<b)mods.push({k:x.k,m,a,b});}
   if(!mods.length)return;
+  hBegin(mods.map(d=>d.k));
   const all=val==='toggle'?mods.every(d=>chAll(d.m.fm,d.a,d.b,key)):false;
   for(const d of mods){chApply(d.m.fm,d.a,d.b,key,val,all);const it=items[d.k],r=runsStr(d.m.fm);
     items[d.k]=Object.assign({},it,{v:d.m.v,r});send({t:'set',k:d.k,v:d.m.v,r,pos:it.pos||0,f:it.f||''});}
-  ovr={k:ls.k,a:ls.a,k2:ls.k2,b:ls.b};renderText();
+  hEnd();ovr={k:ls.k,a:ls.a,k2:ls.k2,b:ls.b};renderText();
 }
 function fbarBind(type){
   const tx=type=='text';
@@ -1264,11 +1401,12 @@ function shiftRefs(f,dc,dr){
 
 /* ---- Zellen schreiben ---- */
 function setCells(list){   // [{k,v?,f?}] lokal übernehmen + senden (gesperrte Zellen auslassen)
-  let n=0;
-  for(const x of list){if(lockedBy(x.k))continue;const it=items[x.k]&&!items[x.k].del?items[x.k]:null;
+  let n=0,skip=0,by='';
+  for(const x of list){if(lockedBy(x.k)){skip++;by=lockedBy(x.k);continue;}const it=items[x.k]&&!items[x.k].del?items[x.k]:null;
     const v=x.v!==undefined?x.v:(it?it.v:''),f=x.f!==undefined?x.f:(it?it.f||'':'');
     if(it&&it.v===v&&(it.f||'')===f)continue;if(!it&&v===''&&f==='')continue;
     send({t:'set',k:x.k,v,f});items[x.k]={v,pos:0,ts:it?it.ts:0,by:it?it.by:'',f};n++;}
+  if(skip)sheetHint(t('{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.',skip,by));
   if(n)updAll();return n;
 }
 
@@ -1291,6 +1429,16 @@ function updAll(){
   updSel();
 }
 function updCell(){updAll();}
+/* Calc: schon die Markierung sperrt ihre Zellen für andere (Heartbeat mit der Markierung; Kopieren aus gesperrten Zellen geht weiter) */
+function sendSel(force){
+  if(!drw||dtype!='sheet')return;const R=rectOf(),sig=R.c1+','+R.r1+','+R.c2+','+R.r2;
+  if(!force&&selHeld&&sig==selSig)return;
+  selSig=sig;selHeld=true;send({t:'lockr',rc:[R.c1,R.r1,R.c2,R.r2]});
+}
+function selLock(now){clearTimeout(selT);if(!drw||dtype!='sheet')return;if(now)sendSel();else selT=setTimeout(sendSel,sc.drag?300:100);}
+function selRelease(){clearTimeout(selT);if(selHeld){selHeld=false;selSig='';send({t:'lockr',rc:[]});}}
+function sheetHint(m){const s=$('#sstat');if(!s)return;sheetHint.m=m;sheetHint.until=Date.now()+4000;s.textContent=m;s.style.color='#b45309';clearTimeout(sheetHint.t);sheetHint.t=setTimeout(updSel,4100);}
+sheetHint.until=0;
 function updSel(){
   const g=$('#grid');if(!g)return;const R=rectOf(),ak=ckey(sc.c,sc.r);
   for(const td of g.querySelectorAll('td')){const [c,r]=parseKey(td.dataset.k);
@@ -1300,6 +1448,8 @@ function updSel(){
   let cnt=0,sum=0,mn=Infinity,mx=-Infinity,cells=0;
   if(R.c1!=R.c2||R.r1!=R.r2)for(let c=R.c1;c<=R.c2;c++)for(let r=R.r1;r<=R.r2;r++){cells++;const x=valOf(ckey(c,r));if(typeof x=='number'){cnt++;sum+=x;mn=Math.min(mn,x);mx=Math.max(mx,x);}}
   $('#sstat').textContent=cells&&cnt?t('Summe: ')+fmtNum(sum)+' · '+t('Mittelwert: ')+fmtNum(sum/cnt)+' · '+t('Anzahl: ')+cnt+' · '+t('Min: ')+fmtNum(mn)+' · '+t('Max: ')+fmtNum(mx):(cells?cells+' '+t('Zellen'):'');
+  const ss=$('#sstat');if(sheetHint.until>Date.now()){ss.textContent=sheetHint.m;ss.style.color='#b45309';}else ss.style.color='';
+  selLock(false);
 }
 function lockCell(k){const td=cellEl(k);if(!td)return;const by=lockedBy(k);td.classList.toggle('locked',!!by);td.title=by?t('{0} schreibt gerade',by):'';}
 
@@ -1310,7 +1460,7 @@ function move(dc,dr,extend){
   if(!extend){sc.ac=sc.c;sc.ar=sc.r;}place(sc.c,sc.r,true);updSel();
 }
 function startEdit(initial){
-  if(!drw)return;const k=ckey(sc.c,sc.r);if(lockedBy(k))return;const td=place(sc.c,sc.r,true),e=$('#ced');if(!td)return;
+  if(!drw)return;const k=ckey(sc.c,sc.r);if(lockedBy(k)){sheetHint(t('Die Zelle wird gerade von {0} bearbeitet.',lockedBy(k)));return;}const td=place(sc.c,sc.r,true),e=$('#ced');if(!td)return;
   sc.edit=true;e.dataset.k=k;e.style.cssText='display:block;position:absolute;left:'+td.offsetLeft+'px;top:'+td.offsetTop+'px;width:'+Math.max(td.offsetWidth,120)+'px;height:'+td.offsetHeight+'px';
   e.value=initial!=null?initial:raw(k);e.focus();const n=e.value.length;e.setSelectionRange(n,n);$('#fx').value=e.value;lockFocus(k);
 }
@@ -1375,7 +1525,8 @@ function bindGrid(){
     else if(th){ev.preventDefault();sc.ac=0;sc.ar=1;sc.c=COLS-1;sc.r=ROWS;g.focus();updSel();}
   };
   g.onmouseover=ev=>{if(!sc.drag)return;const td=tdOf(ev);if(td){const [c,r]=parseKey(td.dataset.k);if(c!=sc.c||r!=sc.r){sc.c=c;sc.r=r;updSel();}}};
-  document.onmouseup=()=>{sc.drag=false;};
+  document.onmouseup=()=>{if(sc.drag){sc.drag=false;selLock(true);}};
+  g.addEventListener('focusin',()=>selLock(true));$('#sbar').addEventListener('focusin',()=>selLock(true));
   g.ondblclick=ev=>{if(tdOf(ev))startEdit(null);};
   g.oncopy=ev=>{if(ev.target!==e)copySel(ev,false);};g.oncut=ev=>{if(ev.target!==e)copySel(ev,true);};
   g.onpaste=ev=>{if(ev.target===e)return;ev.preventDefault();pasteText(ev.clipboardData.getData('text/plain'));};
@@ -1407,10 +1558,10 @@ function bindGrid(){
   fx.onkeydown=ev=>{if(ev.key=='Enter'){ev.preventDefault();if(drw)setCells([{k:ckey(sc.c,sc.r),v:fx.value}]);g.focus();}else if(ev.key=='Escape'){fx.value=raw(ckey(sc.c,sc.r));g.focus();}};
 }
 
-/* Text (Absatz-LWW): ein Absatz ist ein contenteditable, jede Zeile (Shift+Enter) ein div.
+/* Text (Absatz-LWW): ein durchgehendes contenteditable (#doc), je Absatz ein Block (.par), jede Zeile (Shift+Enter) ein div.
    Absatzformat in f (l Aufzählung, o Nummerierung, nN Einrückung), Zeichenformate als Läufe in r ("5:b;3:;4:c#ff0000"). */
 function paras(){return Object.entries(items).filter(([k,i])=>!i.del).sort((a,b)=>(a[1].pos||0)-(b[1].pos||0)||(a[0]<b[0]?-1:1));}
-let focusKey=null,focusPos=0,ovr=null,lastSel=null;
+let ovr=null,lastSel=null;
 const nid=()=>'p'+Math.random().toString(36).slice(2,10);
 const parF=f=>{const o=fmtObj(f);return fmtStr({l:o.l,o:o.l?0:o.o,n:o.n});};
 const cfmt=f=>{const o=fmtObj(f);return fmtStr({b:o.b,i:o.i,u:o.u,s:o.s,c:o.c,g:o.g});};
@@ -1458,85 +1609,261 @@ function locIn(ed,p){
 }
 function setSel2(e1,a,e2,b){try{const r=document.createRange(),s=getSelection();r.setStart(...locIn(e1,a));r.setEnd(...locIn(e2,b));s.removeAllRanges();s.addRange(r);}catch(e){}}
 const setSel=(ed,a,b)=>setSel2(ed,a,ed,b);
-/* aktuelle Auswahl über einen oder mehrere Absätze: {k,a,k2,b} */
+/* aktuelle Auswahl über einen oder mehrere Absätze: {k,a,k2,b} (Endpunkte auf Absatzgrenzen normalisiert) */
+function paraEl(n){const e=n&&(n.nodeType==1?n:n.parentElement);return e&&e.closest?e.closest('#doc .par'):null;}
+function ptOf(n,o){
+  const box=document.getElementById('doc');if(!box||!n||!box.contains(n))return null;
+  const p=paraEl(n);if(p&&p.dataset.k)return {k:p.dataset.k,pos:readEd(p,[[n,o]]).pos[0]};
+  const rows=[...box.children].filter(r=>r.classList.contains('prow'));if(!rows.length)return null;
+  let row,end=false;
+  if(n===box){if(o<rows.length)row=rows[o];else{row=rows[rows.length-1];end=true;}}
+  else{row=n.nodeType==1?n:n.parentElement;row=row&&row.closest?row.closest('.prow'):null;end=!!row&&o>0;}
+  const pe=row&&row.firstChild;if(!pe||!pe.dataset||!pe.dataset.k)return null;
+  return {k:pe.dataset.k,pos:end?readEd(pe).v.length:0};
+}
 function curSel(){const s=getSelection();if(!s.rangeCount)return null;const r=s.getRangeAt(0);
-  const pe=n=>{const el=n.nodeType==1?n:n.parentElement;return el&&el.closest?el.closest('#doc .par'):null;};
-  const e1=pe(r.startContainer),e2=pe(r.endContainer);if(!e1||!e2||!e1.dataset.k||!e2.dataset.k)return null;
-  return {k:e1.dataset.k,a:readEd(e1,[[r.startContainer,r.startOffset]]).pos[0],k2:e2.dataset.k,b:readEd(e2,[[r.endContainer,r.endOffset]]).pos[0]};}
+  const p1=ptOf(r.startContainer,r.startOffset),p2=ptOf(r.endContainer,r.endOffset);if(!p1||!p2)return null;
+  return {k:p1.k,a:p1.pos,k2:p2.k,b:p2.pos};}
 let pend=null;   // Format für den nächsten getippten Text (Cursor ohne Markierung)
 function pendClear(){pend=null;document.querySelectorAll('#fbar button.on').forEach(b=>b.classList.remove('on'));}
+
+/* Text als ein durchgehendes Feld (#doc, contenteditable): Markieren, Löschen, Ausschneiden und Einfügen gehen über Absatzgrenzen.
+   Absätze sind Blöcke darin; ein von anderen bearbeiteter Absatz ist contenteditable=false. Eingaben über Absatzgrenzen (und Enter,
+   Rückschritt/Entf an der Absatzgrenze) werden abgefangen und im Absatzmodell (items) ausgeführt, nie vom Browser im DOM. */
+function syncLive(s){   // Absätze mit Cursor/Markierungsende: das DOM ist neuer als items, wenn Echos eigener Eingaben noch unterwegs sind
+  if(!s)return;
+  for(const k of new Set([s.k,s.k2])){const ed=edOf(k),it=items[k];if(!ed||!it||it.del||lockedBy(k))continue;
+    const m=readEd(ed),r=runsStr(m.fm);if(it.v!==m.v||(it.r||'')!==r)items[k]=Object.assign({},it,{v:m.v,r});}
+}
+const itModel=k=>{const i=items[k]||{},v=i.v||'';return {v,fm:runsParse(i.r,v.length)};};
+function putP(k,v,fm,f){const it=items[k]||{},r=runsStr(fm),ff=f===undefined?(it.f||''):f;
+  items[k]=Object.assign({},it,{v,r,f:ff,del:false});send({t:'set',k,v,r,pos:it.pos||0,f:ff});}
+function delP(k){items[k]=Object.assign({},items[k],{v:'',r:'',f:'',del:true});send({t:'del',k});}
+const rangeKeys=s=>{const ks=paras().map(x=>x[0]),i=ks.indexOf(s.k),j=ks.indexOf(s.k2);return i<0||j<0||j<i?null:ks.slice(i,j+1);};
+let thT=null;
+function textHint(m){const box=document.getElementById('doc');if(!box)return;let h=document.getElementById('thint');
+  if(!h){h=document.createElement('div');h.id='thint';h.className='muted';h.style.cssText='color:#b26a00;min-height:1.2em';box.insertAdjacentElement('beforebegin',h);}
+  h.textContent=m;clearTimeout(thT);thT=setTimeout(()=>{h.textContent='';},4500);}
+function busy(ks){const b=ks.map(lockedBy).find(Boolean);if(b){textHint(t('Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.',b));return true;}return false;}
+/* Rückgängig/Wiederholen (eigener Verlauf; der Browser-Verlauf ist abgeschaltet, weil er das DOM kennt, nicht das Absatzmodell) */
+const snap=k=>{const i=items[k];return i&&!i.del?{v:i.v||'',r:i.r||'',f:i.f||'',pos:i.pos||0}:null;};
+const sameP=(a,b)=>(!a&&!b)||(!!a&&!!b&&a.v===b.v&&a.r===b.r&&a.f===b.f);
+const H={u:[],r:[],cur:null,t:0};let selPre=null;   // Markierung vor dem Eingabeereignis (für den Cursor nach Rückgängig)
+function hBegin(keys,co,join){
+  const now=Date.now(),top=H.u[H.u.length-1];
+  if(co&&H.cur&&H.cur===top&&H.cur.co===co&&now-H.t<1500){H.t=now;return;}   // fortlaufendes Tippen im selben Absatz
+  if(join&&H.cur&&H.cur===top){for(const k of keys)if(!H.cur.s.some(x=>x.k==k))H.cur.s.push({k,b:snap(k),a:null});H.t=now;return;}
+  H.cur={co:co||'',s:keys.map(k=>({k,b:snap(k),a:null})),sel:selPre||curSel(),sa:null};selPre=null;H.t=now;H.u.push(H.cur);if(H.u.length>200)H.u.shift();H.r=[];
+}
+function hEnd(sa){if(!H.cur)return;for(const x of H.cur.s)x.a=snap(x.k);if(sa)H.cur.sa=sa;}
+function hApply(tgt,k){
+  if(!tgt){delP(k);return;}
+  items[k]=Object.assign({},items[k],{v:tgt.v,r:tgt.r,f:tgt.f,pos:tgt.pos,del:false});send({t:'set',k,v:tgt.v,r:tgt.r,pos:tgt.pos,f:tgt.f});
+}
+function hUndo(redo){
+  if(!drw)return;syncLive(curSel());const from=redo?H.r:H.u,to=redo?H.u:H.r,e=from[from.length-1];if(!e)return;
+  if(e.s.some(x=>lockedBy(x.k))||!e.s.every(x=>sameP(snap(x.k),redo?x.b:x.a))){from.pop();textHint(t('Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.'));return;}
+  from.pop();for(const x of e.s)hApply(redo?x.a:x.b,x.k);to.push(e);H.cur=null;
+  const s=redo?e.sa:e.sel;if(s&&items[s.k]&&!items[s.k].del&&items[s.k2]&&!items[s.k2].del)ovr=s;
+  renderText();
+}
+/* Markierung s (auch über mehrere Absätze) durch den Text iv ersetzen; Ergebnis: Cursor {k,a} oder null */
+function replaceSel(s,iv,ifm,join){
+  const ks=rangeKeys(s);if(!ks||busy(ks))return null;
+  const m1=itModel(ks[0]),m2=itModel(ks[ks.length-1]),a=Math.min(s.a,m1.v.length),b=Math.min(s.b,m2.v.length);
+  const nv=m1.v.slice(0,a)+iv+m2.v.slice(b);if(nv.length>60000)return null;
+  hBegin(ks,'',join);
+  putP(ks[0],nv,m1.fm.slice(0,a).concat(ifm,m2.fm.slice(b)));
+  for(const k of ks.slice(1))delP(k);
+  const c={k:ks[0],a:a+iv.length};hEnd({k:c.k,a:c.a,k2:c.k,b:c.a});return c;
+}
+const caretAt=c=>{ovr={k:c.k,a:c.a,k2:c.k,b:c.a};renderText();};
+function doEnter(s,shift){
+  if(shift){const c=replaceSel(s,'\n',[''],false);if(c)caretAt(c);return;}   // Shift+Enter: neue Zeile im Absatz
+  let k=s.k,a=s.a,join=false;
+  if(s.k!=s.k2||s.a!=s.b){const c=replaceSel(s,'',[],false);if(!c)return;k=c.k;a=c.a;join=true;}
+  if(busy([k]))return;
+  const it=items[k]||{},pf=parF(it.f),m=itModel(k);
+  if(m.v===''&&(fmtObj(pf).l||fmtObj(pf).o)){hBegin([k],'',join);putP(k,'',[],fmtStr({n:fmtObj(pf).n}));hEnd({k,a:0,k2:k,b:0});caretAt({k,a:0});return;}   // leere Listenzeile beendet die Liste
+  const l=paras(),ix=l.findIndex(x=>x[0]==k),nx=l[ix+1],nk=nid(),npos=nx?((it.pos||0)+(nx[1].pos||0))/2:(it.pos||0)+1;
+  hBegin([k,nk],'',join);
+  putP(k,m.v.slice(0,a),m.fm.slice(0,a));   // neuer Absatz: Text hinter dem Cursor wandert mit
+  items[nk]={v:'',r:'',pos:npos,f:pf,ts:0,by:''};putP(nk,m.v.slice(a),m.fm.slice(a),pf);
+  hEnd({k:nk,a:0,k2:nk,b:0});caretAt({k:nk,a:0});
+}
+function mergeBack(k){   // Rückschritt am Absatzanfang: mit dem vorigen Absatz verbinden
+  const l=paras(),ix=l.findIndex(x=>x[0]==k),pv=l[ix-1],m=itModel(k);
+  if(!pv){if(m.v===''&&l.length>1&&!busy([k])){hBegin([k]);delP(k);hEnd();caretAt({k:l[1][0],a:0});}return;}
+  if(busy([k,pv[0]]))return;
+  const pm=itModel(pv[0]);hBegin([pv[0],k]);
+  putP(pv[0],pm.v+m.v,pm.fm.concat(m.fm));delP(k);hEnd({k:pv[0],a:pm.v.length,k2:pv[0],b:pm.v.length});caretAt({k:pv[0],a:pm.v.length});
+}
+function mergeFwd(k){   // Entf am Absatzende: den nächsten Absatz anhängen
+  const l=paras(),ix=l.findIndex(x=>x[0]==k),nx=l[ix+1];if(!nx||busy([k,nx[0]]))return;
+  const m=itModel(k),nm=itModel(nx[0]);hBegin([k,nx[0]]);
+  putP(k,m.v+nm.v,m.fm.concat(nm.fm));delP(nx[0]);hEnd({k,a:m.v.length,k2:k,b:m.v.length});caretAt({k,a:m.v.length});
+}
+function pasteParas(s,P){   // mehrere Absätze (eigene Zwischenablage) einfügen
+  let k=s.k,a=s.a,join=false;
+  if(s.k!=s.k2||s.a!=s.b){const c=replaceSel(s,'',[],false);if(!c)return;k=c.k;a=c.a;join=true;}
+  if(busy([k]))return;
+  const m=itModel(k),it=items[k]||{},l=paras(),ix=l.findIndex(x=>x[0]==k),nx=l[ix+1],n=P.length,p0=it.pos||0,p1=nx?(nx[1].pos||0):p0+n;
+  const L=m.v.slice(0,a),Lf=m.fm.slice(0,a),R=m.v.slice(a),Rf=m.fm.slice(a);
+  if(L.length+P[0].v.length>60000||P[n-1].v.length+R.length>60000)return;
+  const nk=[];for(let i=1;i<n;i++)nk.push(nid());
+  hBegin([k].concat(nk),'',join);
+  putP(k,L+P[0].v,Lf.concat(P[0].fm));
+  for(let i=1;i<n;i++){const key=nk[i-1],last=i==n-1;
+    items[key]={v:'',r:'',pos:p0+(p1-p0)*i/n,f:P[i].f,ts:0,by:''};
+    putP(key,last?P[i].v+R:P[i].v,last?P[i].fm.concat(Rf):P[i].fm,P[i].f);}
+  const lk=nk[n-2],lp=P[n-1].v.length;hEnd({k:lk,a:lp,k2:lk,b:lp});caretAt({k:lk,a:lp});
+}
+let clipDoc=null;   // zuletzt kopierte Absätze (bleibt über Absatzgrenzen strukturiert)
+function clipOf(s){const ks=rangeKeys(s);if(!ks)return null;
+  const P=ks.map((k,i)=>{const m=itModel(k),f=i==0?Math.min(s.a,m.v.length):0,e=i==ks.length-1?Math.min(s.b,m.v.length):m.v.length;
+    return {v:m.v.slice(f,e),fm:m.fm.slice(f,e),f:(items[k]&&items[k].f)||''};});
+  return {text:P.map(p=>p.v).join('\n'),html:'<div>'+P.map(p=>linesHtml(p.v,p.fm,null)).join('')+'</div>',paras:P};}
+function textCopy(e,cut){const s=curSel();if(!s||(s.k==s.k2&&s.a==s.b))return;const c=clipOf(s);if(!c)return;
+  e.preventDefault();e.clipboardData.setData('text/plain',c.text);e.clipboardData.setData('text/html',c.html);clipDoc={text:c.text,paras:c.paras};
+  if(cut&&drw){const r=replaceSel(s,'',[],false);if(r)caretAt(r);}}
+function selEnds(keepAnchor,toEnd){   // Strg+A (ganzer Text) bzw. Strg+Umschalt+Pos1/Ende (Markierung bis Textanfang/-ende)
+  const ps=paras();if(!ps.length)return;const s=getSelection();
+  const eFirst=edOf(ps[0][0]),eLast=edOf(ps[ps.length-1][0]);if(!eFirst||!eLast)return;
+  const [fn,fo]=locIn(eFirst,0),[ln,lo]=locIn(eLast,itModel(ps[ps.length-1][0]).v.length);
+  try{if(!keepAnchor)s.setBaseAndExtent(fn,fo,ln,lo);else s.setBaseAndExtent(s.anchorNode,s.anchorOffset,toEnd?ln:fn,toEnd?lo:fo);}catch(x){}
+}
+const ARROWS=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'];
+const COMP=['insertCompositionText','insertFromComposition','deleteCompositionText'];
+function textInit(box){
+  if(box._rows)return;box._rows=new Map();
+  if(drw){box.contentEditable='true';box.spellcheck=true;}
+  box.tabIndex=0;
+  box.addEventListener('beforeinput',e=>{
+    if(!drw){e.preventDefault();return;}
+    const it_=e.inputType||'';
+    if(it_=='historyUndo'||it_=='historyRedo'){e.preventDefault();hUndo(it_=='historyRedo');return;}
+    if(it_.startsWith('format')){e.preventDefault();const f={formatBold:'b',formatItalic:'i',formatUnderline:'u'}[it_];if(f)textChar(f,'toggle');return;}
+    if(COMP.includes(it_))return;
+    const s=curSel();if(!s){e.preventDefault();return;}
+    syncLive(s);selPre=s;
+    const multi=s.k!=s.k2,range=multi||s.a!=s.b;
+    if(lockedBy(s.k)||lockedBy(s.k2)){e.preventDefault();busy([s.k,s.k2]);return;}
+    const dat=()=>e.data!=null?e.data:((e.dataTransfer&&e.dataTransfer.getData('text/plain'))||'');
+    if(it_=='insertParagraph'||it_=='insertLineBreak'){e.preventDefault();doEnter(s,it_=='insertLineBreak');return;}
+    if(it_=='insertText'||it_=='insertReplacementText'){
+      if(!multi)return;   // innerhalb eines Absatzes: Browser, das input-Ereignis liest den Absatz
+      e.preventDefault();const d=dat().replace(/\r\n?/g,'\n'),m=itModel(s.k),f0=s.a>0?m.fm[s.a-1]||'':'';
+      const c=replaceSel(s,d,Array.from({length:d.length},()=>f0),false);if(c)caretAt(c);return;}
+    if(/^delete.*(Backward|Forward)$/.test(it_)){
+      const back=it_.endsWith('Backward');
+      if(range){e.preventDefault();const c=replaceSel(s,'',[],false);if(c)caretAt(c);return;}
+      if(back&&s.a==0){e.preventDefault();mergeBack(s.k);return;}
+      if(!back&&s.a>=itModel(s.k).v.length){e.preventDefault();mergeFwd(s.k);return;}
+      return;}
+    e.preventDefault();   // alles andere (Einfügen/Ziehen, Listen, Links ...) macht der Editor selbst oder gar nicht
+  });
+  box.addEventListener('input',e=>{
+    if(!drw)return;
+    const sel=getSelection(),ed=sel.rangeCount?paraEl(sel.anchorNode):null;
+    if(!ed||!ed.dataset.k){renderText();return;}
+    const k=ed.dataset.k,m=readEd(ed),it=items[k]||{};
+    if(pend&&pend.k==k){const sl=selOf(ed),n=m.v.length-(it.v||'').length;pendApply:{   // Format vor dem Tippen gewählt: auf den neuen Text anwenden
+      if(!sl||sl.a!=sl.b||n<=0||sl.a-n<0)break pendApply;const p=sl.a,s0=p-n;
+      for(const key in pend.ch)chApply(m.fm,s0,p,key,pend.ch[key],chAll(m.fm,s0,p,key));
+      pendClear();applyModel(k,m.v,m.fm,p,p);return;}
+      pendClear();}
+    hBegin([k],'t:'+k);
+    const r=runsStr(m.fm);
+    items[k]=Object.assign({},it,{v:m.v,r});send({t:'set',k,v:m.v,r,pos:it.pos||0,f:it.f||''});hEnd();
+    const row=ed.parentElement;if(row)row._sig=sigOf(items[k],lockedBy(k),row._marks);
+    if(ed.children.length!=m.v.split('\n').length||[...ed.childNodes].some(n=>n.nodeType!=1||n.tagName!='DIV')){if(row)row._sig=null;renderText();}   // Struktur geradeziehen (Zeilenmarken)
+  });
+  box.addEventListener('paste',e=>{
+    e.preventDefault();if(!drw)return;const s=curSel();if(!s)return;syncLive(s);
+    const txt=((e.clipboardData&&e.clipboardData.getData('text/plain'))||'').replace(/\r\n?/g,'\n');if(!txt)return;
+    if(clipDoc&&clipDoc.text===txt&&clipDoc.paras.length>1){pasteParas(s,clipDoc.paras);return;}
+    const m=itModel(s.k),f0=s.a>0?m.fm[s.a-1]||'':'';
+    const c=replaceSel(s,txt,Array.from({length:txt.length},()=>f0),false);if(c)caretAt(c);
+  });
+  box.addEventListener('copy',e=>textCopy(e,false));
+  box.addEventListener('cut',e=>textCopy(e,true));
+  box.addEventListener('compositionstart',()=>{const s=curSel();if(drw&&s&&s.k!=s.k2){syncLive(s);const c=replaceSel(s,'',[],false);if(c)caretAt(c);}});   // Eingabemethode über mehreren Absätzen: erst Markierung löschen
+  box.addEventListener('dragstart',e=>e.preventDefault());
+  box.addEventListener('dragover',e=>e.preventDefault());
+  box.addEventListener('drop',e=>e.preventDefault());
+  box.addEventListener('mousedown',pendClear);
+  box.addEventListener('keydown',e=>{
+    if(ARROWS.includes(e.key))pendClear();
+    if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.isComposing){const c=e.key.toLowerCase();
+      if(c=='z'){e.preventDefault();hUndo(e.shiftKey);}else if(c=='y'){e.preventDefault();hUndo(true);}
+      else if(c=='a'){e.preventDefault();selEnds(false,true);}   // der Browser kann nicht über einen gesperrten (nicht editierbaren) Absatz hinweg markieren
+      else if(e.shiftKey&&(e.key=='Home'||e.key=='End')){e.preventDefault();selEnds(true,e.key=='End');}}
+    else if(e.shiftKey&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&(e.key=='ArrowDown'||e.key=='ArrowUp')){   // Markierung auch über einen gesperrten Nachbarabsatz erweitern
+      const s=getSelection(),n0=s.focusNode,o0=s.focusOffset,dn=e.key=='ArrowDown';
+      setTimeout(()=>{const s2=getSelection();if(s2.focusNode!==n0||s2.focusOffset!==o0)return;
+        const fp=ptOf(n0,o0);if(!fp)return;const ks=paras().map(x=>x[0]),i=ks.indexOf(fp.k)+(dn?1:-1),nk=ks[i];if(!nk||!lockedBy(nk))return;
+        const ed=edOf(nk),len=itModel(nk).v.length,[nd,no]=locIn(ed,dn?Math.min(fp.pos,len):Math.min(fp.pos,len));
+        try{s2.setBaseAndExtent(s2.anchorNode,s2.anchorOffset,nd,no);}catch(x){}},0);}
+  });
+  box.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a');if(a&&box.contains(a)&&!String(getSelection()).length){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});
+  box.addEventListener('focusin',()=>clearTimeout(unlockT));
+  box.addEventListener('focusout',()=>{clearTimeout(unlockT);unlockT=setTimeout(()=>{
+    if(document.activeElement===box)return;
+    if(hbKey){send({t:'unlock',k:hbKey});hbKey=null;}
+    prevFK=null;box.querySelectorAll('.par.cur').forEach(x=>x.classList.remove('cur'));},250);});
+}
+let prevFK=null;
+function lockMove(k){clearTimeout(unlockT);if(hbKey&&hbKey!==k)send({t:'unlock',k:hbKey});curKey=k;if(!lockedBy(k)){hbKey=k;send({t:'lock',k});}else hbKey=null;}
 document.addEventListener('selectionchange',()=>{const c=curSel();if(!c)return;lastSel=c;
-  if(pend&&(pend.k!=c.k||c.k2!=c.k||c.a!=c.b||c.a<pend.pos))pendClear();});
+  if(pend&&(pend.k!=c.k||c.k2!=c.k||c.a!=c.b||c.a<pend.pos))pendClear();
+  const box=document.getElementById('doc');if(!box||!box._rows)return;
+  const s=getSelection(),fp=ptOf(s.focusNode,s.focusOffset),fk=fp&&fp.k;
+  if(fk&&fk!==prevFK){const pk=prevFK;prevFK=fk;
+    box.querySelectorAll('.par.cur').forEach(x=>x.classList.remove('cur'));const fe=edOf(fk);if(fe)fe.classList.add('cur');
+    if(drw)lockMove(fk);
+    if(pk&&pk!==c.k&&pk!==c.k2){const pe=edOf(pk),row=pe&&pe.parentElement;   // verlassener Absatz: Links nachträglich erkennen
+      if(row&&!pe.querySelector('a')&&/https?:\/\/\S{3}/.test(pe.textContent)){row._sig=null;renderText();}}}
+});
 /* Modell übernehmen: lokal merken, senden, Absatz neu zeichnen (Auswahl a..b bleibt) */
 function applyModel(k,v,fm,a,b){
-  const it=items[k]||{},r=runsStr(fm);
-  items[k]=Object.assign({},it,{v,r});send({t:'set',k,v,r,pos:it.pos||0,f:it.f||''});
-  ovr={k,v,fm,a,b};renderText();
+  hBegin([k],'t:'+k);putP(k,v,fm);hEnd();
+  ovr={k,a,k2:k,b};renderText();
 }
+const sigOf=(i,by,marks)=>[i.v||'',i.r||'',parF(i.f),by||'',marks?marks.join(','):'-',drw?1:0].join('\u0001');
 function renderText(){
   const box=$('#doc');if(!box)return;
-  const act=document.activeElement,aed=act&&act.classList&&act.classList.contains('par')&&box.contains(act)?act:null;
-  let ak=null,am=null,as=null;
-  let sel2=null;
-  if(ovr){if(ovr.v!==undefined){ak=ovr.k;am=ovr;as=[ovr.a,ovr.b];}else sel2=ovr;ovr=null;}
-  else if(aed){ak=aed.dataset.k;const sl=selOf(aed);am=sl?sl.m:readEd(aed);as=sl?[sl.a,sl.b]:[am.v.length,am.v.length];}   // eigenen Absatz beim Tippen nie überschreiben
-  box.innerHTML='';
-  const ps=paras();
-  if(!ps.length){if(drw)send({t:'set',k:nid(),v:'',pos:1});return;}
-  const cnt=[];
+  textInit(box);
+  if(drw!==box._rw){box._rw=drw;if(drw){box.contentEditable='true';box.spellcheck=true;}else box.removeAttribute('contenteditable');}
+  const want=ovr;ovr=null;
+  const cs=want||(document.activeElement===box?curSel():null);
+  for(const n of [...box.childNodes])if(!(n.classList&&n.classList.contains('prow')))n.remove();   // Streuinhalt des Browsers
+  const ps=paras(),seen=new Set(),redrawn=new Set(),cnt=[];
+  if(!ps.length){box._rows.clear();box.innerHTML='';if(drw)send({t:'set',k:nid(),v:'',pos:1});return;}
+  const sf=getSelection(),lp_=(!want&&document.activeElement===box&&sf.rangeCount)?ptOf(sf.focusNode,sf.focusOffset):null,live=lp_&&lp_.k;   // Absatz mit Cursor: beim Tippen nie aus dem (evtl. veralteten) Modell überschreiben
+  let idx=0;
   for(const [k,i] of ps){
-    const o=fmtObj(parF(i.f)),by=lockedBy(k),mode=o.l?'l':o.o?'o':'';
-    const row=document.createElement('div');row.className='prow';row.style.marginLeft=((o.n||0)*28)+'px';
-    const ed=document.createElement('div');ed.className='par'+(mode?' '+mode:'')+(by?' locked':'');ed.dataset.k=k;
-    ed.contentEditable=(drw&&!by)?'true':'false';if(by)ed.title=t('{0} schreibt gerade',by);
-    const v=k===ak?am.v:i.v,fm=k===ak?am.fm:runsParse(i.r,v.length),lines=v.split('\n').length;
+    const o=fmtObj(parF(i.f)),by=lockedBy(k),mode=o.l?'l':o.o?'o':'',v=i.v||'',lines=v.split('\n').length;
     let marks=null;
     if(mode=='l'){marks=Array(lines).fill('•');cnt.length=0;}
     else if(mode=='o'){const L=o.n||0;cnt.length=L+1;marks=[];for(let x=0;x<lines;x++){cnt[L]=(cnt[L]||0)+1;marks.push(cnt[L]+'.');}}
     else cnt.length=0;
-    ed.innerHTML=linesHtml(v,fm,marks);
-    ed.onfocus=()=>lockFocus(k);
-    ed.onblur=()=>{lockBlur(k);if(!ed.querySelector('a')&&/https?:\/\/\S{3}/.test(ed.textContent)){const m=readEd(ed),mk=[...ed.children].map(d=>d.dataset.m);
-      if(mk.length==m.v.split('\n').length)ed.innerHTML=linesHtml(m.v,m.fm,mk[0]===undefined?null:mk);}};
-    ed.onclick=e=>{const a=e.target.closest&&e.target.closest('a');if(a&&ed.contains(a)&&!String(getSelection()).length){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}};
-    ed.onmousedown=()=>pendClear();
-    ed.oninput=()=>{const m=readEd(ed),it=items[k]||{};
-      if(pend&&pend.k==k){const sl=selOf(ed),n=m.v.length-(it.v||'').length;pendApply:{   // Format vor dem Tippen gewählt: auf den neuen Text anwenden
-        if(!sl||sl.a!=sl.b||n<=0||sl.a-n<0)break pendApply;const p=sl.a,s0=p-n;
-        for(const key in pend.ch)chApply(m.fm,s0,p,key,pend.ch[key],chAll(m.fm,s0,p,key));
-        pendClear();applyModel(k,m.v,m.fm,p,p);return;}
-        pendClear();}
-      const r=runsStr(m.fm);
-      items[k]=Object.assign({},it,{v:m.v,r});send({t:'set',k,v:m.v,r,pos:it.pos||0,f:it.f||''});
-      if(ed.children.length!=m.v.split('\n').length||[...ed.childNodes].some(n=>n.nodeType!=1||n.tagName!='DIV'))renderText();};   // Struktur geradeziehen (Zeilenmarken)
-    ed.onpaste=e=>{e.preventDefault();const txt=((e.clipboardData&&e.clipboardData.getData('text/plain'))||'').replace(/\r\n?/g,'\n');const sl=selOf(ed);if(!txt||!sl)return;
-      const {a,b,m}=sl,f0=a>0?m.fm[a-1]||'':'';if(m.v.length-(b-a)+txt.length>60000)return;
-      applyModel(k,m.v.slice(0,a)+txt+m.v.slice(b),m.fm.slice(0,a).concat(Array.from({length:txt.length},()=>f0),m.fm.slice(b)),a+txt.length,a+txt.length);};
-    ed.onkeydown=e=>{
-      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(e.key))pendClear();
-      if(e.isComposing||e.ctrlKey||e.metaKey||e.altKey)return;
-      if(e.key=='Enter'){e.preventDefault();const sl=selOf(ed);if(!sl)return;const {a,b,m}=sl;
-        if(e.shiftKey){applyModel(k,m.v.slice(0,a)+'\n'+m.v.slice(b),m.fm.slice(0,a).concat([''],m.fm.slice(b)),a+1,a+1);return;}   // neue Zeile im Absatz
-        const it=items[k]||{},pf=parF(it.f);
-        if(m.v===''&&(fmtObj(pf).l||fmtObj(pf).o)){const f=fmtStr({n:fmtObj(pf).n});items[k]=Object.assign({},it,{f});send({t:'set',k,v:'',r:'',pos:it.pos||0,f});renderText();return;}   // leere Listenzeile beendet die Liste
-        const l=paras(),ix=l.findIndex(x=>x[0]==k),nx=l[ix+1],nk=nid(),npos=nx?((it.pos||0)+(nx[1].pos||0))/2:(it.pos||0)+1;
-        const lv=m.v.slice(0,a),lf=m.fm.slice(0,a),rv=m.v.slice(b),rf=m.fm.slice(b);   // neuer Absatz: Text hinter dem Cursor wandert mit
-        items[k]=Object.assign({},it,{v:lv,r:runsStr(lf)});send({t:'set',k,v:lv,r:runsStr(lf),pos:it.pos||0,f:it.f||''});
-        items[nk]={v:rv,r:runsStr(rf),pos:npos,f:pf,ts:0,by:''};send({t:'set',k:nk,v:rv,r:runsStr(rf),pos:npos,f:pf});
-        focusKey=nk;focusPos=0;ovr={k,v:lv,fm:lf,a:lv.length,b:lv.length};renderText();}
-      else if(e.key=='Backspace'){const sl=selOf(ed);if(!sl||sl.a!=0||sl.b!=0)return;
-        const l=paras(),ix=l.findIndex(x=>x[0]==k),pv=l[ix-1];
-        if(!pv){if(sl.m.v===''&&l.length>1){e.preventDefault();send({t:'del',k});}return;}
-        if(lockedBy(pv[0]))return;e.preventDefault();   // Absatzanfang: mit dem vorigen Absatz verbinden
-        const pm=pv[1],pvv=pm.v||'',pfm=runsParse(pm.r,pvv.length),nv=pvv+sl.m.v,nfm=pfm.concat(sl.m.fm);
-        items[pv[0]]=Object.assign({},pm,{v:nv,r:runsStr(nfm)});send({t:'set',k:pv[0],v:nv,r:runsStr(nfm),pos:pm.pos||0,f:pm.f||''});
-        send({t:'del',k});focusKey=pv[0];focusPos=pvv.length;renderText();}
-    };
-    row.append(ed);box.append(row);
-    if(k===focusKey){ed.focus();setSel(ed,focusPos,focusPos);focusKey=null;focusPos=0;}
-    else if(k===ak){ed.focus();setSel(ed,as[0],as[1]);}
+    let row=box._rows.get(k);
+    if(!row){row=document.createElement('div');row.className='prow';row.dataset.k=k;const ed=document.createElement('div');ed.dataset.k=k;row.append(ed);box._rows.set(k,row);}
+    const ed=row.firstChild,sig=sigOf(i,by,marks);
+    if(row._sig!==sig&&!(k===live&&!by&&row._sig&&!row._by)){
+      row.style.marginLeft=((o.n||0)*28)+'px';
+      ed.className='par'+(mode?' '+mode:'')+(by?' locked':'')+(k===prevFK?' cur':'');
+      if(by){ed.contentEditable='false';ed.title=t('{0} schreibt gerade',by);}else{ed.removeAttribute('contenteditable');ed.removeAttribute('title');}
+      ed.innerHTML=linesHtml(v,runsParse(i.r,v.length),marks);
+      row._sig=sig;row._marks=marks;row._by=by||'';redrawn.add(k);}
+    seen.add(k);
+    if(box.children[idx]!==row)box.insertBefore(row,box.children[idx]||null);
+    idx++;
   }
-  if(sel2){const q=x=>document.querySelector('#doc .par[data-k="'+x+'"]'),e1=q(sel2.k),e2=q(sel2.k2);if(e1&&e2){e1.focus();setSel2(e1,sel2.a,e2,sel2.b);}}
+  for(const [k,row] of [...box._rows])if(!seen.has(k)){row.remove();box._rows.delete(k);}
+  if(cs&&(want||redrawn.has(cs.k)||redrawn.has(cs.k2))){
+    const e1=edOf(cs.k),e2=edOf(cs.k2);
+    if(e1&&e2){if(drw)box.focus({preventScroll:true});setSel2(e1,cs.a,e2,cs.b);if(want)e2.scrollIntoView({block:'nearest'});}}
 }
 
 /* ---------- Files ---------- */
@@ -1575,7 +1902,7 @@ S.files={
     if(this.folders.length)it.push({head:t('Gruppenordner')});
     for(const fo of this.folders)it.push({k:'@'+fo.name,label:fo.name,sub:this.real('@'+fo.name)+(fo.write?'':' · '+t('nur lesen'))});
     if(this.trDays>0||this.tr.length)it.push({k:'trash',label:t('Papierkorb'),sub:String(this.tr.length)});
-    this.items=it;setList(it);
+    this.items=it;if(sec=="files")setList(it);
   },
   loc(){return sel||'own';},
   quotaTxt(){   // Kontingent: belegt X von Y (eigene Ablage bzw. aktueller Gruppenordner)

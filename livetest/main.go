@@ -280,6 +280,24 @@ func main() {
 			break
 		}
 	}
+	// 0.15.3: ganze Serie von einem späteren Vorkommen aus verschieben (rid + scope=all): Serienbeginn wandert mit
+	r = usr("POST", "/api/cal/default/events", []byte(`{"summary":"Live 0.15.3","start":"2027-06-07T08:00:00Z","end":"2027-06-07T09:00:00Z","tz":"Europe/Berlin","rule":{"freq":"WEEKLY","count":3}}`))
+	var sr struct{ File string }
+	json.Unmarshal(r.B, &sr)
+	ok("Serie anlegen (0.15.3)", r.Code == 200 && sr.File != "", r.Code, string(r.B))
+	r = usr("PUT", "/api/cal/default/events/"+sr.File, []byte(`{"summary":"Live 0.15.3","start":"2027-06-15T08:00:00Z","end":"2027-06-15T09:00:00Z","tz":"Europe/Berlin","scope":"all","rid":"2027-06-14T08:00:00Z"}`))
+	ok("Serie vom 2. Vorkommen um einen Tag verschieben", r.Code == 200, r.Code, string(r.B))
+	r = usr("GET", "/api/cal/default/events?from=2027-06-01&to=2027-07-01", nil)
+	var l3 []map[string]any
+	json.Unmarshal(r.B, &l3)
+	st := ""
+	for _, e := range l3 {
+		if e["summary"] == "Live 0.15.3" {
+			st += fmt.Sprint(e["start"]) + " "
+		}
+	}
+	ok("Serie: Dienstage statt Montage, nichts verloren", st == "2027-06-08T08:00:00Z 2027-06-15T08:00:00Z 2027-06-22T08:00:00Z ", st)
+	usr("DELETE", "/api/cal/default/events/"+sr.File+"?scope=all", nil)
 	// Belegungsübersicht (nur Admin)
 	r = usr("GET", "/api/filesusage", nil)
 	ok("Belegung: Benutzer gesperrt (403)", r.Code == 403, r.Code)

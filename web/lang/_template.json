@@ -680,5 +680,16 @@
  "Abo: noch nicht abgerufen": "Abo: noch nicht abgerufen",
  "Abo-Fehler: {0}": "Abo-Fehler: {0}",
  "Jetzt aktualisieren": "Jetzt aktualisieren",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Einladungen nicht versendet: Stundenlimit erreicht."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Einladungen nicht versendet: Stundenlimit erreicht.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?",
+ "Zwischenablage leeren": "Zwischenablage leeren",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "Die Zelle wird gerade von {0} bearbeitet."
 }

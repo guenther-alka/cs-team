@@ -1,5 +1,41 @@
 cs-team changelog (newest first)
 
+2026-10-02  0.15.3 Kalender: Maussteuerung; Calc: Sperre schon beim Markieren. Klick in einen Tag (Monat, Woche, Tag) legt einen neuen Termin an (die Tageszahl oeffnet weiter die Tagesansicht);
+                   Umschalt+Klick markiert einen Bereich von Tagen, ein Klick in den Bereich legt einen ganztaegigen Mehrtagestermin an (Esc hebt die Markierung auf).
+                   Klick auf einen Termin oeffnet direkt das Bearbeiten-Formular (mit Loeschen und den Zusagen der Teilnehmer; schreibgeschuetzte Kalender zeigen
+                   weiter die Einzelheiten). Termine lassen sich mit der Maus auf einen anderen Tag ziehen (Uhrzeit und Dauer bleiben; bei Mehrtagestermin wird um
+                   die gezogene Tagesstrecke verschoben); bei Serien fragt ein Dialog: nur dieser Termin / dieser und folgende / ganze Serie. Strg+X und Strg+C merken
+                   den zuletzt angeklickten Termin, Strg+V fuegt ihn an dem Tag unter dem Mauszeiger ein (auch nach dem Blaettern in einen anderen Monat): Ausschneiden
+                   verschiebt, Kopieren legt eine Kopie an mit allem ausser dem Tag (Uhrzeit, Ort, Beschreibung, Erinnerung, Teilnehmer, einfache Wiederholung);
+                   hat die Kopie Teilnehmer, wird vor dem Versand der Einladungen nachgefragt.
+                   Calc: Schon die Markierung sperrt ihre Zellen fuer andere (orange, "X schreibt gerade"); der Server haelt die Sperre eines markierten Bereichs
+                   (Nachricht lockr, Heartbeat alle 10 s, bis 5000 Zellen, Meldung der Fremdsperren nur an den Anfragenden, Sammelmeldungen locks/unlocks) und loest sie
+                   beim Wechsel der Markierung, beim Verlassen des Blatts (Fokus/Fenster) und beim Trennen. Kopieren aus gesperrten Zellen uebernimmt den aktuellen
+                   Inhalt; Einfuegen, Loeschen und Ausfuellen lassen gesperrte Zellen aus und nennen Anzahl und Benutzer; Bearbeiten einer gesperrten Zelle zeigt einen Hinweis.
+                   Behoben: Beim Bearbeiten der ganzen Serie von einem spaeteren Vorkommen aus wurde der Serienbeginn auf dieses Vorkommen gesetzt (die Serie rutschte,
+                   frueher Vorkommen gingen verloren). Die API nimmt bei scope=all jetzt auch rid: start/end beschreiben dann dieses Vorkommen, der Serienbeginn wird um
+                   denselben Abstand in Ortszeit verschoben (sommerzeitfest, ganztaegig und schwebend richtig); ohne rid verhaelt sich die API wie bisher.
+                   Behoben: Ein Klick auf einen Termin konnte bei ganztaegigen Terminen den falschen Termin anzeigen (Index der Chips nach dem Sortieren).
+                   Getestet mit echtem Browser (Chromium/Playwright; Kalender Monat, Woche, Tag, Zeitzonen UTC und Berlin; Calc mit zwei Benutzern) und Go-Tests TestCalSeriesShift und TestSheetRectLock.
+                   Nicht getestet: Touch-Geraete (Ziehen und Strg-Tasten gibt es dort nicht; Termin oeffnen und Neuer Termin gehen wie bisher).
+
+2026-10-02  0.15.2 Text: durchgehender Editor. Der ganze Text ist ein einziges bearbeitbares Feld (Absaetze als Bloecke darin): Strg+A, Ziehen mit der Maus und
+                   Umschalt+Pfeile markieren ueber Absatzgrenzen; Loeschen, Ueberschreiben, Ausschneiden, Kopieren und Einfuegen funktionieren ueber mehrere
+                   Absaetze (eigene Zwischenablage behaelt die Absaetze und ihr Absatzformat), Enter/Rueckschritt/Entf an der Absatzgrenze teilen bzw. verbinden
+                   Absaetze. Das Absatz-Locking bleibt: ein Absatz, in dem ein anderer schreibt, ist contenteditable=false (orange); enthaelt die Markierung einen
+                   gesperrten Absatz, werden Loeschen, Ueberschreiben und Ausschneiden mit Hinweis abgelehnt (Kopieren geht); Strg+A, Strg+Umschalt+Pos1/Ende und
+                   Umschalt+Pfeil ueber einen gesperrten Absatz hinweg werden selbst gesetzt, weil der Browser dort nicht markieren kann. Alle Aenderungen ueber
+                   Absatzgrenzen laufen ueber das Absatzmodell (beforeinput abgefangen), nicht ueber das DOM; Tippen innerhalb eines Absatzes bleibt beim Browser
+                   (Eingabemethoden/IME, Autokorrektur, Rechtschreibpruefung). Neuzeichnen nur der geaenderten Absaetze (Cursor und Markierung bleiben bei Fremd-
+                   aenderungen und Sperrmeldungen stehen; der Absatz mit dem Cursor wird beim Tippen nie aus dem Modell ueberschrieben). Eigenes Rueckgaengig/
+                   Wiederholen (Strg+Z, Strg+Y; der Browser-Verlauf ist abgeschaltet): nur solange der Absatz inzwischen nicht von jemand anderem geaendert wurde.
+                   Absaetze sind dezent grau unterlegt (Cursorabsatz leicht blau) mit etwas Abstand; Ziehen/Ablegen von Text im Editor ist abgeschaltet.
+                   Getestet mit echtem Browser (Chromium/Playwright, zwei Benutzer): Tippen, Enter, Rueckschritt/Entf an Grenzen, Markieren/Loeschen/
+                   Ueberschreiben ueber 3-4 Absaetze, Strg+A, Undo/Redo, Kopieren/Einfuegen, Sperre durch zweiten Benutzer (Loeschen/Tippen/Ausschneiden
+                   abgelehnt), gleichzeitiges schnelles Tippen in zwei Absaetzen, Fett/Nummerierung ueber mehrere Absaetze, Links, nur-lesen, Calc unberuehrt.
+                   Nicht getestet: Eingabemethoden (IME) und Mobilgeraete, Firefox/Safari.
+                   Ausserdem: beim schnellen Wechsel der Bereiche konnte die Liste von Files bzw. Kalender die Liste des neuen Bereichs ueberschreiben (behoben).
+
 2026-10-02  0.15.1 WebDAV-Sperren nach litmus-Pruefung (WebDAV-Konformitaetssuite auf Proxmox .112) und Zeitzonen unter Windows. Der If-Header (RFC 4918, 10.4) wird
                    bei PUT, DELETE, MKCOL, MOVE, COPY und PROPPATCH ausgewertet: ein Sperr-Token, das nicht zur aktuellen Sperre der Datei passt (oder bei einer
                    nicht gesperrten Datei), ergibt 412; Listen (ODER), "Not", DAV:no-lock und Ressourcen-Tags werden beachtet, Listen fuer andere Ressourcen

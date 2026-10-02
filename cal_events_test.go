@@ -319,3 +319,79 @@ func TestCalEditResource(t *testing.T) {
 		t.Fatal("verlängern in den Nachbarn:", c)
 	}
 }
+
+// Ganze Serie an einem späteren Vorkommen bearbeiten oder verschieben (Drag & Drop): der Serienbeginn
+// wird um den Abstand verschoben, nicht auf das Vorkommen gesetzt.
+func TestCalSeriesShift(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	do := func(m, p, b string) (int, string) { return req(t, srv, "anna", m, p, b) }
+	mk := func(body string) string {
+		c, b := do("POST", "/api/cal/default/events", body)
+		if c != 200 {
+			t.Fatal(c, b)
+		}
+		var f struct{ File string }
+		json.Unmarshal([]byte(b), &f)
+		return f.File
+	}
+	starts := func() string {
+		var out []string
+		for _, e := range listEv(t, do, "2027-03-01", "2027-06-01") {
+			out = append(out, e.Start)
+		}
+		return strings.Join(out, " ")
+	}
+	// Montag 15.3.2027 09:00 Berlin, wöchentlich 4x (28.3. Sommerzeit)
+	f := mk(`{"summary":"Probe","start":"2027-03-15T08:00:00Z","end":"2027-03-15T09:00:00Z","tz":"Europe/Berlin","rule":{"freq":"WEEKLY","count":4}}`)
+	l := listEv(t, do, "2027-03-01", "2027-06-01")
+	// nur Titel ändern, am dritten Vorkommen (29.3.): Serienbeginn bleibt
+	if c, b := do("PUT", "/api/cal/default/events/"+f, `{"summary":"Neu","start":"`+l[2].Start+`","end":"2027-03-29T08:00:00Z","tz":"Europe/Berlin","scope":"all","rid":"`+l[2].Rid+`"}`); c != 200 {
+		t.Fatal(c, b)
+	}
+	if got := starts(); got != "2027-03-15T08:00:00Z 2027-03-22T08:00:00Z 2027-03-29T07:00:00Z 2027-04-05T07:00:00Z" {
+		t.Fatal("Titel:", got)
+	}
+	// 2. Vorkommen (22.3.) um einen Tag verschieben: ganze Serie auf Dienstag
+	if c, b := do("PUT", "/api/cal/default/events/"+f, `{"summary":"Neu","start":"2027-03-23T08:00:00Z","end":"2027-03-23T09:00:00Z","tz":"Europe/Berlin","scope":"all","rid":"`+l[1].Rid+`"}`); c != 200 {
+		t.Fatal(c, b)
+	}
+	if got := starts(); got != "2027-03-16T08:00:00Z 2027-03-23T08:00:00Z 2027-03-30T07:00:00Z 2027-04-06T07:00:00Z" {
+		t.Fatal("Tag:", got)
+	}
+	// 3. Vorkommen (30.3. 09:00 Berlin) auf 11:00 Berlin: alle Vorkommen 11:00 Ortszeit
+	l = listEv(t, do, "2027-03-01", "2027-06-01")
+	if c, b := do("PUT", "/api/cal/default/events/"+f, `{"summary":"Neu","start":"2027-03-30T09:00:00Z","end":"2027-03-30T10:00:00Z","tz":"Europe/Berlin","scope":"all","rid":"`+l[2].Rid+`"}`); c != 200 {
+		t.Fatal(c, b)
+	}
+	if got := starts(); got != "2027-03-16T10:00:00Z 2027-03-23T10:00:00Z 2027-03-30T09:00:00Z 2027-04-06T09:00:00Z" {
+		t.Fatal("Uhrzeit:", got)
+	}
+	// ganztägige Serie: 2. Tag auf den 4. verschieben -> Serie beginnt am 17.
+	g := mk(`{"summary":"Tage","start":"2027-04-12T00:00:00Z","allDay":true,"rule":{"freq":"DAILY","count":3}}`)
+	var days []calEv
+	for _, e := range listEv(t, do, "2027-04-01", "2027-05-01") {
+		if e.Summary == "Tage" {
+			days = append(days, e)
+		}
+	}
+	if len(days) != 3 {
+		t.Fatalf("ganztägig: %+v", days)
+	}
+	if c, b := do("PUT", "/api/cal/default/events/"+g, `{"summary":"Tage","start":"2027-04-15T00:00:00Z","allDay":true,"scope":"all","rid":"`+days[1].Rid+`"}`); c != 200 {
+		t.Fatal(c, b)
+	}
+	var got []string
+	for _, e := range listEv(t, do, "2027-04-01", "2027-05-01") {
+		if e.Summary == "Tage" {
+			got = append(got, e.Start[:10])
+		}
+	}
+	if strings.Join(got, " ") != "2027-04-14 2027-04-15 2027-04-16" {
+		t.Fatal("ganztägig:", got)
+	}
+	// unbekanntes Vorkommen
+	if c, _ := do("PUT", "/api/cal/default/events/"+f, `{"summary":"x","start":"2027-03-17T08:00:00Z","tz":"Europe/Berlin","scope":"all","rid":"2027-03-17T08:00:00Z"}`); c != 404 {
+		t.Fatal("rid:", c)
+	}
+}

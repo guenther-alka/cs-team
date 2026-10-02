@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "Suscripción: aún no descargada",
  "Abo-Fehler: {0}": "Error de suscripción: {0}",
  "Jetzt aktualisieren": "Actualizar ahora",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Invitaciones no enviadas: límite por hora alcanzado."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Invitaciones no enviadas: límite por hora alcanzado.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "No es posible: un párrafo de la selección está siendo editado por {0} ahora mismo.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "No se puede deshacer: el párrafo se ha modificado entretanto.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Este evento forma parte de una serie. ¿Qué se debe mover?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "Con «Todos los eventos de la serie» se descartan los eventos modificados individualmente.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» cortado: coloque el puntero sobre el día de destino y pulse Ctrl+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» copiado: coloque el puntero sobre el día de destino y pulse Ctrl+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Sin día de destino: coloque el puntero sobre el día deseado y pulse Ctrl+V.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "La copia contiene asistentes: se enviarán invitaciones. ¿Continuar?",
+ "Zwischenablage leeren": "Vaciar portapapeles",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} celda(s) omitida(s): {1} la está editando.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "{0} está editando la celda."
 }

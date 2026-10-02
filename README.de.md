@@ -4,7 +4,7 @@ Kleine, in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kale
 Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
 
 Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
-ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
+ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Maussteuerung (Klick auf Tag = neuer Termin, Umschalt+Klick = Mehrtagesbereich, Ziehen, Strg+X/C/V), Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
 und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; neun Sprachen.
 Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
 Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.

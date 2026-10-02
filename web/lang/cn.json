@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "订阅：尚未获取",
  "Abo-Fehler: {0}": "订阅错误：{0}",
  "Jetzt aktualisieren": "立即更新",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "邀请未发送：已达每小时上限。"
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "邀请未发送：已达每小时上限。",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "无法操作：所选内容中的一个段落正在由 {0} 编辑。",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "无法撤销：该段落在此期间已被修改。",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "此日程属于一个系列。要移动哪些?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "选择“系列的所有日程”时,之前单独修改过的日程将被丢弃。",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "已剪切“{0}” – 将鼠标指向目标日期,然后按 Ctrl+V。",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "已复制“{0}” – 将鼠标指向目标日期,然后按 Ctrl+V。",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "没有目标日期:请将鼠标指向所需日期,然后按 Ctrl+V。",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "副本包含参与者:将发送邀请。是否继续?",
+ "Zwischenablage leeren": "清空剪贴板",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "已跳过 {0} 个单元格:{1} 正在编辑。",
+ "Die Zelle wird gerade von {0} bearbeitet.": "{0} 正在编辑该单元格。"
 }

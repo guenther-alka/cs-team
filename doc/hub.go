@@ -3,6 +3,7 @@ package doc
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -118,6 +119,7 @@ type msgIn struct {
 	Pos float64 `json:"pos"`
 	F   string  `json:"f"`
 	R   string  `json:"r"`
+	Rc  []int   `json:"rc,omitempty"` // lockr: markierter Zellbereich [Spalte1, Zeile1, Spalte2, Zeile2] (Spalte 0 = A); leer = nichts markiert
 }
 
 type msgOut struct {
@@ -130,6 +132,7 @@ type msgOut struct {
 	RW    bool              `json:"rw,omitempty"`
 	By    string            `json:"by,omitempty"`
 	Locks map[string]string `json:"locks,omitempty"`
+	Ks    []string          `json:"ks,omitempty"` // locks/unlocks: mehrere Zellen auf einmal
 }
 
 // apply: vom Server vergebener Zeitstempel, LWW, Broadcast, Persistenz per Debounce.
@@ -195,10 +198,77 @@ func (l *live) broadcast(m msgOut) {
 // sweep: abgelaufene Sperren lösen (mu gehalten).
 func (l *live) sweep() {
 	now := time.Now()
+	var rel []string
 	for k, lk := range l.locks {
 		if now.After(lk.exp) {
 			delete(l.locks, k)
-			l.broadcast(msgOut{T: "unlock", K: k})
+			rel = append(rel, k)
+		}
+	}
+	l.released(rel)
+}
+
+// released: gelöste Sperren melden (eine Nachricht für viele Zellen; mu gehalten).
+func (l *live) released(ks []string) {
+	switch len(ks) {
+	case 0:
+	case 1:
+		l.broadcast(msgOut{T: "unlock", K: ks[0]})
+	default:
+		l.broadcast(msgOut{T: "unlocks", Ks: ks})
+	}
+}
+
+// maxLockCells: größte Markierung, die gesperrt wird (Calc hat 26 x 100 Zellen).
+const maxLockCells = 5000
+
+// lockRect (Calc): Sperre auf den markierten Zellbereich. Der Aufruf ersetzt alle bisherigen Sperren dieses Clients
+// (leerer Bereich = alle lösen) und dient zugleich als Heartbeat. Zellen, die ein anderer hält, bekommt nur der Anfragende genannt.
+func (l *live) lockRect(c *client, rc []int) {
+	if !c.write || l.meta.Type != "sheet" {
+		return
+	}
+	want := map[string]bool{}
+	if len(rc) == 4 && rc[0] >= 0 && rc[0] <= rc[2] && rc[2] < 26 && rc[1] >= 1 && rc[1] <= rc[3] && rc[3] <= 99999 &&
+		(rc[2]-rc[0]+1)*(rc[3]-rc[1]+1) <= maxLockCells {
+		for col := rc[0]; col <= rc[2]; col++ {
+			for r := rc[1]; r <= rc[3]; r++ {
+				want[string(rune('A'+col))+strconv.Itoa(r)] = true
+			}
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.sweep()
+	var rel, add []string
+	denied := map[string][]string{}
+	for k, lk := range l.locks {
+		if lk.c == c && !want[k] {
+			delete(l.locks, k)
+			rel = append(rel, k)
+		}
+	}
+	exp := time.Now().Add(lockTTL)
+	for k := range want {
+		lk, ok := l.locks[k]
+		if ok && lk.user != c.user {
+			denied[lk.user] = append(denied[lk.user], k)
+			continue
+		}
+		if !ok {
+			add = append(add, k)
+		}
+		l.locks[k] = lock{user: c.user, exp: exp, c: c}
+	}
+	l.released(rel)
+	if len(add) > 0 {
+		l.broadcast(msgOut{T: "locks", By: c.user, Ks: add})
+	}
+	for u, ks := range denied {
+		b, _ := json.Marshal(msgOut{T: "locks", By: u, Ks: ks})
+		select {
+		case c.out <- b:
+		default:
 		}
 	}
 }
@@ -294,12 +364,14 @@ func (l *live) recheck() {
 		}
 		close(c.out)
 		delete(l.clients, c)
+		var rel []string
 		for k, lk := range l.locks { // Sperren des getrennten Clients lösen
 			if lk.c == c {
 				delete(l.locks, k)
-				l.broadcast(msgOut{T: "unlock", K: k})
+				rel = append(rel, k)
 			}
 		}
+		l.released(rel)
 	}
 }
 
@@ -353,12 +425,14 @@ func (l *live) leave(c *client) {
 		delete(l.clients, c)
 		close(c.out)
 	}
+	var rel []string
 	for k, lk := range l.locks { // Sperren dieses Clients lösen
 		if lk.c == c {
 			delete(l.locks, k)
-			l.broadcast(msgOut{T: "unlock", K: k})
+			rel = append(rel, k)
 		}
 	}
+	l.released(rel)
 	empty := len(l.clients) == 0
 	l.mu.Unlock()
 	if empty {

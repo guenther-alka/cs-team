@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "Abonelik: henüz alınmadı",
  "Abo-Fehler: {0}": "Abonelik hatası: {0}",
  "Jetzt aktualisieren": "Şimdi güncelle",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Davetler gönderilmedi: saatlik sınıra ulaşıldı."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Davetler gönderilmedi: saatlik sınıra ulaşıldı.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "Mümkün değil: seçimdeki bir paragraf şu anda {0} tarafından düzenleniyor.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "Geri alınamıyor: paragraf bu arada değiştirildi.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Bu etkinlik bir serinin parçası. Ne taşınsın?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "“Serinin tüm etkinlikleri” seçilirse tek tek değiştirilmiş etkinlikler silinir.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "“{0}” kesildi – fareyi hedef günün üzerinde tutup Ctrl+V'ye basın.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "“{0}” kopyalandı – fareyi hedef günün üzerinde tutup Ctrl+V'ye basın.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Hedef gün yok: fareyi istediğiniz günün üzerinde tutup Ctrl+V'ye basın.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "Kopyada katılımcılar var: davetler gönderilecek. Devam edilsin mi?",
+ "Zwischenablage leeren": "Panoyu temizle",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} hücre atlandı: şu anda {1} düzenliyor.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "Hücre şu anda {0} tarafından düzenleniyor."
 }

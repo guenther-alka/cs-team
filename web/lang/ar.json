@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "الاشتراك: لم يُجلب بعد",
  "Abo-Fehler: {0}": "خطأ في الاشتراك: {0}",
  "Jetzt aktualisieren": "حدّث الآن",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "لم تُرسل الدعوات: تم بلوغ الحد الساعي."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "لم تُرسل الدعوات: تم بلوغ الحد الساعي.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "غير ممكن: الفقرة في التحديد يحررها {0} الآن.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "لا يمكن التراجع: تم تغيير الفقرة في هذه الأثناء.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "هذا الموعد جزء من سلسلة. ما الذي يجب نقله؟",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "عند اختيار «كل مواعيد السلسلة» تُلغى المواعيد التي عُدّلت بشكل منفرد.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "تم قص «{0}» – ضع المؤشر فوق اليوم المطلوب ثم اضغط Ctrl+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "تم نسخ «{0}» – ضع المؤشر فوق اليوم المطلوب ثم اضغط Ctrl+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "لا يوجد يوم مستهدف: ضع المؤشر فوق اليوم المطلوب ثم اضغط Ctrl+V.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "تحتوي النسخة على مشاركين: سيتم إرسال الدعوات. هل تريد المتابعة؟",
+ "Zwischenablage leeren": "مسح الحافظة",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "تم تخطي {0} خلية: يحررها {1} حاليًا.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "يحرر {0} هذه الخلية حاليًا."
 }

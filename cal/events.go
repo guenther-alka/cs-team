@@ -616,6 +616,16 @@ func (b *Backend) apiPutEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// ganze Serie, bearbeitet an einem Vorkommen (rid): start/end beschreiben dieses Vorkommen,
+	// der Serienbeginn wird um denselben Abstand (in Ortszeit) verschoben
+	if series && in.Rid != "" && in.Scope != "one" && in.Scope != "following" {
+		rid, err := parseTS(in.Rid)
+		if err != nil || !hasInstance(master, rid) {
+			http.Error(w, "no such occurrence", 404)
+			return
+		}
+		start, end = shiftSeries(master, mStart, mAll, mFl, rid, start, end, loc)
+	}
 	// ganze Serie bzw. Einzeltermin: Haupttermin ändern
 	keyChanged := false
 	// Beginn: unverändert lassen, wenn dieselbe Ortszeit/Zone (erhält schwebende Zeiten und fremde Zonennamen)
@@ -747,4 +757,33 @@ func (b *Backend) apiDelEvent(w http.ResponseWriter, r *http.Request) {
 	if len(gone) > 0 {
 		b.notify(me, snap, attDiff{removed: gone}, false)
 	}
+}
+
+// wallClock: Ortszeit von t in l als Zeitangabe ohne Zone (UTC-Felder), zum Rechnen mit Abständen.
+func wallClock(t time.Time, l *time.Location) time.Time {
+	t = t.In(l)
+	y, mo, d := t.Date()
+	h, mi, sec := t.Clock()
+	return time.Date(y, mo, d, h, mi, sec, 0, time.UTC)
+}
+
+// shiftSeries rechnet "Vorkommen rid liegt jetzt bei start" auf den Serienbeginn um: gleicher Abstand in
+// Ortszeit (Sommerzeit-fest), Dauer unverändert. Liefert Beginn und Ende des Haupttermins.
+func shiftSeries(master *ical.Event, mStart time.Time, mAll, mFl bool, rid, start, end time.Time, loc *time.Location) (time.Time, time.Time) {
+	lm := time.UTC // Zone, in der rid/mStart Ortszeit sind (schwebend/ganztägig: Ortszeit steckt in den UTC-Feldern)
+	if !mAll && !mFl {
+		if l := lookupTZ(zoneOf(master)); l != nil {
+			lm = l
+		}
+	}
+	zn := lm // Zone, in der die Ortszeit des neuen Vorkommens gemeint ist
+	if mFl {
+		zn = loc
+	}
+	d := wallClock(start, zn).Sub(wallClock(rid, lm))
+	nw := wallClock(mStart, lm).Add(d)
+	y, mo, dd := nw.Date()
+	h, mi, sec := nw.Clock()
+	ns := time.Date(y, mo, dd, h, mi, sec, 0, zn)
+	return ns, ns.Add(end.Sub(start))
 }

@@ -180,6 +180,8 @@ func (h *Hub) ws(w http.ResponseWriter, r *http.Request) {
 			l.lockKey(c, m.K)
 		case "unlock":
 			l.unlockKey(c, m.K)
+		case "lockr":
+			l.lockRect(c, m.Rc)
 		}
 	}
 }

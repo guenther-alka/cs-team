@@ -1893,3 +1893,94 @@ func TestSettingsAndImportContacts(t *testing.T) {
 		t.Fatal(b)
 	}
 }
+
+// Calc: die Markierung sperrt ihre Zellen für andere (lockr), Wechsel/Leeren löst, Fremdsperren werden nur dem Anfragenden gemeldet.
+func TestSheetRectLock(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	_, b := req(t, srv, "anna", "POST", "/api/docs", `{"name":"t","type":"sheet"}`)
+	var r struct{ ID string }
+	json.Unmarshal([]byte(b), &r)
+	req(t, srv, "anna", "POST", "/api/docs/"+r.ID+"/share", `{"read":[],"write":["bob"]}`)
+	ca, cb := dial(t, srv, "anna", r.ID), dial(t, srv, "bob", r.ID)
+	defer ca.CloseNow()
+	defer cb.CloseNow()
+	read(t, ca)
+	read(t, cb)
+	ctx := context.Background()
+	w := func(c *websocket.Conn, s string) { c.Write(ctx, websocket.MessageText, []byte(s)) }
+	keys := func(m map[string]any) map[string]bool {
+		out := map[string]bool{}
+		for _, k := range m["ks"].([]any) {
+			out[k.(string)] = true
+		}
+		return out
+	}
+	// anna markiert A1:B2 -> alle sehen vier gesperrte Zellen
+	w(ca, `{"t":"lockr","rc":[0,1,1,2]}`)
+	for _, c := range []*websocket.Conn{ca, cb} {
+		m := read(t, c)
+		k := keys(m)
+		if m["t"] != "locks" || m["by"] != "anna" || len(k) != 4 || !k["A1"] || !k["B2"] {
+			t.Fatalf("locks: %v", m)
+		}
+	}
+	// bob kann in A2 nicht schreiben (alter Stand kommt nicht zurück, weil die Zelle leer ist), außerhalb schon
+	w(cb, `{"t":"set","k":"A2","v":"bob"}`)
+	w(cb, `{"t":"set","k":"C1","v":"frei"}`)
+	if m := read(t, cb); m["t"] != "item" || m["k"] != "C1" {
+		t.Fatalf("C1: %v", m)
+	}
+	read(t, ca)
+	// bob markiert B2:C3: B2 gehört anna (nur bob erfährt es), die übrigen drei Zellen sperrt er
+	w(cb, `{"t":"lockr","rc":[1,2,2,3]}`)
+	got := map[string]map[string]bool{}
+	for i := 0; i < 2; i++ {
+		m := read(t, cb)
+		got[m["by"].(string)] = keys(m)
+	}
+	if len(got["anna"]) != 1 || !got["anna"]["B2"] || len(got["bob"]) != 3 || got["bob"]["B2"] {
+		t.Fatalf("bob: %v", got)
+	}
+	if m := read(t, ca); m["t"] != "locks" || m["by"] != "bob" || len(keys(m)) != 3 {
+		t.Fatalf("anna sieht bob: %v", m)
+	}
+	// anna wechselt auf A1: A2, B1, B2 werden frei
+	w(ca, `{"t":"lockr","rc":[0,1,0,1]}`)
+	m := read(t, ca)
+	if m["t"] != "unlocks" || len(keys(m)) != 3 || !keys(m)["B2"] {
+		t.Fatalf("unlocks: %v", m)
+	}
+	// leere Markierung löst alles (A1)
+	w(ca, `{"t":"lockr","rc":[]}`)
+	for {
+		m = read(t, ca)
+		if m["t"] == "unlock" && m["k"] == "A1" {
+			break
+		}
+		if m["t"] == "unlocks" && keys(m)["A1"] {
+			break
+		}
+	}
+	// ungültige / zu große Bereiche sperren nichts
+	w(ca, `{"t":"lockr","rc":[0,1,25,99999]}`)
+	w(ca, `{"t":"lockr","rc":[5,1,2,1]}`)
+	w(ca, `{"t":"set","k":"Z1","v":"ok"}`)
+	for {
+		m = read(t, ca)
+		if m["t"] == "item" && m["k"] == "Z1" {
+			break
+		}
+		if m["t"] == "locks" && m["by"] == "anna" {
+			t.Fatalf("ungueltiger Bereich gesperrt: %v", m)
+		}
+	}
+	// Verbindung weg -> bobs Sperren fallen gesammelt
+	cb.CloseNow()
+	for {
+		m = read(t, ca)
+		if m["t"] == "unlocks" && len(keys(m)) == 3 {
+			break
+		}
+	}
+}

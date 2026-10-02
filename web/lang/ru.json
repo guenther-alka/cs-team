@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "Подписка: ещё не загружена",
  "Abo-Fehler: {0}": "Ошибка подписки: {0}",
  "Jetzt aktualisieren": "Обновить сейчас",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Приглашения не отправлены: достигнут часовой лимит."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Приглашения не отправлены: достигнут часовой лимит.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "Невозможно: абзац в выделении сейчас редактирует {0}.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "Отмена невозможна: абзац тем временем изменён.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Это событие входит в серию. Что нужно перенести?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "При выборе «Все события серии» отдельно изменённые события серии теряются.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» вырезано – наведите указатель на целевой день и нажмите Ctrl+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» скопировано – наведите указатель на целевой день и нажмите Ctrl+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Нет целевого дня: наведите указатель на нужный день и нажмите Ctrl+V.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "Копия содержит участников: будут отправлены приглашения. Продолжить?",
+ "Zwischenablage leeren": "Очистить буфер",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "Пропущено ячеек: {0} – сейчас редактирует {1}.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "Ячейку сейчас редактирует {0}."
 }

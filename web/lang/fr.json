@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "Abonnement : pas encore récupéré",
  "Abo-Fehler: {0}": "Erreur d'abonnement : {0}",
  "Jetzt aktualisieren": "Actualiser maintenant",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Invitations non envoyées : limite horaire atteinte."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Invitations non envoyées : limite horaire atteinte.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "Impossible : un paragraphe de la sélection est en cours de modification par {0}.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "Annulation impossible : le paragraphe a été modifié entre-temps.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Cet événement fait partie d'une série. Que faut-il déplacer ?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "Avec « Tous les événements de la série », les événements modifiés individuellement sont supprimés.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "« {0} » coupé – placez le pointeur sur le jour cible, puis Ctrl+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "« {0} » copié – placez le pointeur sur le jour cible, puis Ctrl+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Pas de jour cible : placez le pointeur sur le jour souhaité et appuyez sur Ctrl+V.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "La copie contient des participants : des invitations seront envoyées. Continuer ?",
+ "Zwischenablage leeren": "Vider le presse-papiers",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} cellule(s) ignorée(s) : en cours de modification par {1}.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "La cellule est en cours de modification par {0}."
 }

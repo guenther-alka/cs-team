@@ -681,5 +681,16 @@
  "Abo: noch nicht abgerufen": "Abbonamento: non ancora scaricato",
  "Abo-Fehler: {0}": "Errore abbonamento: {0}",
  "Jetzt aktualisieren": "Aggiorna ora",
- "Einladungen nicht versendet: Stundenlimit erreicht.": "Inviti non inviati: limite orario raggiunto."
+ "Einladungen nicht versendet: Stundenlimit erreicht.": "Inviti non inviati: limite orario raggiunto.",
+ "Nicht möglich: ein Absatz in der Markierung wird gerade von {0} bearbeitet.": "Non possibile: un paragrafo della selezione è in modifica da {0} in questo momento.",
+ "Rückgängig nicht möglich: der Absatz wurde inzwischen geändert.": "Impossibile annullare: nel frattempo il paragrafo è stato modificato.",
+ "Dieser Termin gehört zu einer Serie. Was soll verschoben werden?": "Questo evento fa parte di una serie. Cosa si deve spostare?",
+ "Bei „Alle Termine der Serie“ entfallen zuvor einzeln geänderte Termine der Serie.": "Con «Tutti gli eventi della serie» gli eventi modificati singolarmente vengono scartati.",
+ "„{0}“ ausgeschnitten – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» tagliato: tieni il puntatore sul giorno di destinazione, poi Ctrl+V.",
+ "„{0}“ kopiert – Mauszeiger über den Zieltag halten, dann Strg+V.": "«{0}» copiato: tieni il puntatore sul giorno di destinazione, poi Ctrl+V.",
+ "Kein Zieltag: Mauszeiger über den gewünschten Tag halten und Strg+V drücken.": "Nessun giorno di destinazione: tieni il puntatore sul giorno desiderato e premi Ctrl+V.",
+ "Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?": "La copia contiene partecipanti: verranno inviati gli inviti. Continuare?",
+ "Zwischenablage leeren": "Svuota appunti",
+ "{0} Zelle(n) übersprungen: wird gerade von {1} bearbeitet.": "{0} cella/e saltata/e: attualmente in modifica da {1}.",
+ "Die Zelle wird gerade von {0} bearbeitet.": "La cella è attualmente in modifica da {0}."
 }
