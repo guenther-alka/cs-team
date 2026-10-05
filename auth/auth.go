@@ -65,7 +65,8 @@ type Account struct {
 	Mail     string   `json:"mail,omitempty"` // externe E-Mail-Adresse (für Nachrichten)
 	Chat     string   `json:"chat,omitempty"` // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
 	Realm    string   `json:"realm,omitempty"`
-	Source   string   `json:"source,omitempty"` // "dir" = Spiegelkonto eines Verzeichnisbenutzers (ohne Passwort)
+	Source   string   `json:"source,omitempty"`  // "dir" = Spiegelkonto eines Verzeichnisbenutzers
+	DirSeen  string   `json:"dirSeen,omitempty"` // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
 }
 
 // Altformat der Version 0.1: "name": "<hash>"

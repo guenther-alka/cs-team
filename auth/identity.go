@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // RealmLocal: Namensraum der lokalen Konten. "anna" und "anna@local" bezeichnen dasselbe Konto.
@@ -174,12 +176,16 @@ func (a *Auth) SetIdentitySource(src IdentitySource) {
 	a.idSrc = src
 	a.mu.Unlock()
 	id := a.identity()
+	go a.dropDirCache(context.Background(), id) // Zwischenspeicher entfernen, der nicht mehr zur Einstellung passt
 	if !id.DirOK() {
 		return
 	}
 	log.Printf("identity: realm %s, mode %s, admit %v", id.DirRealm(), id.ModeName(), id.AdmitGroupNames())
 	if id.Unencrypted() {
 		log.Printf("identity: WARNING - directory login without TLS (%s): use ldaps:// or StartTLS, otherwise the password is protected by the NTLM seal only", id.URL)
+	}
+	if id.CacheDays > 0 {
+		log.Printf("identity: directory logins stay valid for %d days without the directory (bcrypt fingerprint in %s)", id.CacheDays, usersKey)
 	}
 	if g := id.Group(); g != DefaultGroup {
 		if err := a.checkGroups(context.Background(), []string{g}); err != nil {
@@ -258,20 +264,24 @@ func (a *Auth) verifyDirCached(ctx context.Context, id loginID, pass string) (Ac
 	return u, nil
 }
 
-// verifyDir: Anmeldung eines Verzeichnisbenutzers. Erfolg hält das Spiegelkonto aktuell.
+// verifyDir: Anmeldung eines Verzeichnisbenutzers. Erfolg hält das Spiegelkonto aktuell. Ist das Verzeichnis nicht
+// erreichbar, gilt der Zwischenspeicher (CacheDays), siehe verifyDirOffline.
 func (a *Auth) verifyDir(ctx context.Context, id loginID, pass string) (Account, error) {
 	if pass == "" {
 		return Account{}, ErrBadDir
 	}
 	du, err := a.dirCheck().CheckDir(ctx, id.Name, pass)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrDirDown):
+		return a.verifyDirOffline(ctx, id, pass)
+	case err != nil:
 		return Account{}, err
 	}
 	if !admitted(a.identity(), du) {
 		log.Printf("auth: %s refused: not in an admitted group (%v)", id.Key, du.Groups)
 		return Account{}, ErrNotAdmit
 	}
-	return a.ensureDir(ctx, id, du)
+	return a.ensureDir(ctx, id, du, pass)
 }
 
 // admitted: ist der Verzeichnisbenutzer zur Anmeldung berechtigt? Ohne Aufnahme-Gruppen: jeder gültige Benutzer.
@@ -302,17 +312,31 @@ func cn(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// ensureDir: Spiegelkonto des Verzeichnisbenutzers anlegen bzw. aktualisieren. Ohne brauchbaren Passwort-Hash
-// ("!"): dieses Konto kann sich nicht mit einem lokalen Passwort anmelden, geprüft wird immer das Verzeichnis.
-// Die Rechte in cs-team kommen aus der lokalen Gruppe (Standardgruppe oder Identity.LocalGroup).
-func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser) (Account, error) {
-	grp := a.identity().Group()
-	if u, ok := a.get(ctx, id.Key); ok && !dirStale(u, id.Realm, grp, du.Mail) {
-		return u, nil // unverändert: den Speicher nicht bei jeder Anmeldung neu schreiben
+// dirCacheWrite: kürzester Abstand, in dem der Zwischenspeicher fortgeschrieben wird. bcrypt ist teuer (rund 60 ms),
+// und mehr als ein Schreibvorgang je Benutzer und Tag bringt nichts: die Offline-Frist (CacheDays) verlängert sich
+// dadurch um höchstens diesen Zeitraum.
+const dirCacheWrite = 24 * time.Hour
+
+// ensureDir: Spiegelkonto des Verzeichnisbenutzers anlegen bzw. aktualisieren. Die Rechte in cs-team kommen aus der
+// lokalen Gruppe (Standardgruppe oder Identity.LocalGroup).
+// Ohne Zwischenspeicher (CacheDays = 0) trägt das Konto keinen Passwort-Hash ("!"): geprüft wird immer das Verzeichnis.
+// Mit CacheDays > 0 wird zusätzlich ein bcrypt-Abdruck des Verzeichnispassworts und der Zeitpunkt der letzten
+// erfolgreichen Prüfung gespeichert - damit bleibt die Anmeldung auch ohne Verzeichnis möglich (verifyDirOffline).
+func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser, pass string) (Account, error) {
+	idc := a.identity()
+	grp, now := idc.Group(), time.Now()
+	cur, have := a.get(ctx, id.Key)
+	hash, seen := "!", ""
+	if idc.CacheDays > 0 {
+		hash, seen = dirCache(cur, pass, now)
+	}
+	if have && !dirStale(cur, id.Realm, grp, du.Mail, hash, seen) {
+		return cur, nil // unverändert: den Speicher nicht bei jeder Anmeldung neu schreiben
 	}
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		u := m[id.Key]
-		u.Hash, u.Disabled, u.Must = "!", false, false
+		u.Hash, u.Disabled, u.Must = hash, false, false
+		u.DirSeen = seen
 		u.Realm, u.Source = id.Realm, "dir"
 		u.Groups = []string{grp}
 		if du.Mail != "" {
@@ -334,8 +358,88 @@ func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser) (Account, 
 	return u, nil
 }
 
-// dirStale: muss das Spiegelkonto neu geschrieben werden?
-func dirStale(u Account, realm, group, mail string) bool {
-	return u.Hash != "!" || u.Disabled || u.Must || u.Realm != realm || u.Source != "dir" ||
+// dirCache: Soll-Zustand des Zwischenspeichers (Abdruck des Passworts und Zeitpunkt der letzten Prüfung). Der Abdruck
+// wird nur neu gerechnet, wenn keiner vorliegt oder das Passwort nicht mehr passt (geändertes Verzeichnispasswort);
+// der Zeitpunkt wird höchstens alle dirCacheWrite fortgeschrieben.
+func dirCache(cur Account, pass string, now time.Time) (hash, seen string) {
+	hash, seen = cur.Hash, cur.DirSeen
+	if hash != "" && hash != "!" && bcrypt.CompareHashAndPassword([]byte(hash), []byte(pass)) == nil {
+		if t, err := time.Parse(time.RFC3339, seen); err != nil || now.Sub(t) > dirCacheWrite {
+			seen = now.UTC().Format(time.RFC3339)
+		}
+		return hash, seen
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
+	if err != nil {
+		return "!", cur.DirSeen // kein Abdruck möglich (z.B. Passwort länger als 72 Bytes)
+	}
+	return string(h), now.UTC().Format(time.RFC3339)
+}
+
+// dirStale: muss das Spiegelkonto neu geschrieben werden? hash/seen sind der Soll-Zustand (siehe dirCache).
+func dirStale(u Account, realm, group, mail, hash, seen string) bool {
+	return u.Hash != hash || u.DirSeen != seen || u.Disabled || u.Must || u.Realm != realm || u.Source != "dir" ||
 		len(u.Groups) != 1 || u.Groups[0] != group || (mail != "" && u.Mail != mail)
+}
+
+// verifyDirOffline: Anmeldung aus dem Zwischenspeicher, wenn das Verzeichnis nicht erreichbar ist (Identity.CacheDays).
+// Der gespeicherte Abdruck gilt nur, wenn die letzte erfolgreiche Prüfung höchstens CacheDays zurückliegt. Fehlschläge
+// bleiben "Verzeichnis nicht erreichbar" (kein falsches Passwort behaupten) und kosten dieselbe Rechenzeit.
+func (a *Auth) verifyDirOffline(ctx context.Context, id loginID, pass string) (Account, error) {
+	days := a.identity().CacheDays
+	u, ok := a.get(ctx, id.Key)
+	if !ok || days <= 0 || u.Source != "dir" || u.Realm != id.Realm || u.Disabled || u.Hash == "" || u.Hash == "!" {
+		bcrypt.CompareHashAndPassword(a.dummy, []byte(pass))
+		return Account{}, ErrDirDown
+	}
+	seen, err := time.Parse(time.RFC3339, u.DirSeen)
+	if err != nil || time.Since(seen) > time.Duration(days)*24*time.Hour {
+		bcrypt.CompareHashAndPassword(a.dummy, []byte(pass)) // Zwischenspeicher abgelaufen
+		return Account{}, ErrDirDown
+	}
+	if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(pass)) != nil {
+		return Account{}, ErrDirDown
+	}
+	log.Printf("auth: %s logged in from the local cache (directory unreachable, last check %s, valid %d days)",
+		id.Key, u.DirSeen, days)
+	return u, nil
+}
+
+// dropDirCache: Zwischenspeicher entfernen, der nicht mehr zur Einstellung passt (Zwischenspeicher abgeschaltet oder
+// anderer Namensraum). Läuft im Hintergrund beim Start; ein Fehler ist unkritisch, der Abdruck wird dann nicht benutzt.
+func (a *Auth) dropDirCache(ctx context.Context, idc Identity) {
+	realm, days := idc.DirRealm(), idc.CacheDays
+	a.refresh(ctx)
+	a.mu.Lock()
+	need := false
+	for _, u := range a.users {
+		if u.Source == "dir" && (u.Hash != "" && u.Hash != "!" || u.DirSeen != "") && (days <= 0 || u.Realm != realm) {
+			need = true
+			break
+		}
+	}
+	a.mu.Unlock()
+	if !need {
+		return
+	}
+	n := 0
+	err := a.mutate(ctx, func(m map[string]Account) error {
+		for k, u := range m {
+			has := (u.Hash != "" && u.Hash != "!") || u.DirSeen != ""
+			if u.Source != "dir" || !has || days > 0 && u.Realm == realm {
+				continue
+			}
+			u.Hash, u.DirSeen = "!", ""
+			m[k], n = u, n+1
+		}
+		return nil
+	})
+	if err != nil {
+		log.Printf("identity: Zwischenspeicher konnte nicht bereinigt werden: %v", err)
+		return
+	}
+	if n > 0 {
+		a.invalidate()
+		log.Printf("identity: Zwischenspeicher entfernt (betroffen: %d)", n)
+	}
 }
