@@ -151,8 +151,10 @@ func (id Identity) Group() string {
 
 // Unencrypted: Verzeichnisanmeldung ohne TLS (Passwörter nur durch die NTLM-Versiegelung geschützt).
 func (id Identity) Unencrypted() bool {
-	u := strings.ToLower(strings.TrimSpace(id.URL))
-	return u != "" && !strings.HasPrefix(u, "ldaps://") && !id.StartTLS
+	if strings.TrimSpace(id.URL) == "" {
+		return false
+	}
+	return !ldapSecure(ldapCheck{url: id.URL, startTLS: id.StartTLS})
 }
 
 // IdentitySource: liefert die wirksame Anmelde-Einstellung. In der Anwendung: die Einstellungen der Oberfläche

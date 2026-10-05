@@ -249,6 +249,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	cfg.EnvIdentity = envIdentity() // Anmeldung: Namensraum (name@realm) + Verzeichnis aus den Startparametern
 	a.SetIdentitySource(cfg)        // Oberfläche hat Vorrang; Änderungen gelten sofort (auth.Auth liest die Einstellung)
+	a.WarmDir(context.Background()) // Verzeichnisverbindung im Hintergrund offen halten (erster Aufbau ist nach Leerlauf träge)
 	fsvc.Quota = cfg.Quota          // Dateikontingent aus den Einstellungen
 	fsvc.TrashDays = cfg.TrashDays
 	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen

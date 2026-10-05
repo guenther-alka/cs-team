@@ -6,8 +6,14 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/emersion/go-webdav v0.7.0
+	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/minio/minio-go/v7 v7.3.0
 	golang.org/x/crypto v0.57.0
+)
+
+require (
+	github.com/Azure/go-ntlmssp v0.1.1 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
 )
 
 require (

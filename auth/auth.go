@@ -101,6 +101,7 @@ type Auth struct {
 	id     Identity       // Anmelde-Einstellung, wenn keine Quelle (Einstellungen) gesetzt ist
 	idSrc  IdentitySource // Quelle der Anmelde-Einstellung (chat.Settings, Tests)
 	dir    DirChecker     // feste Verzeichnisprüfung (Tests); sonst aus der Einstellung
+	warm   chan struct{}  // beendet das Warmhalten der Verzeichnisverbindung (WarmDir), nil = läuft nicht
 }
 
 var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht die Gruppen eines Benutzers

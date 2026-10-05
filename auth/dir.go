@@ -40,13 +40,16 @@ func hostCheck(ctx context.Context, user, pass string) (DirUser, error) {
 }
 
 // dirCheck: die für die aktuelle Einstellung passende Prüfung. Eine fest gesetzte Prüfung (Tests) hat Vorrang, sonst
-// prüft die Quelle selbst (derzeit: das Betriebssystem).
+// prüft LDAP, wenn eine Adresse eingerichtet ist, sonst die Quelle selbst (derzeit: das Betriebssystem).
 func (a *Auth) dirCheck() DirChecker {
 	a.mu.Lock()
 	d := a.dir
 	a.mu.Unlock()
 	if d != nil {
 		return d
+	}
+	if c := ldapFrom(a.identity()); c != nil {
+		return c
 	}
 	return dirDefault{}
 }
