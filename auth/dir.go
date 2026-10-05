@@ -20,27 +20,23 @@ var (
 	ErrDirDown = errors.New("directory unreachable")
 )
 
-// DirChecker: prüft Anmeldedaten gegen eine Verzeichnisquelle. Umsetzungen: hostCheck (Betriebssystem, Phase 4)
-// und LDAP/AD (ldap.go).
+// DirChecker: prüft Anmeldedaten gegen eine Verzeichnisquelle. Umsetzungen: das Betriebssystem des Servers
+// (hostCheck, siehe host_windows.go/host_other.go) und LDAP/AD (ldap.go).
 type DirChecker interface {
 	CheckDir(ctx context.Context, user, pass string) (DirUser, error)
 }
 
 // dirDefault: Prüfung über das Betriebssystem des Servers, wenn keine LDAP-Quelle eingerichtet ist.
-type dirDefault struct{}
-
-func (dirDefault) CheckDir(ctx context.Context, user, pass string) (DirUser, error) {
-	return hostCheck(ctx, user, pass)
+type dirDefault struct {
+	realm string // Namensraum = Domäne (leer: nur die lokale Kontendatenbank)
 }
 
-// hostCheck: Anmeldung über das Betriebssystem (Phase 4: LogonUser unter Windows). Solange das nicht eingerichtet
-// ist, gilt die Quelle als nicht verfügbar - Anmeldungen über das Verzeichnis sind dann nicht möglich.
-func hostCheck(ctx context.Context, user, pass string) (DirUser, error) {
-	return DirUser{}, ErrDirDown
+func (d dirDefault) CheckDir(ctx context.Context, user, pass string) (DirUser, error) {
+	return hostCheck(ctx, d.realm, user, pass)
 }
 
 // dirCheck: die für die aktuelle Einstellung passende Prüfung. Eine fest gesetzte Prüfung (Tests) hat Vorrang, sonst
-// prüft LDAP, wenn eine Adresse eingerichtet ist, sonst die Quelle selbst (derzeit: das Betriebssystem).
+// prüft LDAP, wenn eine Adresse eingerichtet ist, sonst die Quelle selbst (das Betriebssystem).
 func (a *Auth) dirCheck() DirChecker {
 	a.mu.Lock()
 	d := a.dir
@@ -48,8 +44,9 @@ func (a *Auth) dirCheck() DirChecker {
 	if d != nil {
 		return d
 	}
-	if c := ldapFrom(a.identity()); c != nil {
+	id := a.identity()
+	if c := ldapFrom(id); c != nil {
 		return c
 	}
-	return dirDefault{}
+	return dirDefault{realm: id.DirRealm()}
 }
