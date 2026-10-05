@@ -424,6 +424,7 @@ S.users={
   },
   home(){
     $('#main').innerHTML='<h3>'+t('Konto: ')+esc(me.name)+(me.admin?' ('+t('Globaler Admin')+')':'')+'</h3><div class="muted">'+t('Gruppen: ')+esc((me.groups||[]).join(', '))+((me.adminOf||[]).length?t(' &nbsp; Gruppen-Admin von: ')+esc(me.adminOf.join(', ')):'')+'</div>'+
+     (me.idRealm&&me.idRealm!='local'?'<div class="muted">'+t('Anmeldung am Verzeichnis: name@{0}',esc(me.idRealm))+(me.allowLocal?' &nbsp; '+t('(lokale Konten mit dem Namen ohne @)'):'')+'</div>':'')+
      '<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
@@ -2884,6 +2885,30 @@ function rtcPanel(r){
    '<div class="row"><textarea id="rtcstun" rows="2" style="width:380px" placeholder="stun:stun.example.org:3478">'+esc(stun)+'</textarea> '+t('STUN-Server (einer pro Zeile). Vorbelegt ist ein öffentlicher Server; er sieht nur die IP-Adressen der Teilnehmer, nicht Bild oder Ton. Leer = nur Verbindungen im selben Netz.')+'</div>'+
    '<div class="row"><textarea id="rtcturn" rows="2" style="width:380px" placeholder="turn:turn.example.org:3478">'+esc((r.turn||[]).join('\n'))+'</textarea> '+t('TURN-Server (optional, für strenge Firewalls; coturn mit use-auth-secret, cs-team vergibt zeitlich begrenzte Zugangsdaten)')+'</div>'+
    '<div class="row"><input id="rtcsec" type="password" autocomplete="new-password" style="width:380px" placeholder="'+(r.secretSet?t('Geheimnis gesetzt – leer lassen = unverändert'):t('TURN-Geheimnis (static-auth-secret)'))+'"></div></div>';}
+/* Anmeldung (Namensraum + Verzeichnis). Die gespeicherten Werte stehen in settings.identity, die wirklich
+   wirksamen (auch die aus den Startparametern CS_IDENTITY_*) unter identity.effective. */
+function idPanel(i){
+  const e=i.effective||{};
+  const eff=t('Wirksam: {0}, Namensraum {1}, Gruppe {2}',esc(e.mode||'local'),esc(e.displayRealm||'local'),esc(e.group||''))+
+    ((e.admit||[]).length?' ('+t('Aufnahme: ')+esc(e.admit.join(', '))+')':'');
+  const warn=e.unencrypted?t('Achtung: {0} überträgt Passwörter ohne TLS. Bitte ldaps:// oder StartTLS verwenden.',esc(e.url||'')):'';
+  return '<div class="panel"><b>'+t('Anmeldung (Konten und Verzeichnis)')+'</b> <small class="muted">'+t('Ohne Verzeichnis melden sich Benutzer mit ihrem cs-team-Namen an. Mit Verzeichnis zusätzlich mit name@Namensraum (Active Directory, LDAP, OpenLDAP, Samba). Änderungen gelten sofort.')+'</small>'+
+   '<div class="row">'+t('Anmeldung erlauben: ')+modeSel('sidmo',i.mode||'',[['','Vorgabe der Startparameter'],['local','nur lokale Konten'],['dir','nur Verzeichnis'],['mixed','Verzeichnis und lokale Konten']],false)+
+    ' &nbsp; <label><input type="checkbox" id="sidloc"'+(i.allowLocal?' checked':'')+'> '+t('lokale Konten zusätzlich erlauben (bei „nur Verzeichnis“)')+'</label></div>'+
+   '<div class="row"><input id="sidre" style="width:170px" placeholder="'+t('Namensraum (schule.de)')+'" value="'+esc(i.realm||'')+'"> '+
+    '<input id="siddef" style="width:230px" placeholder="'+t('Anzeige-Namensraum (wie angemeldet wird)')+'" value="'+esc(i.defaultRealm||'')+'"> '+
+    '<small class="muted">'+t('Angemeldet wird mit name@Namensraum. Ohne eigene Suchbasis wird der Namensraum aus DC=… gebildet.')+'</small></div>'+
+   '<div class="row"><input id="sidurl" style="width:260px" placeholder="'+t('Verzeichnisadresse (ldaps://dc.schule.de:636)')+'" value="'+esc(i.url||'')+'"> '+
+    '<label><input type="checkbox" id="sidttls"'+(i.startTls?' checked':'')+'> '+t('StartTLS (für ldap://)')+'</label></div>'+
+   '<div class="row"><input id="sidbase" style="width:290px" placeholder="'+t('Suchbasis (DC=schule,DC=de)')+'" value="'+esc(i.base||'')+'"> '+
+    '<input id="sidbdn" style="width:290px" placeholder="'+t('Dienstkonto für die Gruppensuche (CN=svc,DC=schule,DC=de)')+'" value="'+esc(i.bindDn||'')+'"></div>'+
+   '<div class="row"><input id="sidbpw" type="password" autocomplete="new-password" style="width:260px" placeholder="'+(i.bindPwSet?t('Passwort des Dienstkontos – leer lassen = unverändert'):t('Passwort des Dienstkontos'))+'">'+
+    (i.bindPwSet?' <label><input type="checkbox" id="sidbwx"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
+   '<div class="row"><input id="sidadm" style="width:310px" placeholder="'+t('Aufnahme-Gruppen (durch Komma getrennt, leer = alle Benutzer)')+'" value="'+esc((i.admit||[]).join(', '))+'"> '+
+    '<input id="sidgrp" style="width:190px" placeholder="'+t('cs-team-Gruppe der Verzeichnisbenutzer')+'" value="'+esc(i.group||'')+'"></div>'+
+   '<div class="row"><input id="sidcache" type="number" min="0" max="365" style="width:80px" value="'+(i.cacheDays||0)+'"> '+t('Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.')+'</div>'+
+   '<div class="muted row">'+eff+(warn?'<br><b>'+esc(warn)+'</b>':'')+'</div></div>';
+}
 let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
 const AIDEF={anthropic:'Anthropic',openai:'OpenAI',ollama:'Ollama (local)'};
 function aiProvRow(p,v){   // eine Anbieter-Einheit: Anbieter wählen (Popup fragt den Schlüssel), Modell wählen, Rest unter "Erweitert"; p = '' oder '2'
@@ -3008,6 +3033,7 @@ S.set={
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
+     idPanel(c.identity||{})+
      '<div class="row"><button id="ssave">'+t('Speichern')+'</button> <button id="stest">'+t('Speichern + Testmail an mich')+'</button> <button id="aitest">'+t('Speichern + KI testen')+'</button></div>';
     aiProvBind('');aiProvBind('2');[0,1,2].forEach(vdBind);
     $('#susage').onclick=async()=>{
@@ -3033,6 +3059,13 @@ S.set={
       const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
       if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
       if(!await api('POST','/api/settings/rtc',rb))return false;
+      const cd=Math.round(+$('#sidcache').value||0);
+      if(!(cd>=0&&cd<=365)){alert(t('Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).'));return false;}
+      const idb={mode:$('#sidmo').value,realm:$('#sidre').value.trim(),defaultRealm:$('#siddef').value.trim(),localGroup:$('#sidgrp').value.trim(),
+        url:$('#sidurl').value.trim(),base:$('#sidbase').value.trim(),bindDn:$('#sidbdn').value.trim(),admit:$('#sidadm').value.split(',').map(x=>x.trim()).filter(Boolean),
+        allowLocal:$('#sidloc').checked,startTls:$('#sidttls').checked,cacheDays:cd};
+      if($('#sidbwx')&&$('#sidbwx').checked)idb.bindPw='';else if($('#sidbpw').value)idb.bindPw=$('#sidbpw').value;
+      if(!await api('POST','/api/settings/auth',idb))return false;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};aiStart();return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};
