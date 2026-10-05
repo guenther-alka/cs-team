@@ -43,6 +43,44 @@ func env(k, def string) string {
 	return def
 }
 
+// envInt: Zahl aus der Umgebung (fehlend/ungültig = Standardwert).
+func envInt(k string, def int) int {
+	if n, err := strconv.Atoi(os.Getenv(k)); err == nil {
+		return n
+	}
+	return def
+}
+
+// envList: durch Komma oder Semikolon getrennte Liste (leere Einträge entfallen).
+func envList(s string) []string {
+	var out []string
+	for _, x := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' }) {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// envIdentity: Vorgabe der Anmeldung (Namensraum name@realm + Verzeichnis) aus den Startparametern CS_IDENTITY_*.
+// Die Einstellungen der Oberfläche haben Vorrang (chat.Settings.Identity).
+func envIdentity() auth.Identity {
+	return auth.Identity{
+		Mode:         env("CS_IDENTITY_MODE", ""),                    // "", "local", "dir" oder "mixed"
+		Realm:        env("CS_IDENTITY_REALM", ""),                   // eigener Namensraum, z.B. local.de
+		DefaultRealm: env("CS_IDENTITY_REALM_DEFAULT", ""),           // Namensraum für Namen ohne @ (Anzeige)
+		AdmitGroups:  envList(os.Getenv("CS_IDENTITY_ADMIT_GROUPS")), // Gruppen im Verzeichnis (leer = alle)
+		LocalGroup:   env("CS_IDENTITY_LOCAL_GROUP", ""),             // cs-team-Gruppe der Verzeichnisbenutzer
+		AllowLocal:   os.Getenv("CS_IDENTITY_ALLOW_LOCAL") == "1",
+		CacheDays:    envInt("CS_IDENTITY_CACHE_DAYS", 0),
+		URL:          env("CS_IDENTITY_URL", ""),       // ldap://host:389 oder ldaps://host:636
+		Base:         env("CS_IDENTITY_BASE", ""),      // Suchbasis, z.B. DC=local,DC=de
+		BindDN:       env("CS_IDENTITY_BIND_DN", ""),   // Dienstkonto für die Gruppensuche
+		BindPW:       os.Getenv("CS_IDENTITY_BIND_PW"), // Passwort des Dienstkontos
+		StartTLS:     os.Getenv("CS_IDENTITY_STARTTLS") == "1",
+	}
+}
+
 // loadConf: KEY=VALUE-Datei (# Kommentare) in die Umgebung laden; bereits gesetzte Variablen gewinnen.
 // Datei: erstes Argument "-c <datei>" oder CS_CONF.
 func loadConf() {
@@ -209,7 +247,9 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	if n, err := strconv.Atoi(os.Getenv("CS_TRASH_DAYS")); err == nil && n >= 0 {
 		cfg.EnvTrashDays = n
 	}
-	fsvc.Quota = cfg.Quota // Dateikontingent aus den Einstellungen
+	cfg.EnvIdentity = envIdentity() // Anmeldung: Namensraum (name@realm) + Verzeichnis aus den Startparametern
+	a.SetIdentitySource(cfg)        // Oberfläche hat Vorrang; Änderungen gelten sofort (auth.Auth liest die Einstellung)
+	fsvc.Quota = cfg.Quota          // Dateikontingent aus den Einstellungen
 	fsvc.TrashDays = cfg.TrashDays
 	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen

@@ -56,7 +56,13 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			}
 		}
 		u, _ := a.get(r.Context(), User(r.Context()))
-		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "version": Version})
+		idc := a.identity()
+		realm, src := u.Realm, u.Source
+		if realm == "" {
+			realm, src = RealmLocal, "local"
+		}
+		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "version": Version,
+			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK()})
 	})))
 
 	// eigene Oberflächensprache speichern ("" = automatisch)

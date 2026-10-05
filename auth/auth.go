@@ -64,6 +64,8 @@ type Account struct {
 	Lang     string   `json:"lang,omitempty"` // Oberflächensprache (leer = Browser/Serverstandard)
 	Mail     string   `json:"mail,omitempty"` // externe E-Mail-Adresse (für Nachrichten)
 	Chat     string   `json:"chat,omitempty"` // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
+	Realm    string   `json:"realm,omitempty"`
+	Source   string   `json:"source,omitempty"` // "dir" = Spiegelkonto eines Verzeichnisbenutzers (ohne Passwort)
 }
 
 // Altformat der Version 0.1: "name": "<hash>"
@@ -96,6 +98,9 @@ type Auth struct {
 	dummy  []byte
 	cache  map[[32]byte]cacheEnt // erfolgreiche Anmeldungen (kurz), spart bcrypt je Anfrage
 	salt   [16]byte
+	id     Identity       // Anmelde-Einstellung, wenn keine Quelle (Einstellungen) gesetzt ist
+	idSrc  IdentitySource // Quelle der Anmelde-Einstellung (chat.Settings, Tests)
+	dir    DirChecker     // feste Verzeichnisprüfung (Tests); sonst aus der Einstellung
 }
 
 var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht die Gruppen eines Benutzers
@@ -464,19 +469,44 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			return
 		}
 		cip := a.ip(r)
-		key, ipKey, userKey := name+"|"+cip, "ip|"+cip, "user|"+name
+		idc := a.identity()
+		id, err := parseLogin(name, idc)
+		key, ipKey, userKey := id.Key+"|"+cip, "ip|"+cip, "user|"+id.Key
 		if a.locked(key) || a.locked(ipKey) || a.locked(userKey) {
 			w.Header().Set("Retry-After", "300")
 			http.Error(w, "too many attempts", http.StatusTooManyRequests)
 			return
 		}
-		u, good := a.verifyCached(r.Context(), name, pass)
+		var u Account
+		var good bool
+		switch {
+		case err != nil: // unbekannter Namensraum oder ungültiger Name: wie falsche Zugangsdaten behandeln
+		case id.Local && !idc.LocalOK():
+			err = ErrNoLocal
+		case id.Local:
+			u, good = a.verifyCached(r.Context(), id.Key, pass)
+		default: // Verzeichnisbenutzer: name@realm
+			u, err = a.verifyDirCached(r.Context(), id, pass)
+			good = err == nil
+		}
 		if !good {
 			a.failed(key)
 			a.failedMax(ipKey, maxFailsIP)     // Passwort-Spraying über viele Namen von einer Adresse
 			a.failedMax(userKey, maxFailsUser) // verteilter Angriff auf einen Namen (hohe Schwelle)
-			w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			switch {
+			case errors.Is(err, ErrDirDown):
+				w.Header().Set("Retry-After", "30")
+				http.Error(w, "directory unavailable", http.StatusServiceUnavailable)
+			case errors.Is(err, ErrNotAdmit):
+				http.Error(w, "not admitted for this service", http.StatusForbidden)
+			case errors.Is(err, ErrBadRealm):
+				http.Error(w, "unknown login realm", http.StatusUnauthorized)
+			case errors.Is(err, ErrNoLocal):
+				http.Error(w, "local login disabled", http.StatusForbidden)
+			default: // falsches Passwort, unbekanntes Konto
+				w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 		a.ok(key)
@@ -485,7 +515,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			http.Error(w, "password change required", http.StatusForbidden)
 			return
 		}
-		ctx := context.WithValue(r.Context(), ctxKey{}, name)
+		ctx := context.WithValue(r.Context(), ctxKey{}, id.Key)
 		ctx = context.WithValue(ctx, ctxAdmin{}, u.Admin)
 		all, wr := a.areas(u)
 		ctx = context.WithValue(ctx, ctxAreas{}, all)
