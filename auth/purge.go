@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"cs-team/store"
@@ -86,17 +87,9 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			return
 		}
 		ctx := r.Context()
-		// Vorbedingung vor allem Löschen: nicht der letzte globale Admin
-		if u, _ := a.get(ctx, name); u.Admin {
-			n := 0
-			a.mu.Lock()
-			for _, x := range a.users {
-				if x.Admin && !x.Disabled {
-					n++
-				}
-			}
-			a.mu.Unlock()
-			if n <= 1 {
+		// Vorbedingung vor allem Löschen: nicht der letzte aktive lokale Admin (Notfallzugang, 0.55)
+		if u, _ := a.get(ctx, name); u.Admin && !strings.Contains(name, "@") {
+			if a.LocalAdmins(ctx) <= 1 {
 				fail_(w, ErrLastAdm)
 				return
 			}

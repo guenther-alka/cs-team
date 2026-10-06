@@ -51,12 +51,12 @@ type stored struct {
 	TrashDays *int       `json:"trashDays,omitempty"` // Papierkorb: Tage (0 = aus)
 
 	// Anmeldung (Namensraum + Verzeichnis): leer = Vorgabe aus den Startparametern
-	IdMode     string    `json:"idMode,omitempty"`     // "local", "dir" oder "mixed"
+	IdMode     string    `json:"idMode,omitempty"`     // "local", "dir" oder "mixed" ("dir" = wie "mixed", siehe 0.55)
 	IdRealm    string    `json:"idRealm,omitempty"`    // eigener Namensraum, z.B. "local.de"
 	IdDefRealm string    `json:"idDefRealm,omitempty"` // Namensraum für Namen ohne @ (Anzeige in der Oberfläche)
 	IdAdmit    *[]string `json:"idAdmit,omitempty"`    // Aufnahme-Gruppen im Verzeichnis (leer = alle)
 	IdGroup    string    `json:"idGroup,omitempty"`    // cs-team-Gruppe der Verzeichnisbenutzer
-	IdLocal    *bool     `json:"idLocal,omitempty"`    // lokale cs-team-Konten zusätzlich erlaubt
+	IdLocal    *bool     `json:"idLocal,omitempty"`    // ohne Wirkung (0.55): lokale Konten sind immer erlaubt
 	IdCache    *int      `json:"idCache,omitempty"`    // Tage ohne Verzeichnis (Phase 3)
 	IdURL      string    `json:"idURL,omitempty"`      // ldap://host:389 oder ldaps://host:636
 	IdBase     string    `json:"idBase,omitempty"`     // Suchbasis, z.B. DC=local,DC=de
@@ -155,6 +155,7 @@ func (s *Settings) setQuota(mb int64) error {
 }
 
 // authIn: Anmeldung aus der Oberfläche. BindPW: nil = unverändert, "" = löschen.
+// AllowLocal wird weiter angenommen (alte Oberflächen), hat aber keine Wirkung (0.55).
 type authIn struct {
 	Mode, Realm, DefaultRealm, LocalGroup, URL, Base, BindDN string
 	AdmitGroups                                              []string

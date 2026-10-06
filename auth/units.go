@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 
@@ -60,12 +61,74 @@ func (a *Auth) AddUnit(ctx context.Context, name string) error {
 	if !validName.MatchString(name) {
 		return ErrBadName
 	}
+	gs, ok := a.loadGroups(ctx)
+	if !ok {
+		return errors.New("groups could not be read")
+	}
+	if _, ex := gs[name]; ex {
+		// Sonst wäre neben der Gruppe "schule" auch die Organisation "schule" da: "#schule" und "@schule" wären
+		// verwechselbar, und ein Freigabe-Eintrag "g:schule" wäre nicht mehr eindeutig (KISS 0.55).
+		return fmt.Errorf("%w: %s", ErrNameUsed, name)
+	}
 	return a.mutateUnits(ctx, func(l []string) ([]string, error) {
 		if contains(l, name) {
 			return nil, ErrExists
 		}
 		return append(l, name), nil
 	})
+}
+
+// UnitExists: gibt es diese Organisation (ohne "all")? Für Aufrufer, die nur den Namen kennen (z.B. Kalender).
+func UnitExists(name string) bool {
+	if std == nil || name == "" || name == DefaultUnit {
+		return false
+	}
+	return contains(std.loadUnits(context.Background()), name)
+}
+
+// UnitNames: alle Organisationen (ohne "all") - für Aufrufer, die alles auflisten (z.B. Kalender eines Admins).
+func UnitNames() []string {
+	if std == nil {
+		return nil
+	}
+	var out []string
+	for _, u := range std.loadUnits(context.Background()) {
+		if u != DefaultUnit {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// UnitsOf: Organisationen des Benutzers (über seine Gruppen; "all" ist keine echte Zuordnung und zählt nicht).
+func UnitsOf(user string) []string {
+	if std == nil {
+		return nil
+	}
+	gs := GroupsOf(user)
+	std.mu.Lock()
+	defer std.mu.Unlock()
+	set := map[string]bool{}
+	for _, g := range gs {
+		for _, u := range std.groups[g].Units {
+			if u != "" && u != DefaultUnit {
+				set[u] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for u := range set {
+		out = append(out, u)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// InUnit: gehört der Benutzer über eine seiner Gruppen zu dieser Organisation? Reine Zuordnung (KISS 0.55):
+// die Organisation fasst die Mitglieder ihrer Gruppen zusammen; Rechte entstehen daraus nur dort, wo es
+// ausdrücklich vorgesehen ist (Freigabeliste "g:<organisation>", Kalender-Zuordnung "#<organisation>").
+func InUnit(user, unit string) bool {
+	return unit != "" && unit != DefaultUnit && contains(UnitsOf(user), unit)
 }
 
 func (a *Auth) DeleteUnit(ctx context.Context, name string) error {
@@ -136,20 +199,49 @@ func (a *Auth) unitRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.Ha
 	mux.Handle("GET /api/units", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a.refresh(r.Context())
 		type row struct {
-			Name   string   `json:"name"`
-			Groups []string `json:"groups"`
+			Name    string   `json:"name"`
+			Groups  []string `json:"groups"`
+			Members []string `json:"members,omitempty"` // effektive Mitglieder der Organisation (nur für Admins)
+			Sources []string `json:"sources,omitempty"` // woher die Mitglieder kommen, "gruppe <- quelle" (nur für Admins)
 		}
 		out := []row{}
+		adm := IsAdmin(r.Context())
 		units := a.loadUnits(r.Context())
 		a.mu.Lock()
 		for _, u := range units {
 			rw := row{Name: u, Groups: []string{}}
 			for n, g := range a.groups {
-				if contains(unitsOf(g), u) {
-					rw.Groups = append(rw.Groups, n)
+				if !contains(unitsOf(g), u) {
+					continue
+				}
+				rw.Groups = append(rw.Groups, n)
+				if !adm {
+					continue
+				}
+				for _, src := range append(append(append([]string{}, g.Sub...), g.Unit...), g.Dir...) {
+					rw.Sources = append(rw.Sources, n+" <- "+src) // Gruppe n zieht die Mitglieder von src mit
 				}
 			}
 			sort.Strings(rw.Groups)
+			if adm { // Mitglieder sieht nur ein Admin (wie in der Gruppenansicht)
+				set := map[string]bool{}
+				for un, acc := range a.users {
+					if acc.Disabled {
+						continue
+					}
+					for _, x := range effGroups(acc) {
+						if contains(rw.Groups, x) {
+							set[un] = true
+							break
+						}
+					}
+				}
+				for n := range set {
+					rw.Members = append(rw.Members, n)
+				}
+				sort.Strings(rw.Members)
+				sort.Strings(rw.Sources)
+			}
 			out = append(out, rw)
 		}
 		a.mu.Unlock()

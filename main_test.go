@@ -42,6 +42,9 @@ func setup(t *testing.T) (*httptest.Server, store.Store) {
 		if err := a.SetUser(ctx, u, "passwort-"+u, u == "anna"); err != nil {
 			t.Fatal(err)
 		}
+		if err := a.SetPassword(ctx, u, "passwort-"+u); err != nil { // SetUser verlangt die Änderung beim ersten Login; die Testkonten sind fertig eingerichtet
+			t.Fatal(err)
+		}
 	}
 	return httptest.NewServer(routes(st, a)), st
 }
@@ -1534,7 +1537,8 @@ func TestUnits(t *testing.T) {
 		t.Fatal(b)
 	}
 	_, b = req(t, srv, "bob", "GET", "/api/units", "")
-	if !strings.Contains(b, `{"name":"forschung","groups":["x1"]}`) || !strings.Contains(b, `{"name":"all","groups":["alluser"]}`) {
+	// groups/members: die Antwort enthält hinter "groups" weitere Felder (Mitglieder) - deshalb ohne schließende Klammer
+	if !strings.Contains(b, `{"name":"forschung","groups":["x1"]`) || !strings.Contains(b, `{"name":"all","groups":["alluser"]`) {
 		t.Fatal(b)
 	}
 	if c, _ := req(t, srv, "anna", "POST", "/api/groups/x1", `{"units":["forschung"]}`); c != 200 {
@@ -1544,7 +1548,7 @@ func TestUnits(t *testing.T) {
 		t.Fatal(c)
 	}
 	_, b = req(t, srv, "anna", "GET", "/api/units", "")
-	if strings.Contains(b, "forschung") || !strings.Contains(b, `{"name":"all","groups":["alluser","x1"]}`) {
+	if strings.Contains(b, "forschung") || !strings.Contains(b, `{"name":"all","groups":["alluser","x1"]`) {
 		t.Fatal("Gruppe ohne Organisation faellt auf all", b)
 	}
 }

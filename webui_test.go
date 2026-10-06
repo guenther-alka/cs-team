@@ -2,7 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,6 +17,9 @@ import (
 // die Stelle in jeder Sprache deutsch und ein Tippfehler fällt nie auf - deshalb prüft dieser Test den Abgleich.
 var reTKey = regexp.MustCompile(`(?:^|[^\w$.'"\\\n])t\('((?:[^'\\]|\\.)*)'`)
 
+// reScript: jeder Inline-<script>-Block der Seite (die Oberfläche hat keine externen Skripte).
+var reScript = regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`)
+
 // Formularfelder der Anmeldung (idPanel) und Zugriffe darauf (save): beide Seiten müssen zusammenpassen,
 // sonst schreibt das Speichern eine leere Einstellung oder ein Feld bleibt wirkungslos.
 var (
@@ -21,6 +27,30 @@ var (
 	reIDSel = regexp.MustCompile(`modeSel\('(sid[A-Za-z0-9]+)'`) // Auswahlfelder baut modeSel mit der Kennung im Code
 	reIDUse = regexp.MustCompile(`\$\('#(sid[A-Za-z0-9]+)'\)`)
 )
+
+func TestWebUISyntax(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node nicht gefunden: JavaScript-Syntax wird nicht geprüft")
+	}
+	html := webFile(t, "web/index.html")
+	ms := reScript.FindAllStringSubmatch(html, -1)
+	if len(ms) == 0 {
+		t.Fatal("kein <script>-Block in web/index.html gefunden")
+	}
+	for i, m := range ms {
+		if strings.TrimSpace(m[1]) == "" {
+			continue
+		}
+		f := filepath.Join(t.TempDir(), fmt.Sprintf("block%d.js", i+1))
+		if err := os.WriteFile(f, []byte(m[1]), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command(node, "--check", f).CombinedOutput(); err != nil {
+			t.Errorf("web/index.html, Skript-Block %d: %v\n%s", i+1, err, out)
+		}
+	}
+}
 
 func webFile(t *testing.T, name string) string {
 	t.Helper()

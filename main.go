@@ -71,7 +71,7 @@ func envIdentity() auth.Identity {
 		DefaultRealm: env("CS_IDENTITY_REALM_DEFAULT", ""),           // Namensraum für Namen ohne @ (Anzeige)
 		AdmitGroups:  envList(os.Getenv("CS_IDENTITY_ADMIT_GROUPS")), // Gruppen im Verzeichnis (leer = alle)
 		LocalGroup:   env("CS_IDENTITY_LOCAL_GROUP", ""),             // cs-team-Gruppe der Verzeichnisbenutzer
-		AllowLocal:   os.Getenv("CS_IDENTITY_ALLOW_LOCAL") == "1",
+		AllowLocal:   os.Getenv("CS_IDENTITY_ALLOW_LOCAL") == "1", // ohne Wirkung (0.55): lokale Konten sind immer erlaubt
 		CacheDays:    envInt("CS_IDENTITY_CACHE_DAYS", 0),
 		URL:          env("CS_IDENTITY_URL", ""),       // ldap://host:389 oder ldaps://host:636
 		Base:         env("CS_IDENTITY_BASE", ""),      // Suchbasis, z.B. DC=local,DC=de
@@ -109,7 +109,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.53.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.57.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -146,6 +146,9 @@ func main() {
 	setupSnapshot(os.Getenv("CS_DIR"))
 
 	a.TrustProxy = os.Getenv("CS_TRUST_PROXY") == "1"
+	if n := envInt("CS_MAX_FAILS_IP", 0); n > 0 { // Fehlversuche je Adresse bis zur Sperre (Schul-NAT/Proxy: höher setzen)
+		auth.MaxFailsIP = n
+	}
 	if err := a.Migrate(ctx); err != nil { // Standardgruppe "users" -> "alluser"
 		log.Println("migrate groups:", err)
 	}
@@ -224,6 +227,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	cb := &cal.Backend{St: st}
 	cb.Routes(mux, a.Wrap)
 	auth.OnNewGroup = func(ctx context.Context, g, mode string) { cb.NewGroupCalendar(ctx, g, mode) }
+	auth.OnGroupCal = cb.SetGroupCalendar // Gruppen-Einstellungen: Gruppenkalender anlegen, freigeben oder entfernen
 	hub := doc.NewHub(st)
 	hub.Routes(mux, a.Wrap)
 	mb, _ := strconv.Atoi(env("CS_MAX_UPLOAD_MB", "100"))
@@ -276,7 +280,8 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		{Name: "tasks", Area: "tasks", Rename: ts.RenameGroup, Used: ts.TasksUsed},
 	}
 	auth.GroupCalMode = cb.GroupCalMode
-	auth.UserHooks = []auth.UserHook{ // Benutzer löschen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
+	auth.GroupCalState = cb.GroupCalState // Gruppen-Einstellungen zeigen/ändern die Freigabe des Gruppenkalenders
+	auth.UserHooks = []auth.UserHook{     // Benutzer löschen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
 		{Name: "files", Count: fsvc.UserCount, Purge: fsvc.PurgeUser},
 		{Name: "documents", Count: hub.UserCount, Purge: hub.PurgeUser},
 		{Name: "calendar", Count: cb.UserCount, Purge: cb.PurgeUser},

@@ -18,7 +18,7 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 | Menu | What it does |
 |------|--------------|
 | User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export |
-| Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, global, group, resource (no double booking), internet subscriptions; recurring events with time zones, edit "only this / this and following / all events of the series", mouse control (click a day for a new event, Shift+click for a multi-day range, drag & drop, Ctrl+X/C/V), reminders (VALARM), attendees with e-mail invitation (iMIP), .ics import/export, subscription status |
+| Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, group, organization and global calendars, each with its own release (not released / entitled read / entitled write), plus internet subscriptions (read-only) and resources (no double booking); recurring events with time zones, edit "only this / this and following / all events of the series", mouse control (click a day for a new event, Shift+click for a multi-day range, drag & drop, Ctrl+X/C/V), reminders (VALARM), attendees with e-mail invitation (iMIP), .ics import/export per calendar, subscription status |
 | Calc / Text | multi-user live editing (per cell / per paragraph), formulas, undo/redo, number formats, hour grid in the calendar, more functions (SUMIF, VLOOKUP, TEXT ...), sort, freeze, column width, alignment, import/export csv, xlsx, txt, rtf, docx |
 | Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder, trash (restore, 30 days by default), WebDAV file locks (LOCK/UNLOCK) |
 | Tasks | ticket system light: requester, assignee, milestones, history, repetition, notifications |
@@ -58,6 +58,8 @@ Basic Auth is used - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind a
 | `CS_ADMIN_USER` / `CS_ADMIN_PASS` | first admin (only if no user exists) | - |
 | `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS certificate / key (PEM) | HTTP |
 | `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
+| `CS_MAX_FAILS_IP` | failed sign-ins per address before it is locked (signed-in users exempt) | `60` |
+| `CS_IDENTITY_*` | directory/LDAP sign-in defaults (`MODE`, `REALM`, `URL`, `BASE`, `BIND_DN`, `BIND_PW`, `STARTTLS`, `ADMIT_GROUPS`, `LOCAL_GROUP`, `ALLOW_LOCAL`, `CACHE_DAYS`); UI settings override | local |
 | `CS_MAX_UPLOAD_MB` / `CS_CHAT_MAX_MB` | upload limits | 100 / 10 |
 | `CS_QUOTA_MB` | default file quota per user and group folder in MB (better set in *Settings*) | 0 (unlimited) |
 | `CS_TRASH_DAYS` | days deleted files stay in the trash (better set in *Settings*; 0 = no trash) | 30 |
@@ -71,6 +73,19 @@ The built-in video chat needs HTTPS or localhost (browser rule for camera and mi
 
 CalDAV `https://host:9004/dav/` · WebDAV `https://host:9004/webdav/` (rclone, WinSCP, Cyberduck, macOS Finder;
 Windows network drive needs HTTPS; DAV class 2 with LOCK/UNLOCK, so Explorer and Office can write) · REST `/api/...`.
+
+A CalDAV client sees exactly the calendars the user may see (own, group, organization, global and subscriptions);
+calendars that are not released (`off`) are missing and answer 404 on direct access. Writing is allowed only where the
+release says so (`rw`, or as owner/manager); subscriptions are always read-only (403). Owners may always change their own
+calendars (the release only governs other people); if the user's *Calendar* area is read-only (group template `klasse`),
+their own calendars are locked as well (403). New calendars are created in the UI (calendar bar → **+ add**); via CalDAV a
+calendar is created with `MKCOL` and a `<c:calendar/>` resource type, `MKCALENDAR` is answered with 405.
+Group calendars come with the group (checkbox *Create group calendar*, templates `team`/`klasse`) or later in the group
+settings (global admins): `cal` = `""` (none / removal, only while the calendar is empty), `off`, `ro`, `rw`.
+`GET /api/groups` reports `cal` per group, `POST /api/groups/<group>` sets it.
+A single calendar as a file: **Export (.ics)** in the calendar bar = `GET /api/cal/<id>/export.ics` (also for read-only
+calendars and subscriptions), back into a writable calendar via **Import (.ics)** = `POST /api/cal/<id>/import`
+(matches by UID, repeated import creates no duplicates).
 
 ## Build
 

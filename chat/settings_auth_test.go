@@ -113,7 +113,7 @@ func TestSettingsAuthRoute(t *testing.T) {
 	id := s.Identity()
 	if id.Mode != "dir" || id.Realm != "local.de" || id.URL != "ldap://192.168.2.124:389" || id.BindPW != "geheim" ||
 		id.BindDN != "cn=svc,DC=local,DC=de" || len(id.AdmitGroups) != 1 || id.AdmitGroups[0] != "lehrer" ||
-		id.LocalGroup != "teaching" || id.AllowLocal || !id.DirOK() || id.LocalOK() || !id.Unencrypted() {
+		id.LocalGroup != "teaching" || id.AllowLocal || !id.DirOK() || !id.LocalOK() || !id.Unencrypted() {
 		t.Fatalf("gespeichert: %+v", id)
 	}
 	w := call("GET", "/api/settings", "")
@@ -130,7 +130,7 @@ func TestSettingsAuthRoute(t *testing.T) {
 	}
 	eff, _ := ids["effective"].(map[string]any)
 	if eff == nil || eff["realm"] != "local.de" || eff["displayRealm"] != "local.de" || eff["group"] != "teaching" ||
-		eff["allowLocal"] != false || eff["unencrypted"] != true || eff["mode"] != "directory only" {
+		eff["allowLocal"] != true || eff["unencrypted"] != true || eff["mode"] != "directory + local" {
 		t.Fatalf("wirksam: %v", eff)
 	}
 	// ungültiger Wert: 400 und die gespeicherte Einstellung bleibt stehen

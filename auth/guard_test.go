@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"cs-team/store"
 )
@@ -59,12 +61,38 @@ func TestGuard(t *testing.T) {
 	if call("root", "anotheranother", "192.0.2.2") != 200 {
 		t.Fatal("neues Passwort")
 	}
-	// Spraying: viele Namen von einer Adresse -> Adresse gesperrt, gültige Anmeldung von dort ebenfalls blockiert
-	for i := 0; i < maxFailsIP; i++ {
-		call("nobody"+string(rune('a'+i)), "x", "198.51.100.7")
+	// Spraying: viele Namen von einer Adresse -> Adresse gesperrt. Wer von dort gerade gültig angemeldet ist (Cache), bleibt
+	// zugelassen (Schul-NAT/Proxy); eine neue Anmeldung - auch mit richtigem Passwort - wird blockiert.
+	if err := a.AddUser(ctx, "anna", "annaannaanna", false, nil); err != nil {
+		t.Fatal(err)
 	}
-	if got := call("root", "anotheranother", "198.51.100.7"); got != 429 {
-		t.Fatalf("Adresse nicht gesperrt: %d", got)
+	if got := call("root", "anotheranother", "198.51.100.7"); got != 200 {
+		t.Fatalf("Anmeldung vor der Sperre: %d", got)
+	}
+	for i := 0; i < MaxFailsIP; i++ {
+		call("nobody"+strconv.Itoa(i), "x", "198.51.100.7")
+	}
+	if !a.locked("ip|198.51.100.7") {
+		t.Fatal("Adresse nicht gesperrt")
+	}
+	if got := call("root", "anotheranother", "198.51.100.7"); got != 200 {
+		t.Fatalf("angemeldeter Nutzer durch Adress-Sperre blockiert: %d", got)
+	}
+	if got := call("anna", "annaannaanna", "198.51.100.7"); got != 429 {
+		t.Fatalf("neue Anmeldung von gesperrter Adresse nicht blockiert: %d", got)
+	}
+	if got := call("root", "falschfalsch", "198.51.100.7"); got != 429 {
+		t.Fatalf("falsches Passwort von gesperrter Adresse nicht blockiert: %d", got)
+	}
+	// Zähler verfällt: ohne neuen Fehlversuch innerhalb von failWindow beginnt er wieder bei 0
+	a.failedMax("win|x", 3)
+	a.failedMax("win|x", 3)
+	a.mu.Lock()
+	a.fails["win|x"].last = time.Now().Add(-2 * failWindow)
+	a.mu.Unlock()
+	a.failedMax("win|x", 3)
+	if a.locked("win|x") {
+		t.Fatal("veralteter Fehlversuchs-Zähler nicht zurückgesetzt")
 	}
 	if got := call("root", "anotheranother", "198.51.100.8"); got != 200 {
 		t.Fatalf("andere Adresse blockiert: %d", got)

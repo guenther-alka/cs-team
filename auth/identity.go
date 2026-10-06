@@ -24,8 +24,6 @@ var (
 	ErrBadRealm = errors.New("unknown realm")
 	// ErrNotAdmit: der Verzeichnisbenutzer steht in keiner der Aufnahme-Gruppen.
 	ErrNotAdmit = errors.New("not admitted")
-	// ErrNoLocal: lokale cs-team-Konten sind nicht erlaubt (Einstellung "nur Verzeichnis").
-	ErrNoLocal = errors.New("local login disabled")
 )
 
 // validKey: Schlüssel in users.json. Lokale Konten wie bisher, Verzeichnisbenutzer zusätzlich mit Namensraum
@@ -43,12 +41,12 @@ type loginID struct {
 
 // Identity: Einstellungen der Anmeldung. Vorgabe aus den Startparametern (CS_IDENTITY_*), änderbar in der Oberfläche.
 type Identity struct {
-	Mode         string   // "local" (nur cs-team), "dir" (nur Verzeichnis), "mixed" (beides); leer = "local"
+	Mode         string   // "local" (nur cs-team-Konten), "dir"/"mixed" (Verzeichnis und lokale Konten); leer = "local"
 	Realm        string   // eigener Namensraum, z.B. "local.de"
 	DefaultRealm string   // Namensraum für Namen ohne @ (leer = Realm); nur Anzeige/Anleitung in der Oberfläche
 	AdmitGroups  []string // Verzeichnisgruppen, die zur Anmeldung berechtigen (leer = alle Benutzer)
 	LocalGroup   string   // cs-team-Gruppe der angemeldeten Verzeichnisbenutzer (leer = Standardgruppe)
-	AllowLocal   bool     // lokale Konten zusätzlich erlaubt (bei Mode "dir")
+	AllowLocal   bool     // ohne Wirkung (0.55): lokale Konten sind immer erlaubt; Feld bleibt für alte Konfigurationen
 	CacheDays    int      // Tage, die eine erfolgreiche Verzeichnis-Anmeldung ohne Verzeichnis gilt (Phase 3)
 	URL          string   // LDAP-Adresse: ldap://host:389 oder ldaps://host:636
 	Base         string   // Suchbasis, z.B. "DC=local,DC=de"
@@ -95,17 +93,10 @@ func (id Identity) DisplayRealm() string {
 // DirOK: ist eine Verzeichnisanmeldung überhaupt möglich (Namensraum bekannt)?
 func (id Identity) DirOK() bool { return id.DirRealm() != "" }
 
-// LocalOK: sind lokale cs-team-Konten erlaubt? Ohne Einrichtung bleibt alles wie bisher.
-func (id Identity) LocalOK() bool {
-	switch strings.ToLower(strings.TrimSpace(id.Mode)) {
-	case "dir":
-		return id.AllowLocal
-	case "mixed":
-		return true
-	default: // "" oder "local": lokale Konten sind die Anmeldung
-		return true
-	}
-}
+// LocalOK: lokale cs-team-Konten sind in JEDEM Modus anmeldefähig (Notfallzugang; KISS-Regel 0.55: "ohne Verzeichnis
+// ist cs-team vollständig, das Verzeichnis ist nur eine Zusatz-Quelle"). Der Modus steuert also nur, ob zusätzlich das
+// Verzeichnis befragt wird: "local"/"" nur lokale Konten, "dir"/"mixed" zusätzlich Verzeichnisbenutzer (name@realm).
+func (id Identity) LocalOK() bool { return true }
 
 // ValidRealm: gehört der Namensraum zu dieser Installation?
 func (id Identity) ValidRealm(realm string) bool {
@@ -120,12 +111,11 @@ func (id Identity) ValidRealm(realm string) bool {
 	}
 }
 
-// ModeName: Kurzbezeichnung für Protokoll und Oberfläche.
+// ModeName: Kurzbezeichnung für Protokoll und Oberfläche. "dir" und "mixed" sind dasselbe: lokale Konten bleiben
+// immer möglich (0.55), beide gespeicherten Werte bleiben gültig.
 func (id Identity) ModeName() string {
 	switch strings.ToLower(strings.TrimSpace(id.Mode)) {
-	case "dir":
-		return "directory only"
-	case "mixed":
+	case "dir", "mixed":
 		return "directory + local"
 	default:
 		return "local accounts"
@@ -317,8 +307,9 @@ func cn(s string) string {
 // dadurch um höchstens diesen Zeitraum.
 const dirCacheWrite = 24 * time.Hour
 
-// ensureDir: Spiegelkonto des Verzeichnisbenutzers anlegen bzw. aktualisieren. Die Rechte in cs-team kommen aus der
-// lokalen Gruppe (Standardgruppe oder Identity.LocalGroup).
+// ensureDir: Spiegelkonto des Verzeichnisbenutzers anlegen bzw. aktualisieren. Die Basisgruppe in cs-team kommt aus
+// Identity.LocalGroup (Vorgabe: Standardgruppe); die Verzeichnisgruppen des Kontos stehen in Account.DirGroups, daraus
+// ergeben sich die weiteren Mitgliedschaften über die Einträge Group.Dir und Group.Sub (KISS-Regel 0.55).
 // Ohne Zwischenspeicher (CacheDays = 0) trägt das Konto keinen Passwort-Hash ("!"): geprüft wird immer das Verzeichnis.
 // Mit CacheDays > 0 wird zusätzlich ein bcrypt-Abdruck des Verzeichnispassworts und der Zeitpunkt der letzten
 // erfolgreichen Prüfung gespeichert - damit bleibt die Anmeldung auch ohne Verzeichnis möglich (verifyDirOffline).
@@ -330,7 +321,8 @@ func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser, pass strin
 	if idc.CacheDays > 0 {
 		hash, seen = dirCache(cur, pass, now)
 	}
-	if have && !dirStale(cur, id.Realm, grp, du.Mail, hash, seen) {
+	dirs := dirRefs(du.Groups) // Verzeichnisgruppen des Kontos: Mitgliedschaft in weiteren Gruppen kommt daraus (0.55)
+	if have && !dirStale(cur, id.Realm, grp, du.Mail, hash, seen, dirs) {
 		return cur, nil // unverändert: den Speicher nicht bei jeder Anmeldung neu schreiben
 	}
 	err := a.mutate(ctx, func(m map[string]Account) error {
@@ -339,6 +331,7 @@ func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser, pass strin
 		u.DirSeen = seen
 		u.Realm, u.Source = id.Realm, "dir"
 		u.Groups = []string{grp}
+		u.DirGroups = dirs
 		if du.Mail != "" {
 			u.Mail = du.Mail
 		}
@@ -376,10 +369,11 @@ func dirCache(cur Account, pass string, now time.Time) (hash, seen string) {
 	return string(h), now.UTC().Format(time.RFC3339)
 }
 
-// dirStale: muss das Spiegelkonto neu geschrieben werden? hash/seen sind der Soll-Zustand (siehe dirCache).
-func dirStale(u Account, realm, group, mail, hash, seen string) bool {
+// dirStale: muss das Spiegelkonto neu geschrieben werden? hash/seen sind der Soll-Zustand (siehe dirCache);
+// dirs sind die Verzeichnisgruppen des Kontos (dirRefs).
+func dirStale(u Account, realm, group, mail, hash, seen string, dirs []string) bool {
 	return u.Hash != hash || u.DirSeen != seen || u.Disabled || u.Must || u.Realm != realm || u.Source != "dir" ||
-		len(u.Groups) != 1 || u.Groups[0] != group || (mail != "" && u.Mail != mail)
+		len(u.Groups) != 1 || u.Groups[0] != group || !sameList(u.DirGroups, dirs) || (mail != "" && u.Mail != mail)
 }
 
 // verifyDirOffline: Anmeldung aus dem Zwischenspeicher, wenn das Verzeichnis nicht erreichbar ist (Identity.CacheDays).

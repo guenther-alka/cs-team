@@ -32,9 +32,25 @@ type calendarT = caldav.Calendar
 
 // Kalender-Bereiche (owner im Schlüssel cal/<owner>/<kalender>/...):
 //
-//	<benutzer>   persönlicher Kalender (nur der Benutzer)
-//	_global      globale Kalender (alle lesen; schreiben Admins, bei Mode "rw" alle)
-//	@<gruppe>    Gruppenkalender (Mitglieder lesen; schreiben Gruppen-Admins, bei Mode "rw" alle Mitglieder)
+//	<benutzer>       persönlicher Kalender (nur der Benutzer; nur er ändert Termine)
+//	@<gruppe>        Gruppenkalender (Mitglieder und Gruppen-Admins lesen; schreiben Gruppen-Admins, bei Mode "rw"
+//	                 alle Mitglieder)
+//	+<organisation>  Organisationskalender (Mitglieder der Gruppen dieser Organisation lesen; schreiben globale
+//	                 Admins, bei Mode "rw" alle Berechtigten). "+" statt "#", weil "#" in URLs ein Fragment beginnt.
+//	_global          globale Kalender (alle lesen; schreiben globale Admins, bei Mode "rw" alle)
+//
+// Freigabe eines geteilten Kalenders (meta.Mode, gesetzt von den Verantwortlichen - siehe apiEdit):
+//
+//	"off"  nicht freigegeben: nur die Verantwortlichen sehen den Kalender (Entwurf)
+//	""     Altbestand ohne Angabe: wie "ro"
+//	"ro"   freigegeben: die Berechtigten lesen, die Verantwortlichen ändern
+//	"rw"   freigegeben: die Berechtigten lesen und ändern
+//
+// Verantwortlich: persönlich der Benutzer, Gruppe deren Gruppen-Admins (und globale Admins), Organisation und
+// global die globalen Admins. Fremde persönliche Kalender bleiben unsichtbar.
+//
+// Anzeige-Reihenfolge in der Oberfläche (hierarchisch, von innen nach außen): eigene, Gruppe, Organisation,
+// global, Abos (nur lesen) - siehe apiList.
 //
 // Kalender-ID in URLs (cid): eigene = "<kal>", sonst "<owner>~<kal>".
 const globalOwner = "_global"
@@ -113,6 +129,8 @@ func scopeOf(owner string) (scope, group string) {
 		return "global", ""
 	case strings.HasPrefix(owner, "@"):
 		return "group", owner[1:]
+	case strings.HasPrefix(owner, "+"):
+		return "unit", owner[1:]
 	}
 	return "user", ""
 }
@@ -126,19 +144,29 @@ func access(ctx context.Context, owner, mode string) (read, write, manage bool) 
 	return
 }
 
+// released: ist ein geteilter Kalender freigegeben (für die Berechtigten sichtbar)? "off" = nicht freigegeben
+// (nur die Verantwortlichen); "" = Altbestand ohne Angabe (wie "ro").
+func released(mode string) bool { return mode != "off" }
+
 func access0(ctx context.Context, owner, mode string) (read, write, manage bool) {
 	me := auth.User(ctx)
 	adm := auth.IsAdmin(ctx)
+	free := released(mode)
 	switch sc, g := scopeOf(owner); {
 	case owner == me:
 		return true, true, true
 	case sc == "global":
-		return true, adm || mode == "rw", adm
+		rd := adm || free // globale Kalender: alle lesen (sobald freigegeben)
+		return rd, rd && (adm || mode == "rw"), adm
 	case sc == "group":
-		mgr := auth.CanManage(ctx, g)
-		member := contains(auth.GroupsOf(me), g)
-		rd := member || adm
+		mgr := auth.CanManage(ctx, g) // Gruppen-Admins verantworten ihren Gruppenkalender (auch ohne Mitgliedschaft)
+		rd := adm || mgr || (contains(auth.GroupsOf(me), g) && free)
 		return rd, rd && (mgr || mode == "rw"), mgr
+	case sc == "unit":
+		// Organisation: Mitglieder ihrer Gruppen lesen; ändern dürfen globale Admins (die Organisation hat keine
+		// eigenen Verwalter - Gruppen-Admins verwalten ihre Gruppe, nicht die Organisation).
+		rd := adm || (auth.InUnit(me, g) && free)
+		return rd, rd && (adm || mode == "rw"), adm
 	}
 	return false, false, false
 }
@@ -152,7 +180,8 @@ func (b *Backend) open(ctx context.Context, cid string) (*calRef, error) {
 	if kal == "" || strings.ContainsAny(kal, "~/") {
 		return nil, he(http.StatusNotFound, "no calendar")
 	}
-	if owner != me && owner != globalOwner && !(strings.HasPrefix(owner, "@") && len(owner) > 1) {
+	if owner != me && owner != globalOwner && !(strings.HasPrefix(owner, "@") && len(owner) > 1) &&
+		!(strings.HasPrefix(owner, "+") && len(owner) > 1) {
 		return nil, he(http.StatusNotFound, "no calendar") // fremde Benutzer nie preisgeben
 	}
 	if owner == me && kal == "default" {
@@ -230,13 +259,31 @@ func (b *Backend) GetCalendar(ctx context.Context, p string) (*caldav.Calendar, 
 	return c.davCal(auth.User(ctx)), nil
 }
 
-// list: alle Kalender, die der Benutzer sieht: eigene, globale und die seiner Gruppen.
+// list: alle Kalender, die der Benutzer sieht: eigene, die seiner Gruppen und Organisationen sowie die globalen.
 func (b *Backend) list(ctx context.Context) ([]*calRef, error) {
 	me := auth.User(ctx)
 	b.ensureDefault(ctx, me)
-	owners := []string{me, globalOwner}
-	for _, g := range auth.GroupsOf(me) {
-		owners = append(owners, "@"+g)
+	owners, seen := []string{}, map[string]bool{}
+	add := func(o string) {
+		if !seen[o] {
+			seen[o] = true
+			owners = append(owners, o)
+		}
+	}
+	add(me)
+	add(globalOwner)
+	for _, g := range auth.GroupsOf(me) { // eigene Mitgliedschaften
+		add("@" + g)
+	}
+	for _, g := range auth.AdminOf(ctx) { // verwaltete Gruppen: Gruppen-Admins sehen ihren Kalender auch ohne Mitgliedschaft
+		add("@" + g)
+	}
+	units := auth.UnitsOf(me)
+	if auth.IsAdmin(ctx) { // globale Admins sehen (und verwalten) alle Organisationskalender
+		units = auth.UnitNames()
+	}
+	for _, u := range units {
+		add("+" + u)
 	}
 	var out []*calRef
 	for _, o := range owners {
@@ -422,4 +469,41 @@ func (b *Backend) NewGroupCalendar(ctx context.Context, group, mode string) {
 		mode = "rw"
 	}
 	b.createIn(ctx, "@"+group, "gruppe", meta{Name: group, Mode: mode})
+}
+
+// SetGroupCalendar: Freigabe des Gruppenkalenders aus den Gruppen-Einstellungen setzen: "ro"/"rw" legen ihn an
+// bzw. ändern nur die Freigabe, "off" macht ihn zum Entwurf der Verantwortlichen und "" entfernt ihn - aber nur,
+// wenn keine Termine darin liegen (CalUsed), damit keine Daten verloren gehen.
+func (b *Backend) SetGroupCalendar(ctx context.Context, group, mode string) error {
+	if mode != "" && mode != "off" && mode != "ro" && mode != "rw" {
+		return errors.New(`mode: "", "off", "ro" or "rw"`)
+	}
+	k := key("@"+group, "gruppe", "_meta.json")
+	raw, _, err := b.St.Get(ctx, k)
+	if errors.Is(err, store.ErrNotFound) {
+		if mode == "" || mode == "off" {
+			return nil // gibt es nicht: nichts zu ändern, kein leerer Entwurf
+		}
+		return b.createIn(ctx, "@"+group, "gruppe", meta{Name: group, Mode: mode})
+	} else if err != nil {
+		return err
+	}
+	if mode == "" {
+		if b.CalUsed(ctx, group) {
+			return auth.ErrCalUsed
+		}
+		b.DropGroup(ctx, group)
+		return nil
+	}
+	var m meta
+	if json.Unmarshal(raw, &m) != nil {
+		m = meta{}
+	}
+	if m.Name == "" {
+		m.Name = group
+	}
+	m.Mode = mode
+	mb, _ := json.Marshal(m)
+	_, err = b.St.Put(ctx, k, mb, "")
+	return err
 }

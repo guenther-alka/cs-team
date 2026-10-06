@@ -180,14 +180,27 @@ func TestDirCacheValues(t *testing.T) {
 		t.Fatalf("zu langes Passwort: %q %q", h5, s5)
 	}
 	cur := Account{Source: "dir", Realm: "local.de", Groups: []string{"g"}, Hash: "!", Mail: "m"}
-	if dirStale(cur, "local.de", "g", "m", "!", "") {
+	if dirStale(cur, "local.de", "g", "m", "!", "", nil) {
 		t.Fatal("unverändertes Konto gilt als veraltet")
 	}
 	cur.Mail = "alt"
-	if !dirStale(cur, "local.de", "g", "m", "!", "") {
+	if !dirStale(cur, "local.de", "g", "m", "!", "", nil) {
 		t.Fatal("geänderte E-Mail wird nicht erkannt")
 	}
-	if !dirStale(cur, "local.de", "g", "m", "x", "") { // geänderter Zwischenspeicher
+	if !dirStale(cur, "local.de", "g", "m", "x", "", nil) { // geänderter Zwischenspeicher
 		t.Fatal("geänderter Abdruck wird nicht erkannt")
+	}
+	// Verzeichnisgruppen des Kontos (0.55): geänderte Liste -> Konto neu schreiben
+	cur.Mail = "m"
+	cur.DirGroups = nil
+	if !dirStale(cur, "local.de", "g", "m", "!", "", []string{"lehrer"}) {
+		t.Fatal("fehlende Verzeichnisgruppen werden nicht erkannt")
+	}
+	cur.DirGroups = []string{"lehrer"}
+	if dirStale(cur, "local.de", "g", "m", "!", "", []string{"lehrer"}) {
+		t.Fatal("unveränderte Verzeichnisgruppen gelten als veraltet")
+	}
+	if !dirStale(cur, "local.de", "g", "m", "!", "", []string{"lehrer", "schueler"}) {
+		t.Fatal("geänderte Verzeichnisgruppen werden nicht erkannt")
 	}
 }

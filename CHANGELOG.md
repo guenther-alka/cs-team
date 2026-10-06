@@ -1,5 +1,50 @@
 cs-team changelog (newest first)
 
+2026-10-06  0.57.0 Release: fasst 0.54-0.56 (Verzeichnis-/LDAP-Anmeldung, hierarchische Kalender) und 0.56.1 zusammen.
+                   Anmeldesperre, Startpasswoerter, Uebersetzungen, eigene Dialoge (0.56.1):
+                   Sperre je Adresse: Standard jetzt 60 statt 20 Fehlversuche (einstellbar mit CS_MAX_FAILS_IP). Vorher sperrten 20 Fehlversuche
+                   einer Adresse alle von dort fuer 5 Minuten, auch mit richtigem Passwort (Schul-NAT, Proxy ohne CS_TRUST_PROXY=1). Wer von der
+                   Adresse gerade gueltig angemeldet ist (Kurzzeit-Cache 45 s), bleibt trotz Adress-Sperre zugelassen; neue Anmeldungen und falsche
+                   Passwoerter werden weiter mit 429 blockiert. Der Fehlversuchs-Zaehler verfaellt nach 15 Minuten ohne neuen Fehlversuch (vorher
+                   summierten sich einzelne Tippfehler ueber Tage zu einer Sperre).
+                   Startpasswoerter: Der erste Admin (CS_ADMIN_USER/CS_ADMIN_PASS) und Konten, die mit "cs-team adduser" angelegt oder zurueckgesetzt
+                   werden, muessen das Passwort beim ersten Login aendern. Trivialpasswoerter (12345678, password, passwort1, ein Zeichen wiederholt
+                   u.a., kurze Liste in auth/auth.go) werden beim Anlegen, Aendern, Zuruecksetzen und im CSV-Import abgelehnt (HTTP 400).
+                   bcrypt-Kosten bleiben bei 10: eine Erhoehung wuerde bis zur Neuanmeldung aller Konten die Antwortzeit bekannter und unbekannter
+                   Namen unterscheidbar machen (Benutzer-Aufzaehlung am Login).
+                   Uebersetzungen: je 29 Texte (Anmeldung am Verzeichnis, Mitgliederlisten, Serientermine) fuer ar, cn, es, fr, it, ru, tr ergaenzt
+                   (wurden bis dahin deutsch angezeigt); maschinell uebersetzt, Korrektur durch Muttersprachler empfohlen.
+                   Oberflaeche: alert/confirm/prompt durch eigene Dialoge ersetzt (Bestaetigung, Eingabe, Hinweis-Leiste unten): blockieren den Browser
+                   nicht, Enter = OK, Esc = Abbrechen, Tab bleibt im Dialog, Passwort-Eingaben verdeckt; nach "Passwort geaendert" und "Kein Zugriff
+                   mehr" erscheint ein OK-Dialog vor dem Neuladen.
+                   Getestet: auth/guard_test.go (Adress-Sperre mit Cache-Ausnahme, Zaehler-Verfall), auth/pass_test.go (neu: Trivialpasswoerter,
+                   Aenderungspflicht Bootstrap/CLI), go vet ./... und alle Testpakete gruen, Syntaxpruefung index.html; Dialoge noch nicht von Hand im Browser geprueft.
+
+2026-10-05  0.56.0 Kalender hierarchisch: eigene, Gruppen-, Organisations- und globale Kalender plus externe Abos (nur lesbar) in
+                   einer Liste, von innen nach aussen sortiert. Verantwortlich (aendern und freigeben): persoenlich der Benutzer,
+                   Gruppe die Gruppen-Admins (sie sehen ihren Gruppenkalender auch ohne Mitgliedschaft), Organisation und global
+                   die globalen Admins. Freigabe je Kalender: "off" nicht freigegeben (Entwurf, nur die Verantwortlichen sehen
+                   ihn), "ro" die Berechtigten lesen, "rw" alle Berechtigten tragen ein; die Kalender-Leiste zeigt die Freigabe,
+                   die Liste kennzeichnet Entwuerfe mit "(nicht freigegeben)", die Cal-Maske bietet die drei Werte.
+                   Externe ICS-Abos legt jeder fuer sich an (fuer die Gruppe der Gruppen-Admin, fuer Organisation/global die
+                   globalen Admins): nur lesbar, alle 30 Minuten bzw. per "Jetzt aktualisieren", Status und Fehler sichtbar,
+                   beenden = URL leeren. CalDAV (Thunderbird, iOS, macOS, DAVx5) liefert alle sichtbaren Kalender (vorher nur
+                   den eigenen): nicht freigegebene fehlen im PROPFIND und antworten per Direktzugriff 404, Schreiben nur mit
+                   Freigabe "rw" bzw. als Verantwortlicher/Admin, Abos antworten 403. Kalender aendern per PUT /api/cal/{kal}
+                   (Name, Beschreibung, Freigabe, Ressource, Abo-URL setzen/wechseln/beenden). Einen einzelnen Kalender weiterhin
+                   als Datei: GET /api/cal/{kal}/export.ics und POST /api/cal/{kal}/import (nach UID, ohne Dubletten).
+                   Gruppenkalender lassen sich jetzt auch in den Gruppen-Einstellungen verwalten: POST /api/groups/{name} mit
+                   "cal" = "off" (Entwurf), "ro", "rw" legt ihn an bzw. aendert nur die Freigabe, "" entfernt ihn - aber nur,
+                   solange keine Termine darin liegen (sonst 409); GET /api/groups nennt die Freigabe je Gruppe.
+                   Getestet: Go-Tests TestCalendarScope + TestCalendarScopes (Gruppen-Admin ohne Mitgliedschaft, off/ro/rw,
+                   globaler und Organisations-Kalender, Abo fuer sich und fuer die Gruppe) und neu TestCalDAVScope (PROPFIND zeigt
+                   Gruppe und freigegebenes Global, Entwurf fehlt und antwortet 404, PUT/GET im Gruppenkalender, 403 bei "ro" und
+                   bei Abos, Export enthaelt den Termin) sowie TestCalDAVOwnCalendar (eigene Kalender:
+                   eigener Kalender per MKCOL - MKCALENDAR 405 -, eigenes Abo 403, Bereich "Kalender" nur lesend 403);
+                   TestGroupCalendarRelease (Gruppenkalender aus den Gruppen-Einstellungen: nur globale Admins, off/ro/rw,
+                   entfernen nur wenn leer, Neuanlegen); go vet ./... und go test ./... gruen. Neu: webui_test.go TestWebUISyntax
+                   prueft jeden Skript-Block der Oberflaeche mit "node --check" (uebersprungen ohne Node.js).
+
 2026-10-02  0.53.0 Aufgaben: Globale Admins duerfen in jeder Gruppe mit eingeschalteten Aufgaben Aufgaben anlegen und Gruppenmitglieder zuweisen (auch ohne Mitglied zu sein).
                    Neu: Anfrage ("Bitte bearbeiten"): In Gruppen mit Modus "nur Gruppen-Admins" duerfen normale Mitglieder jetzt Aufgaben anlegen; sie werden als Anfrage ohne Zustaendigen
                    gespeichert (Feld req, Protokollzeile), sind fuer alle Gruppenmitglieder sichtbar und von jedem uebernehmbar. Der Ersteller aendert den Text, bestimmt aber keinen Zustaendigen;

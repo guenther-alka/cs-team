@@ -22,14 +22,19 @@ import (
 // Version: Programmversion (von main gesetzt), erscheint in /api/me für die Oberfläche.
 var Version string
 
+// MaxFailsIP: Fehlversuche je Adresse (alle Namen), dann ist die Adresse lockFor gesperrt (Passwort-Spraying). Hinter einem
+// Proxy ohne CS_TRUST_PROXY=1 oder in einem Schul-NAT teilen sich viele Nutzer eine Adresse - daher großzügig und per
+// CS_MAX_FAILS_IP einstellbar. Bereits angemeldete Nutzer (gültiger Kurzzeit-Cache) bleiben trotz Adress-Sperre zugelassen.
+var MaxFailsIP = 60
+
 // ForceChange: Startpasswörter (Admin/Import) müssen beim ersten Login geändert werden. Nur Tests schalten ab.
 var ForceChange = true
 
 const (
 	usersKey     = "users/users.json"
 	cacheTTL     = 30 * time.Second
-	maxFailsIP   = 20  // Fehlversuche je Adresse (alle Namen) ...
-	maxFailsUser = 100 // ... und je Benutzername (alle Adressen), dann jeweils lockFor gesperrt
+	maxFailsUser = 100 // Fehlversuche je Benutzername (alle Adressen), dann lockFor gesperrt (Adresse: MaxFailsIP)
+	failWindow   = 15 * time.Minute // ohne neuen Fehlversuch so lange, dann beginnt der Zähler wieder bei 0
 	authTTL      = 45 * time.Second
 	maxCache     = 4096
 	maxFails     = 5               // Fehlversuche je Benutzer+IP ...
@@ -44,6 +49,7 @@ var (
 	ErrLastAdm  = errors.New("at least one enabled admin must remain")
 	ErrBadName  = errors.New("user: a-z 0-9 . _ - (max 32)")
 	ErrBadPass  = errors.New("password: 8..72 bytes")
+	ErrWeakPass = errors.New("password too common (e.g. 12345678, password, one repeated character)")
 	validName   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,31}$`)
 	errLockedIP = errors.New("locked")
 )
@@ -59,14 +65,16 @@ type Account struct {
 	Admin    bool     `json:"admin,omitempty"`
 	Disabled bool     `json:"disabled,omitempty"`
 	Created  string   `json:"created,omitempty"`
-	Groups   []string `json:"groups,omitempty"`
-	Must     bool     `json:"must,omitempty"` // Passwort muss beim nächsten Login geändert werden
-	Lang     string   `json:"lang,omitempty"` // Oberflächensprache (leer = Browser/Serverstandard)
-	Mail     string   `json:"mail,omitempty"` // externe E-Mail-Adresse (für Nachrichten)
-	Chat     string   `json:"chat,omitempty"` // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
+	Groups   []string `json:"groups,omitempty"` // Handliste: Gruppen, die diesem Konto ausdrücklich gegeben wurden
+	Must     bool     `json:"must,omitempty"`   // Passwort muss beim nächsten Login geändert werden
+	Lang     string   `json:"lang,omitempty"`   // Oberflächensprache (leer = Browser/Serverstandard)
+	Mail     string   `json:"mail,omitempty"`   // externe E-Mail-Adresse (für Nachrichten)
+	Chat     string   `json:"chat,omitempty"`   // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
 	Realm    string   `json:"realm,omitempty"`
-	Source   string   `json:"source,omitempty"`  // "dir" = Spiegelkonto eines Verzeichnisbenutzers
-	DirSeen  string   `json:"dirSeen,omitempty"` // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
+	Source   string   `json:"source,omitempty"`    // "dir" = Spiegelkonto eines Verzeichnisbenutzers
+	DirSeen  string   `json:"dirSeen,omitempty"`   // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
+	DirGroups []string `json:"dirGroups,omitempty"` // Verzeichnisgruppen des Kontos (beim Login gelesen; 0.55)
+	Member    []string `json:"-"`                   // berechnete Mitgliedschaften aus Group.Dir/Group.Sub (nur im Speicher)
 }
 
 // Altformat der Version 0.1: "name": "<hash>"
@@ -168,6 +176,7 @@ func (a *Auth) refresh(ctx context.Context) {
 		fail()
 		return
 	}
+	m = resolveMembers(m, g) // Mitgliedschaften aus Verzeichnis-/Untergruppen-Einträgen berechnen (0.55)
 	a.mu.Lock()
 	if a.gen == gen { // währenddessen geändert: Ergebnis verwerfen, der nächste Aufruf lädt neu
 		a.users, a.groups, a.load = m, g, time.Now()
@@ -203,18 +212,61 @@ func (a *Auth) mutate(ctx context.Context, fn func(m map[string]Account) error) 
 	return err
 }
 
-func hasAdmin(m map[string]Account) bool {
-	for _, u := range m {
-		if u.Admin && !u.Disabled {
+// hasLocalAdmin: gibt es noch einen aktiven Admin unter den lokalen cs-team-Konten (Schlüssel ohne Namensraum)?
+// Nur die lokalen Konten sind ohne Verzeichnis anmeldefähig - deshalb muss immer eines davon Admin bleiben
+// (KISS-Regel 0.55: Notfallzugang, "Zugehoerigkeit darf aus dem Verzeichnis kommen, Verantwortung nie").
+func hasLocalAdmin(m map[string]Account) bool {
+	for n, u := range m {
+		if u.Admin && !u.Disabled && !strings.Contains(n, "@") {
 			return true
 		}
 	}
 	return false
 }
 
+// LocalAdmins: Anzahl der aktiven Admins unter den lokalen cs-team-Konten. Vorbedingungen, die den Notfallzugang
+// schützen (0.55), prüfen damit, ob nach einer Änderung noch ein lokaler Admin übrig bleibt.
+func (a *Auth) LocalAdmins(ctx context.Context) int {
+	a.refresh(ctx)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	n := 0
+	for name, u := range a.users {
+		if u.Admin && !u.Disabled && !strings.Contains(name, "@") {
+			n++
+		}
+	}
+	return n
+}
+
+// weakPasswords: die häufigsten Trivialpasswörter (klein geschrieben). Bewusst kurz (KISS): kein Wörterbuch, nur die
+// Fälle, die jeder Angreifer zuerst probiert. Dazu: ein einziges Zeichen wiederholt (aaaaaaaa).
+var weakPasswords = map[string]bool{
+	"password": true, "password1": true, "passwort": true, "passwort1": true, "12345678": true, "123456789": true,
+	"1234567890": true, "11111111": true, "00000000": true, "qwertzui": true, "qwertyui": true, "qwerty123": true,
+	"abcd1234": true, "abcdefgh": true, "admin123": true, "administrator": true, "willkommen": true, "welcome1": true,
+	"changeme": true, "letmein1": true, "csteam123": true, "cs-team123": true, "schule123": true, "iloveyou": true,
+}
+
+func weakPass(p string) bool {
+	l := []rune(strings.ToLower(p))
+	if weakPasswords[string(l)] {
+		return true
+	}
+	for _, r := range l {
+		if r != l[0] {
+			return false
+		}
+	}
+	return len(l) > 0
+}
+
 func hash(pass string) (string, error) {
 	if len(pass) < minPass || len(pass) > maxPass {
 		return "", ErrBadPass
+	}
+	if weakPass(pass) {
+		return "", ErrWeakPass
 	}
 	h, err := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.DefaultCost)
 	return string(h), err
@@ -226,7 +278,13 @@ func (a *Auth) Bootstrap(ctx context.Context, user, pass string) error {
 		if len(m) > 0 {
 			return nil
 		}
-		return addTo(m, user, pass, true, nil)
+		if err := addTo(m, user, pass, true, nil); err != nil {
+			return err
+		}
+		u := m[user]
+		u.Must = true // Startpasswort steht in Konfiguration/Umgebung: beim ersten Login ändern (ForceChange)
+		m[user] = u
+		return nil
 	})
 }
 
@@ -268,13 +326,19 @@ func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) error
 	return a.mutate(ctx, func(m map[string]Account) error {
 		u, ok := m[name]
 		if !ok {
-			return addTo(m, name, pass, admin, nil)
+			if err := addTo(m, name, pass, admin, nil); err != nil {
+				return err
+			}
+			u = m[name]
+			u.Must = true // das Passwort stand auf der Kommandozeile (Shell-Verlauf, ps): beim ersten Login ändern
+			m[name] = u
+			return nil
 		}
 		h, err := hash(pass)
 		if err != nil {
 			return err
 		}
-		u.Hash, u.Disabled = h, false
+		u.Hash, u.Disabled, u.Must = h, false, true
 		u.Admin = u.Admin || admin
 		m[name] = u
 		return nil
@@ -307,7 +371,7 @@ func (a *Auth) setPass(ctx context.Context, name, pass string, must bool) error 
 	})
 }
 
-// SetFlags: nil = unverändert. Schützt den letzten aktiven Admin.
+// SetFlags: nil = unverändert. Schützt Admin-Rechte: mindestens ein aktiver LOKALER Admin muss bleiben.
 func (a *Auth) SetFlags(ctx context.Context, name string, admin, disabled *bool) error {
 	return a.mutate(ctx, func(m map[string]Account) error {
 		u, ok := m[name]
@@ -321,7 +385,7 @@ func (a *Auth) SetFlags(ctx context.Context, name string, admin, disabled *bool)
 			u.Disabled = *disabled
 		}
 		m[name] = u
-		if !hasAdmin(m) {
+		if !hasLocalAdmin(m) {
 			return ErrLastAdm
 		}
 		return nil
@@ -334,7 +398,7 @@ func (a *Auth) DeleteUser(ctx context.Context, name string) error {
 			return ErrNoUser
 		}
 		delete(m, name)
-		if !hasAdmin(m) {
+		if !hasLocalAdmin(m) {
 			return ErrLastAdm
 		}
 		return nil
@@ -415,7 +479,7 @@ func (a *Auth) failedMax(key string, max int) {
 		}
 	}
 	f := a.fails[key]
-	if f == nil || (f.n >= max && now.After(f.until)) {
+	if f == nil || (f.n >= max && now.After(f.until)) || (!now.Before(f.until) && now.Sub(f.last) > failWindow) {
 		f = &fail{}
 		a.fails[key] = f
 	}
@@ -474,26 +538,34 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		idc := a.identity()
 		id, err := parseLogin(name, idc)
 		key, ipKey, userKey := id.Key+"|"+cip, "ip|"+cip, "user|"+id.Key
-		if a.locked(key) || a.locked(ipKey) || a.locked(userKey) {
-			w.Header().Set("Retry-After", "300")
-			http.Error(w, "too many attempts", http.StatusTooManyRequests)
-			return
-		}
 		var u Account
 		var good bool
-		switch {
-		case err != nil: // unbekannter Namensraum oder ungültiger Name: wie falsche Zugangsdaten behandeln
-		case id.Local && !idc.LocalOK():
-			err = ErrNoLocal
-		case id.Local:
-			u, good = a.verifyCached(r.Context(), id.Key, pass)
-		default: // Verzeichnisbenutzer: name@realm
-			u, err = a.verifyDirCached(r.Context(), id, pass)
-			good = err == nil
+		lockKey, lockUser, lockIP := a.locked(key), a.locked(userKey), a.locked(ipKey)
+		if lockKey || lockUser || lockIP {
+			// Nur die Adress-Sperre lässt Nutzer durch, die von dieser Adresse gerade gültig angemeldet sind (Kurzzeit-Cache,
+			// kein bcrypt, keine Verzeichnisabfrage): so sperrt ein Angriff aus dem Schul-NAT/Proxy nicht alle bestehenden Sitzungen.
+			if err == nil && lockIP && !lockKey && !lockUser {
+				u, good = a.cachedGood(r.Context(), id.Key, pass)
+			}
+			if !good {
+				w.Header().Set("Retry-After", "300")
+				http.Error(w, "too many attempts", http.StatusTooManyRequests)
+				return
+			}
+		}
+		if !good {
+			switch {
+			case err != nil: // unbekannter Namensraum oder ungültiger Name: wie falsche Zugangsdaten behandeln
+			case id.Local: // lokale cs-team-Konten: in jedem Modus möglich (Notfallzugang, 0.55)
+				u, good = a.verifyCached(r.Context(), id.Key, pass)
+			default: // Verzeichnisbenutzer: name@realm
+				u, err = a.verifyDirCached(r.Context(), id, pass)
+				good = err == nil
+			}
 		}
 		if !good {
 			a.failed(key)
-			a.failedMax(ipKey, maxFailsIP)     // Passwort-Spraying über viele Namen von einer Adresse
+			a.failedMax(ipKey, MaxFailsIP)     // Passwort-Spraying über viele Namen von einer Adresse
 			a.failedMax(userKey, maxFailsUser) // verteilter Angriff auf einen Namen (hohe Schwelle)
 			switch {
 			case errors.Is(err, ErrDirDown):
@@ -503,8 +575,6 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 				http.Error(w, "not admitted for this service", http.StatusForbidden)
 			case errors.Is(err, ErrBadRealm):
 				http.Error(w, "unknown login realm", http.StatusUnauthorized)
-			case errors.Is(err, ErrNoLocal):
-				http.Error(w, "local login disabled", http.StatusForbidden)
 			default: // falsches Passwort, unbekanntes Konto
 				w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)

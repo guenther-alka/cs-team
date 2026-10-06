@@ -20,11 +20,11 @@ func body(w http.ResponseWriter, r *http.Request, v any) bool {
 func fail_(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ErrExists):
+	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed):
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
 		code = http.StatusNotFound
-	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode):
+	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
 		code = http.StatusBadRequest
 	}
 	http.Error(w, err.Error(), code)

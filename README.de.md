@@ -27,8 +27,14 @@ Bitte hinter TLS-Proxy betreiben (Basic Auth).
 Der Start mit `CS_ADMIN_USER`/`CS_ADMIN_PASS` legt den ersten Admin an, aber nur wenn noch kein Benutzer existiert.
 Admins (Web-UI: "Benutzer"): anlegen, löschen (optional mit Kalendern), sperren, Admin-Rolle, Passwort zurücksetzen.
 Jeder Benutzer: eigenes Passwort ändern ("Konto"). Der letzte aktive Admin ist geschützt.
-Passwort 8..72 Bytes. 5 Fehlversuche je Benutzer+IP sperren 5 Minuten (429). `CS_TRUST_PROXY=1` wertet
-`X-Forwarded-For` aus (nur hinter eigenem Proxy). Gelöschte/gesperrte Benutzer verlieren den Zugriff sofort
+Passwort 8..72 Bytes; triviale Passwörter (z. B. `password1`, `12345678`, `qwertzui`) werden abgelehnt. Startpasswörter
+(`CS_ADMIN_PASS`, `adduser`, Passwort-Reset durch Admin) müssen beim ersten Login geändert werden.
+5 Fehlversuche je Benutzer+IP sperren 5 Minuten (429). Zusätzlich sperrt eine Adresse nach `CS_MAX_FAILS_IP`
+Fehlversuchen (Standard 60, wegen Schul-NAT/Proxy); bereits angemeldete Benutzer (Auth-Cache) sind von dieser
+Adress-Sperre ausgenommen, Fehlerzähler verfallen nach 15 Minuten Ruhe. `CS_TRUST_PROXY=1` wertet
+`X-Forwarded-For` aus (nur hinter eigenem Proxy). Anmelde-Voreinstellungen (Verzeichnis/LDAP): `CS_IDENTITY_MODE`
+(local|dir|mixed), `_REALM`, `_REALM_DEFAULT`, `_URL`, `_BASE`, `_BIND_DN`, `_BIND_PW`, `_STARTTLS`, `_ADMIT_GROUPS`,
+`_LOCAL_GROUP`, `_ALLOW_LOCAL`, `_CACHE_DAYS`; Einstellungen in der Oberfläche überschreiben sie. Gelöschte/gesperrte Benutzer verlieren den Zugriff sofort
 für neue Anfragen; offene Calc/Text-Verbindungen verlieren Rechte spätestens nach 15 Sekunden (seit 0.13.9).
 Dokumente eines gelöschten Benutzers bleiben; Admins können sie freigeben oder löschen.
 
@@ -66,7 +72,8 @@ REST: `GET /api/trash`, `POST /api/trash/<besitzer>/<id>/restore` (bei belegtem 
 Ein Gruppenordner lässt sich erst löschen, wenn sein Papierkorb leer ist.
 
 REST: `GET/POST /api/files`, `GET/DELETE /api/files/<owner>/<name>`, `POST .../share`, `GET /pub/<token>`;
-Kalender: `GET/POST /api/cal`, `DELETE /api/cal/<id>`, `GET/POST /api/cal/<id>/events`, `PUT/DELETE .../events/<file>`
+Kalender: `GET/POST /api/cal`, `PUT /api/cal/<id>` (Name, Beschreibung, Freigabe, Ressource, Abo-URL), `DELETE /api/cal/<id>`,
+`GET/POST /api/cal/<id>/events`, `PUT/DELETE .../events/<file>`
 (`scope=one|following|all` mit `rid`), `GET /api/cal/<id>/export.ics`, `POST /api/cal/<id>/import` (Body: .ics), `POST /api/cal/<id>/refresh`.
 
 **Kalender (0.15.0).** Termine haben optional eine **Erinnerung** (`VALARM`, im Termin gespeichert, kein Mailversand durch den Server) und
@@ -98,7 +105,14 @@ Dokument gehört dem Benutzer).
 - Gruppe schaltet Bereiche frei: cal, calc, text, files. Globale Admins duerfen alles verwalten, Gruppen-Admins
   die Mitglieder ihrer Gruppe. Freigaben von Dokumenten/Dateien: `g:<gruppe>`, `*` (alle) oder Benutzername.
 - Gruppenordner (Files): `folder` = `ro` (Mitglieder lesen, Gruppen-Admins schreiben) oder `rw`; WebDAV `/webdav/groups/<gruppe>/`.
-- Kalender: persoenlich, global (`_global`, Admins schreiben) oder Gruppe (`@<gruppe>`); UI blendet alle uebereinander ein.
+- Kalender hierarchisch: persoenlich (`<benutzer>`), Gruppe (`@<gruppe>`), Organisation (`+<organisation>`) und global
+  (`_global`), dazu Abos (ICS-URL, immer nur lesen). UI: von innen nach aussen sortiert, die gewaehlten Kalender liegen
+  uebereinander. Verantwortlich: persoenlich der Benutzer, Gruppe deren Gruppen-Admins (sie sehen ihren Gruppenkalender
+  auch ohne Mitgliedschaft), Organisation/global die globalen Admins. Freigabe je Kalender: `off` (nur Verantwortliche),
+  `ro` (Berechtigte lesen) oder `rw` (Berechtigte tragen ein). Gruppenkalender entstehen beim Anlegen der Gruppe (Haken
+  *Gruppenkalender anlegen*, Vorlagen `team`/`klasse`) oder spaeter in den Gruppen-Einstellungen des globalen Admins: `cal`
+  = `""` (keiner bzw. entfernen - nur solange er leer ist), `off`, `ro`, `rw`. `GET /api/groups` nennt je Gruppe `cal`,
+  `POST /api/groups/<gruppe>` setzt ihn (`GET/PUT /api/cal/<id>`, Kalender-Menue *Bearbeiten*, koennen dasselbe).
 - CSV: `POST /api/users/import` (`name;passwort;gruppe1,gruppe2`), `GET /api/users/export`, `GET /api/groups/export`.
 - Speicher: `S3_*` (RustFS/S3-Bucket) oder `CS_DIR=/pfad` (Ordner/ZFS-Dataset, Daten in `/pfad/.csteam`, ein Prozess je Ordner).
   Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
@@ -128,7 +142,19 @@ einzelne Begriffe anpassen (z.B. "Gruppe" → "Klasse"). Rechts-nach-links-Schri
 ## CalDAV
 
 URL: `https://host/dav/` (auch `/.well-known/caldav`). Thunderbird, DAVx5, iOS, macOS.
+Ein Client sieht genau die Kalender, die der Benutzer sehen darf (eigene, Gruppen-, Organisations- und globale Kalender
+sowie Abos); nicht freigegebene Kalender (`off`) fehlen in der Liste und sind per Direktzugriff 404. Geschrieben wird nur
+dort, wo die Freigabe es erlaubt (`rw` oder als Verantwortlicher/Admin); Abos sind immer nur lesbar (403).
 Schreiben mit `If-Match` / `If-None-Match: *` wird auf S3-ETags abgebildet (412 bei Konflikt).
+Eigene Kalender darf der Besitzer immer ändern und löschen (die Freigabe regelt nur den Zugriff anderer); ist der Bereich
+*Kalender* für den Benutzer nur lesend (Gruppen-Vorlage `klasse`), bleibt auch der eigene Kalender gesperrt (403).
+Neue Kalender entstehen in der Oberfläche (Kalender-Leiste → **+ add**); per CalDAV legt `MKCOL` mit `<c:calendar/>`
+einen Kalender an, `MKCALENDAR` beantwortet der WebDAV-Server mit 405.
+
+**Einen Kalender als Datei** (für Programme ohne CalDAV oder zum Weitergeben): in der Kalender-Leiste **Exportieren (.ics)**
+= `GET /api/cal/<id>/export.ics` (alle Termine des gewählten Kalenders, mit Zeitzone/`VTIMEZONE`, Dateiname aus dem
+Kalendernamen; funktioniert auch für nur lesbare Kalender und Abos). Zurück in einen beschreibbaren Kalender:
+**Importieren (.ics)** = `POST /api/cal/<id>/import` (nach UID, wiederholter Import erzeugt keine Dubletten).
 
 ## Calc und Text (LWW)
 
@@ -202,7 +228,9 @@ Prüfbericht: `AUDIT.md`.
 ## Grenzen / TODO
 
 - Soft-Locks (Zelle/Absatz sperren) und Freigabe-Dialog in der UI fehlen noch.
-- Kalender-Freigaben (ACL) fehlen noch, nur eigener Kalender (siehe `parse()` in cal/caldav.go).
+- Kalender-Freigaben gelten je Kalender (`off` = nur Verantwortliche, `ro` = Berechtigte lesen, `rw` = Berechtigte schreiben);
+  Rechte einzelner Personen (ACL je Benutzer) fehlen noch.
+- Kalender *anlegen* per CalDAV nur mit `MKCOL` (`MKCALENDAR` → 405); in der Oberfläche geht es immer.
 - ListCalendarObjects liest je Termin ein Objekt (N x Get); ab einigen tausend Terminen Index/Cache.
 - Änderungen anderer Server-Instanzen werden beim Persist gemerged, aber nicht live gebroadcastet.
 - Tombstones werden nicht kompaktiert. Gleichzeitiges Tippen im selben Absatz: letzter Schreiber gewinnt.

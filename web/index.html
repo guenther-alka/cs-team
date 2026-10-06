@@ -271,6 +271,14 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 #wizb .wsum{background:#e8f1fd;border-radius:8px;padding:8px 12px;margin:0 0 10px}#wizb .wwarn{background:#fff4e0;border-radius:8px;padding:6px 12px;margin:0 0 10px;font-size:13px}
 #wizf{display:flex;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid #d6d9de;background:#fff}#wizf button{padding:7px 16px}#wizf .pr{background:#2b6fd4;color:#fff;border:1px solid #2b6fd4;border-radius:6px;cursor:pointer}
 @media(max-width:760px){#aip{left:8px;right:8px;width:auto;bottom:70px}}
+.uidov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:200;padding:12px}
+.uidbx{background:#fff;color:#222;border-radius:8px;box-shadow:0 6px 28px rgba(0,0,0,.35);padding:16px 18px;max-width:min(460px,100%);min-width:min(300px,100%)}
+.uidm{white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:12px;line-height:1.4}
+.uidin{width:100%;margin-bottom:12px;padding:6px 8px;font:inherit}
+.uidb{display:flex;justify-content:flex-end;gap:8px}.uidb button{padding:6px 16px;cursor:pointer}
+.uidok{background:#2b6fd4;color:#fff;border:1px solid #2b6fd4;border-radius:4px}
+#uitoasts{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:210;display:flex;flex-direction:column;gap:6px;align-items:center;width:min(520px,calc(100vw - 24px));pointer-events:none}
+.uitoast{pointer-events:auto;background:#2b3a4a;color:#fff;padding:8px 14px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
 </style></head><body>
 <div id="top"><button id="mback" title="Zurück">←</button><b id="brand">cs-team</b>
  <div id="nav">
@@ -321,6 +329,33 @@ async function initLang(meLang){
 }
 
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Eigene Dialoge statt alert/confirm/prompt: blockieren den Browser nicht, sind mobil und per Tastatur bedienbar (Enter = OK, Esc = Abbrechen, Tab bleibt im Dialog).
+function uiDlg(msg,o){return new Promise(res=>{
+ const prev=document.activeElement,ov=document.createElement('div'),bx=document.createElement('div'),p=document.createElement('div'),bar=document.createElement('div'),ok=document.createElement('button');
+ ov.className='uidov';bx.className='uidbx';bx.setAttribute('role',o.cancel?'dialog':'alertdialog');bx.setAttribute('aria-modal','true');
+ p.className='uidm';p.id='uidm';p.textContent=String(msg);bx.setAttribute('aria-labelledby','uidm');bx.appendChild(p);
+ let inp=null,cn=null;
+ if(o.input!==undefined){inp=document.createElement('input');inp.className='uidin';inp.value=o.input;if(o.pw){inp.type='password';inp.autocomplete='new-password';}bx.appendChild(inp);}
+ ok.textContent='OK';ok.className='uidok';
+ if(o.cancel){cn=document.createElement('button');cn.textContent=t('Abbrechen');bar.appendChild(cn);}
+ bar.className='uidb';bar.appendChild(ok);bx.appendChild(bar);ov.appendChild(bx);document.body.appendChild(ov);
+ const done=v=>{document.removeEventListener('keydown',kd,true);ov.remove();try{if(prev&&prev.focus)prev.focus();}catch(e){}res(v);};
+ const yes=()=>done(inp?inp.value:true),no=()=>done(inp?null:o.cancel?false:undefined);
+ const kd=e=>{
+  if(e.key=='Escape'){e.preventDefault();e.stopPropagation();no();}
+  else if(e.key=='Enter'&&document.activeElement!=cn){e.preventDefault();e.stopPropagation();yes();}
+  else if(e.key=='Tab'){const f=[inp,cn,ok].filter(Boolean),i=f.indexOf(document.activeElement);e.preventDefault();f[(i+(e.shiftKey?-1:1)+f.length)%f.length].focus();}
+ };
+ ok.onclick=yes;if(cn)cn.onclick=no;ov.onmousedown=e=>{if(e.target==ov&&o.cancel)no();};
+ document.addEventListener('keydown',kd,true);(inp||ok).focus();if(inp)inp.select();
+});}
+const uiAsk=m=>uiDlg(m,{cancel:1});
+const uiPrompt=(m,d,pw)=>uiDlg(m,{cancel:1,input:d===undefined?'':d,pw:pw});
+const uiAlert=m=>uiDlg(m,{});
+// alert() zeigt nur noch einen Hinweis unten (Klick = schliessen, verschwindet von selbst).
+function uiToast(m){let c=document.getElementById('uitoasts');if(!c){c=document.createElement('div');c.id='uitoasts';c.setAttribute('role','status');c.setAttribute('aria-live','polite');document.body.appendChild(c);}
+ const d=document.createElement('div');d.className='uitoast';d.textContent=String(m);c.appendChild(d);const x=()=>d.remove();d.onclick=x;setTimeout(x,Math.min(15000,4000+String(m).length*40));}
+window.alert=uiToast;
 async function api(method,url,body){
   try{
     const r=await fetch(url,{method,body:body===undefined?undefined:JSON.stringify(body)});
@@ -332,6 +367,7 @@ async function J(m,u,b){const r=await api(m,u,b);return r?await r.json().catch((
 const fmtSize=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB';
 const fmtDT=iso=>{const d=new Date(iso);return isNaN(d)?'':d.toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'});};
 const names=s=>s.split(/[\s,;]+/).map(x=>x.trim()).filter(x=>x&&x!='*');
+const ment=s=>s.split(/\s+/).map(x=>x.replace(/[,;]+$/,'')).filter(x=>x&&x!='*');   // Mitglieder-Einträge: "CN=Lehrer,OU=Schule" bleibt ein Eintrag (0.55)
 let touched=false,sec=null,sel=null,me={name:'',admin:false,areas:[]},allUsers=[],allGroups=[],ws=null,cur=null;
 const AREAS=[['cal','Kalender'],['calc','Calc'],['text','Text'],['files','Files']];   // Beschriftung: t(a[1])
 const grpBoxes=(cls,chk)=>allGroups.map(g=>'<label style="margin-right:12px"><input type="checkbox" class="'+cls+'" value="'+esc(g.name)+'" '+(chk.includes(g.name)?'checked':'')+'> '+esc(g.name)+'</label>').join('');
@@ -347,7 +383,8 @@ function shareBody(){const t=$('#st').value;
   return {read:names($('#sr').value).map(x=>'g:'+x).concat(keepShare.read,t?['*']:[]),write:names($('#sw').value).map(x=>'g:'+x).concat(keepShare.write,t=='w'?['*']:[])};}
 const sharePanel=(d,extra)=>{keepShare={read:otherEntries(d.read),write:otherEntries(d.write)};
   return '<div class="row">'+t('Alle angemeldeten Benutzer: ')+teamSelect(teamVal(d.read,d.write))+'</div>'+
-  '<div class="muted">'+t('Gruppennamen, mehrere mit Komma getrennt (z.B. klasse5a, chor).')+'</div>'+'<div class="row">'+t('Gruppen dürfen lesen: ')+'<input id="sr" list="dlg" value="'+esc(grpList(d.read))+'" placeholder="klasse5a, chor"></div>'+
+  '<div class="muted">'+t('Gruppennamen, mehrere mit Komma getrennt (z.B. klasse5a, chor).')+'</div>'+
+  '<div class="muted">'+t('Die Organisation vergibt selbst keine Rechte: sie wirkt dort, wo sie als Empfänger eingetragen ist (Freigaben "g:schule", Organisation im Kalender).')+'</div>'+'<div class="row">'+t('Gruppen dürfen lesen: ')+'<input id="sr" list="dlg" value="'+esc(grpList(d.read))+'" placeholder="klasse5a, chor"></div>'+
   '<div class="row">'+t('Gruppen dürfen schreiben: ')+'<input id="sw" list="dlg" value="'+esc(grpList(d.write))+'" placeholder="klasse5a"></div>'+
   '<datalist id="dlg">'+allGroups.map(g=>'<option value="'+esc(g.name)+'">').join('')+'</datalist>'+(extra||'')+
   '<div class="muted row">'+t('Lesen: ansehen und herunterladen. Schreiben: den Inhalt dieser Datei bzw. dieses Dokuments ändern, aber keine neuen Dateien anlegen, nicht löschen, umbenennen oder weitergeben. Neue Dateien mehrerer Mitglieder: Gruppenordner (Menü Files).')+'</div>'+
@@ -430,7 +467,7 @@ S.users={
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
      '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+contactPanel(me.mail,me.chat,true)+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
-    $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){alert(t('Passwort geändert – bitte neu anmelden.'));location.reload();}};
+    $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
   },
   add(){
@@ -474,7 +511,7 @@ S.users={
       $('#fd').onchange=e=>flag({disabled:e.target.checked});
       $('#fgs').onclick=async()=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/groups',{groups:names($('#fg').value)})){await this.load();this.select(k);}};
     }
-    if($('#fp'))$('#fp').onclick=async()=>{const p=prompt(t('Neues Passwort für {0} (min. 8):',k));if(p)await api('POST','/api/users/'+encodeURIComponent(k)+'/password',{password:p});};
+    if($('#fp'))$('#fp').onclick=async()=>{const p=await uiPrompt(t('Neues Passwort für {0} (min. 8):',k),'',1);if(p)await api('POST','/api/users/'+encodeURIComponent(k)+'/password',{password:p});};
   },
   async del(){
     const k=sel;if(!k)return;
@@ -482,10 +519,10 @@ S.users={
     const c=pv.counts||{};
     let m=t('Benutzer {0} löschen?',k)+'\n\n'+t('Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.',c.files||0,c.documents||0,c.calendar||0);
     m+='\n\n'+(pv.snapshot=='none'?t('Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.'):t('Vorher wird ein Snapshot angelegt.'));
-    if(!confirm(m))return;
-    const p=prompt(t('Zur Bestätigung dein Passwort eingeben:'));if(!p)return;
+    if(!await uiAsk(m))return;
+    const p=await uiPrompt(t('Zur Bestätigung dein Passwort eingeben:'),'',1);if(!p)return;
     let ns=false;
-    if(pv.snapshot=='none'){if(!confirm(t('Ohne Snapshot löschen?')))return;ns=true;}
+    if(pv.snapshot=='none'){if(!await uiAsk(t('Ohne Snapshot löschen?')))return;ns=true;}
     if(await api('POST','/api/users/'+encodeURIComponent(k)+'/delete',{password:p,noSnapshot:ns})){sel=null;await this.load();this.home();upd();}
   }
 };
@@ -519,19 +556,29 @@ S.units={
   },
   home(){
     $('#main').innerHTML='<h3>'+t('Organisationen')+'</h3><div class="muted">'+t('Organisationen (z.B. Schule, Abteilung, Vertrieb) fassen Gruppen zusammen. Eine Gruppe kann mehreren Organisationen angehören; ohne Angabe gehört sie zu all. Die Organisation vergibt keine Rechte.')+'</div>'+
+     '<div class="muted">'+t('Die Organisation vergibt selbst keine Rechte: sie wirkt dort, wo sie als Empfänger eingetragen ist (Freigaben "g:schule", Organisation im Kalender).')+'</div>'+
      '<div class="row muted">'+allUnits.length+' '+t('Organisationen')+'</div>';
   },
   add(){
     $('#main').innerHTML='<h3>'+t('Organisation anlegen')+'</h3><div class="row"><input id="un" placeholder="'+t('name (a-z 0-9 . _ -)')+'"> <button id="ugo">'+t('Anlegen')+'</button></div>';
     $('#ugo').onclick=async()=>{const n=$('#un').value;if(await api('POST','/api/units',{name:n})){await this.load();this.select(n);}};
   },
+  showMem:true,
   select(k){
     sel=k;setList(this.items);upd();
     const u=allUnits.find(x=>x.name==k);if(!u)return;
-    $('#main').innerHTML='<h3>'+esc(u.name)+'</h3><div class="row">'+t('Gruppen: ')+esc(u.groups.join(', ')||'-')+'</div>'+(k=='all'?'<div class="muted">'+t('Standard-Organisation, nicht löschbar; enthält alle Gruppen ohne andere Zuordnung.')+'</div>':'');
+    const mem=u.members||[];
+    let h='<h3>'+esc(u.name)+'</h3><div class="row">'+t('Gruppen: ')+esc(u.groups.join(', ')||'-')+'</div>'+
+      (k=='all'?'<div class="muted">'+t('Standard-Organisation, nicht löschbar; enthält alle Gruppen ohne andere Zuordnung.')+'</div>':'')+
+      (u.sources&&u.sources.length?'<div class="muted">'+t('Mitglieder kommen aus: ')+esc(u.sources.join(', '))+'</div>':'');
+    if(u.members)h+='<div class="panel"><b>'+t('Mitglieder')+' ('+mem.length+')</b>'+
+      '<div class="row"><label><input type="checkbox" id="umv"'+(this.showMem?' checked':'')+'> '+t('Mitglieder anzeigen')+'</label></div>'+
+      (this.showMem?'<div class="muted">'+esc(mem.join(', ')||'-')+'</div>':'')+'</div>';
+    $('#main').innerHTML=h;
+    if($('#umv'))$('#umv').onchange=e=>{this.showMem=e.target.checked;this.select(k);};   // nur eine Ansicht, kein zweiter Aufruf
   },
   async del(){
-    const k=sel;if(!confirm(t('Organisation {0} löschen? (Gruppen werden nur aus ihr entfernt.)',k)))return;
+    const k=sel;if(!await uiAsk(t('Organisation {0} löschen? (Gruppen werden nur aus ihr entfernt.)',k)))return;
     if(await api('DELETE','/api/units/'+encodeURIComponent(k))){sel=null;await this.load();this.home();upd();}
   }
 };
@@ -541,7 +588,7 @@ S.groups={
   async load(){
     allUsers=(await J('GET','/api/users'))||[];
     allGroups=(await J('GET','/api/groups'))||[];allUnits=(await J('GET','/api/units'))||[];
-    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+g.areas.join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
+    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+g.areas.join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.cal?' '+t('Kalender').toLowerCase()+':'+g.cal:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
     setList(this.items);
   },
   home(){
@@ -570,14 +617,15 @@ S.groups={
   select(k){
     sel=k;setList(this.items);upd();
     const g=allGroups.find(x=>x.name==k);if(!g)return;
-    let h='<h3>'+esc(g.name)+'</h3><div class="row">'+t('Bereiche: ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
+    let h='<h3>'+esc(g.name)+'</h3><div class="row">'+t('Bereiche: ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row">'+t('Gruppenkalender (Freigabe)')+': '+modeSel('gce',g.cal||'',[['','kein Gruppenkalender'],['off','nicht freigegeben (nur Verantwortliche)'],['ro','die Berechtigten lesen'],['rw','alle Berechtigten dürfen eintragen']],false)+'</div>':'')+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
     h+='<div class="row">'+t('Organisationen: ')+(me.admin?'<input id="gun" list="dlun" value="'+esc((g.units||[]).join(', '))+'" style="width:320px"> <button id="gus">'+t('Speichern')+'</button>'+gdl('dlun',allUnits.map(u=>u.name)):esc((g.units||[]).join(', ')))+'</div>';
     if(g.name=='alluser')h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">('+t('= globale Admins, Standardgruppe nicht löschbar')+')</span></div>';
     else if(me.admin)h+='<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" value="'+esc((g.admins||[]).join(', '))+'" style="width:320px"> <button id="gas">'+t('Speichern')+'</button></div>'+gdl('dlu',allUsers.map(u=>u.name));
     else h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+'</div>';
     if(g.manage){
-      h+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Eine Namensliste (Komma, Leerzeichen oder Zeilenumbruch). Hinzugefügte müssen existieren; Entfernte behalten mindestens eine andere Gruppe.')+'</div>'+
-       '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box">'+esc((g.members||[]).join('\n'))+'</textarea><div class="row"><button id="gms">'+t('Mitglieder speichern')+'</button></div></div>';
+      h+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.')+'</div>'+
+       '<div class="muted">'+t('"#organisation" zieht die Mitglieder aller Gruppen dieser Organisation mit (nur globale Admins).')+'</div>'+
+       '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box">'+esc((g.entries||[]).join('\n'))+'</textarea><div class="row"><button id="gms">'+t('Mitglieder speichern')+'</button></div></div>';
       if(g.name!='alluser')h+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
        '<textarea id="gst" rows="3" style="width:100%;box-sizing:border-box">'+esc((g.stay||[]).join('\n'))+'</textarea><div class="row"><button id="gsts">'+t('Merkliste speichern')+'</button></div></div>';
     }else h+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
@@ -587,19 +635,19 @@ S.groups={
     if(g.manage)$('#gais').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/ai',{mode:$('#gai').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(me.admin){
       rightsBind('ge');modeBind('gfe');
-      $('#gs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),...chatVals('gx')})){await this.load();this.select(k);}};
+      $('#gs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),cal:$('#gce').value,...chatVals('gx')})){await this.load();this.select(k);}};
       $('#gus').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{units:names($('#gun').value)})){await this.load();this.select(k);}};
       if($('#gas'))$('#gas').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/admins',{admins:names($('#gad').value)})){await this.load();this.select(k);}};
     }
     if(g.manage&&$('#gsts'))$('#gsts').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/stay',{stay:names($('#gst').value)})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(g.manage)$('#gms').onclick=async()=>{
-      const nu=new Set($('#gm').value.split(/[\s,;]+/).filter(x=>x)),old=new Set(g.members||[]);
+      const nu=new Set(ment($('#gm').value)),old=new Set(g.entries||[]);
       const add=[...nu].filter(x=>!old.has(x)),remove=[...old].filter(x=>!nu.has(x));
       if(!add.length&&!remove.length)return;
       if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/members',{add,remove})){await this.load();this.select(k);alert(t('{0} hinzugefügt, {1} entfernt',add.length,remove.length));}};
   },
   async del(){
-    const k=sel;if(!confirm(t('Gruppe {0} löschen? (Mitglieder verlieren diese Gruppe; jeder Benutzer muss mindestens eine behalten.)',k)))return;
+    const k=sel;if(!await uiAsk(t('Gruppe {0} löschen? (Mitglieder verlieren diese Gruppe; jeder Benutzer muss mindestens eine behalten.)',k)))return;
     if(await api('DELETE','/api/groups/'+encodeURIComponent(k))){sel=null;await this.load();this.home();upd();}
   }
 };
@@ -643,7 +691,7 @@ async function wzDraw(){
     const rd=()=>{if($('#wcc'))WZ.P.carry={cal:$('#wcc').checked,chat:$('#wch').checked,tasks:$('#wct').checked};if($('#wna'))WZ.P.newAdmins=$('#wna').checked;if($('#wlp'))WZ.P.pattern=$('#wlp').value.trim();if($('#wla'))WZ.P.archive=$('#wla').value.trim();};
     b.querySelectorAll('input[type=checkbox],#wlp,#wla').forEach(i=>i.onchange=rd);
     b.querySelectorAll('a[data-u]').forEach(a=>a.onclick=async e=>{e.preventDefault();
-      const pw=prompt(t('Rückgängig machen? Änderungen an diesen Konten seit dem Wechsel gehen verloren.')+'\n\n'+t('Passwort zur Bestätigung'));if(!pw)return;
+      const pw=await uiPrompt(t('Rückgängig machen? Änderungen an diesen Konten seit dem Wechsel gehen verloren.')+'\n\n'+t('Passwort zur Bestätigung'),'',1);if(!pw)return;
       if(await api('POST','/api/routines/undo/'+encodeURIComponent(a.dataset.u),{password:pw})){await S.groups.load();wzDraw();}});
     f.innerHTML='<button id="wzt0">'+esc(t('Vorlagen'))+'</button><span style="flex:1"></span><button class="pr" id="wzn">'+esc(t('Vorschau berechnen'))+'</button>';
     $('#wzt0').onclick=()=>{WZ.tpl=null;wzDraw();};
@@ -816,9 +864,10 @@ S.cal={
   buildList(){
     const it=[];let last='';
     for(const c of this.cals){
-      const head=c.scope=='global'?t('Globale Kalender'):c.scope=='group'?t('Gruppe')+' '+c.group:t('Meine Kalender');
+      const head=c.sub?t('Abos (nur lesen)'):c.scope=='global'?t('Globale Kalender'):c.scope=='unit'?t('Organisation')+' '+(c.unit||''):c.scope=='group'?t('Gruppe')+' '+(c.group||''):t('Meine Kalender');
       if(head!==last){it.push({head});last=head;}
-      it.push({k:c.id,label:c.name,color:this.colorOf(c),chk:this.isVis(c.id),sub:c.sub?t('(Abo)'):c.resource?t('(Ressource)'):c.write?'':t('(nur lesen)')});
+      const note=c.mode=='off'?t('(nicht freigegeben)'):c.sub?t('(Abo)'):c.resource?t('(Ressource)'):c.write?'':t('(nur lesen)');
+      it.push({k:c.id,label:c.name,color:this.colorOf(c),chk:this.isVis(c.id),sub:note});
     }
     this.items=it;if(sec=="cal")setList(it);
   },
@@ -1022,7 +1071,7 @@ S.cal={
   /* Kopie: alles außer dem Tag (Uhrzeit, Ort, Text, Erinnerung, Teilnehmer, Wiederholung) */
   async copyEv(x,nd){
     const e=x.e,att=(e.att||[]).map(a=>a.name||a.mail);
-    if(att.length&&!confirm(t('Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?')))return false;
+    if(att.length&&!await uiAsk(t('Die Kopie enthält Teilnehmer: Einladungen werden versendet. Fortfahren?')))return false;
     const body=this.evBody(x,nd);
     if(e.alarm!=null)body.alarm=e.alarm;
     if(att.length)body.att=att;
@@ -1064,7 +1113,10 @@ S.cal={
   barCal(){return this.cals.find(c=>c.id==sel)||this.cals.find(c=>c.id=='default')||this.cals[0];},
   bar(){
     const c=this.barCal();if(!c)return '';
-    let x='<div class="row muted" id="cbar">'+t('Kalender: ')+'<b>'+esc(c.name)+'</b> &nbsp; <a href="/api/cal/'+encodeURIComponent(c.id)+'/export.ics" download>'+t('Exportieren (.ics)')+'</a>';
+    let x='<div class="row muted" id="cbar">'+t('Kalender: ')+'<b>'+esc(c.name)+'</b>';
+    if(c.scope!='user'&&!c.sub)x+=' &nbsp; <span>'+(c.mode=='off'?'<span style="color:#c0392b">'+t('nicht freigegeben')+'</span>':t('Freigabe: ')+(c.mode=='rw'?t('alle Berechtigten dürfen eintragen'):t('die Berechtigten lesen')))+'</span>';
+    x+=' &nbsp; <a href="/api/cal/'+encodeURIComponent(c.id)+'/export.ics" download>'+t('Exportieren (.ics)')+'</a>';
+    if(c.manage)x+=' &nbsp; <button id="cbed" type="button">'+t('Bearbeiten')+'</button>';
     if(c.write&&!c.sub)x+=' &nbsp; <button id="cimp" type="button">'+t('Importieren (.ics)')+'</button><input id="cimpf" type="file" accept=".ics,text/calendar" style="display:none">';
     if(c.sub){
       x+=' &nbsp; '+(c.fetched?t('Abo: zuletzt aktualisiert {0}',fmtDT(c.fetched*1000)):t('Abo: noch nicht abgerufen'));
@@ -1088,6 +1140,8 @@ S.cal={
         }catch(x){alert(x);}
       };
     }
+    const ed=$('#cbed');
+    if(ed)ed.onclick=()=>this.edit(c.id);
     const rf=$('#crf');
     if(rf)rf.onclick=async()=>{rf.disabled=true;await api('POST','/api/cal/'+encodeURIComponent(c.id)+'/refresh');this.range=null;await this.load();this.paint();};
   },
@@ -1103,7 +1157,7 @@ S.cal={
   detail(x){
     if(!x)return;
     const c=x.c,e=x.e,cid=c.id,rec=!!e.rec;
-    $('#cdet').innerHTML='<div class="panel"><b>'+(rec?'↻ ':'')+esc(e.summary)+'</b><div class="muted">'+esc(c.name)+(c.scope=='group'?' ('+t('Gruppe')+' '+esc(c.group)+')':c.scope=='global'?' ('+t('global')+')':'')+'</div>'+
+    $('#cdet').innerHTML='<div class="panel"><b>'+(rec?'↻ ':'')+esc(e.summary)+'</b><div class="muted">'+esc(c.name)+(c.scope=='group'?' ('+t('Gruppe')+' '+esc(c.group)+')':c.scope=='unit'?' ('+t('Organisation')+' '+esc(c.unit)+')':c.scope=='global'?' ('+t('global')+')':'')+'</div>'+
       '<div>'+(e.allDay?t('ganztägig ')+esc(x.s.toLocaleDateString(LOC,{dateStyle:'medium'}))+(+addDays(x.en,-1)>+x.s?' – '+esc(addDays(x.en,-1).toLocaleDateString(LOC,{dateStyle:'medium'})):''):esc(fmtDT(x.s))+(e.end?' – '+esc(fmtDT(x.en)):''))+'</div>'+
       (e.location?'<div>'+t('Ort: ')+esc(e.location)+'</div>':'')+(e.desc?'<div style="white-space:pre-wrap">'+esc(e.desc)+'</div>':'')+
       (rec&&e.rule?'<div class="muted">'+t('Serie: ')+esc(this.ruleText(e.rule))+(e.ovr?' · '+t('einzeln geändert'):'')+'</div>':'')+
@@ -1113,7 +1167,7 @@ S.cal={
     $('#cdet').scrollIntoView({block:'nearest'});
     if(!c.write)return;
     const del=async one=>{
-      if(!confirm(one=='f'?t('Diesen und alle folgenden Termine löschen?'):one?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
+      if(!await uiAsk(one=='f'?t('Diesen und alle folgenden Termine löschen?'):one?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
       const q=one=='f'?'?scope=following&rid='+encodeURIComponent(e.rid):one?'?scope=one&rid='+encodeURIComponent(e.rid):'';
       if(await api('DELETE','/api/cal/'+encodeURIComponent(cid)+'/events/'+encodeURIComponent(e.file)+q)){await this.load();this.paint();}};
     $('#cdel').onclick=()=>del(false);
@@ -1144,7 +1198,7 @@ S.cal={
     $('#cdet').innerHTML='<div class="panel"><b>'+(ed?t('Termin bearbeiten'):t('Neuer Termin'))+'</b>'+
       '<div class="row"><input id="es" placeholder="'+t('Titel')+'" style="width:260px" value="'+esc(ed?e.summary:'')+'"> <input id="el" placeholder="'+t('Ort')+'" value="'+esc(ed?e.location||'':'')+'"></div>'+
       '<div class="row"><textarea id="ed" rows="2" placeholder="'+t('Beschreibung')+'" style="width:380px">'+esc(ed?e.desc||'':'')+'</textarea></div>'+
-      '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
+      '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='unit'?t('Organisation')+' '+c.unit+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
       '<div class="row">'+t('von ')+'<input id="eb" type="'+(ad0?'date':'datetime-local')+'" value="'+v0+'"> '+t('bis')+' <input id="ee" type="'+(ad0?'date':'datetime-local')+'" value="'+e0+'"></div>'+
       (rec?'<div class="row"><label><input type="radio" name="esc" value="one" checked> '+t('Nur dieser Termin')+'</label> &nbsp; <label><input type="radio" name="esc" value="following"> '+t('Dieser und folgende')+'</label> &nbsp; <label><input type="radio" name="esc" value="all"> '+t('Alle Termine der Serie')+'</label></div>':'')+
       (ed&&e.att&&e.att.length?'<div class="row muted">'+t('Teilnehmer: ')+e.att.map(a=>this.attText(a)).join(', ')+(e.org?' · '+t('Organisator: ')+esc(e.org):'')+'</div>':'')+
@@ -1171,7 +1225,7 @@ S.cal={
     $('#ecx').onclick=()=>{$('#cdet').innerHTML='';};
     if(ed)$('#edl').onclick=async()=>{
       const sc=rec?scope():'all';
-      if(!confirm(sc=='following'?t('Diesen und alle folgenden Termine löschen?'):sc=='one'?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
+      if(!await uiAsk(sc=='following'?t('Diesen und alle folgenden Termine löschen?'):sc=='one'?t('Nur diesen Termin löschen?'):rec?t('Ganze Serie löschen?'):t('Termin löschen?')))return;
       const q=sc=='following'?'?scope=following&rid='+encodeURIComponent(e.rid):sc=='one'?'?scope=one&rid='+encodeURIComponent(e.rid):'';
       if(await api('DELETE','/api/cal/'+encodeURIComponent(cur.id)+'/events/'+encodeURIComponent(e.file)+q)){$('#cdet').innerHTML='';await this.load();this.paint();}
     };
@@ -1201,22 +1255,55 @@ S.cal={
       const res=await J(ed?'PUT':'POST',ed?url+'/'+encodeURIComponent(e.file):url,body);
       if(res){if(res.mails>0)this.note=t('{0} Einladung(en) per E-Mail versendet.',res.mails);else if(res.mails<0)this.note=t('Einladungen nicht versendet: Stundenlimit erreicht.');$('#cdet').innerHTML='';this.rng=null;this.range=null;await this.load();this.paint();}};
   },
-  add(){
+  /* Kalender bearbeiten (nur Verantwortliche): Name, Beschreibung, Freigabe, Ressource, Abo-URL */
+  async edit(k){
+    const c=this.cals.find(x=>x.id==k);if(!c||!c.manage)return;
+    const shared=c.scope!='user'&&!c.sub;
+    const kind=c.scope=='user'?t('persönlich'):c.sub?t('(Abo)'):c.scope=='group'?t('Gruppe')+' '+esc(c.group||''):c.scope=='unit'?t('Organisation')+' '+esc(c.unit||''):t('global (alle Benutzer)');
+    $('#main').innerHTML='<h3>'+t('Kalender bearbeiten')+'</h3><div class="row muted">'+esc(c.name)+' &nbsp; '+kind+'</div>'+
+      '<div class="row"><input id="cen" value="'+esc(c.name)+'" style="width:280px"></div>'+
+      '<div class="row"><input id="ceds" placeholder="'+t('Beschreibung')+'" value="'+esc(c.description||'')+'" style="width:460px"></div>'+
+      (shared?'<div class="row">'+t('Freigabe: ')+'<select id="cem"><option value="off">'+t('nicht freigegeben (nur Verantwortliche)')+'</option><option value="ro">'+t('die Berechtigten lesen')+'</option><option value="rw">'+t('alle Berechtigten dürfen eintragen')+'</option></select></div>':'')+
+      (!c.sub?'<div class="row"><label><input id="cer" type="checkbox"'+(c.resource?' checked':'')+'> '+t('Ressource (Raum, Gerät): Doppelbuchungen verhindern')+'</label></div>':'')+
+      '<div class="row"><input id="ceu" value="'+esc(c.url||'')+'" placeholder="'+t('Abo: ICS-URL (https://... oder webcal://...); leeren = Abo beenden')+'" style="width:460px"></div>'+
+      '<button id="cego">'+t('Speichern')+'</button>'+(this.delable(k)?' <button id="cedl">'+t('Löschen')+'</button>':'')+
+      '<div class="muted row">'+t('Verantwortliche ändern den Kalender: persönliche der Benutzer, Gruppenkalender deren Gruppen-Admins, globale und Organisations-Kalender die globalen Admins. Freigabe "nicht freigegeben" zeigt den Kalender nur den Verantwortlichen, "rw" erlaubt allen Berechtigten Termine.')+'</div>';
+    if($('#cem'))$('#cem').value=c.mode||'ro';
+    $('#cego').onclick=async()=>{
+      const b={name:$('#cen').value,description:$('#ceds').value};
+      if($('#cem'))b.mode=$('#cem').value;
+      if($('#cer'))b.resource=$('#cer').checked;
+      if($('#ceu').value.trim()!=String(c.url||''))b.url=$('#ceu').value.trim(); // nur senden, wenn geändert (leer = Abo beenden)
+      const r=await J('PUT','/api/cal/'+encodeURIComponent(k),b);
+      if(r){this.note=r.suberr?t('Abo-Fehler: {0}',r.suberr):t('Gespeichert.');await this.load();this.select(k);}
+    };
+    if($('#cedl'))$('#cedl').onclick=async()=>{
+      if(!await uiAsk(t('Kalender und alle Termine löschen?')))return;
+      if(await api('DELETE','/api/cal/'+encodeURIComponent(k))){if(sel==k)sel=null;await this.load();this.draw();upd();}
+    };
+  },
+  async add(){
+    allUnits=(await J('GET','/api/units'))||allUnits;   // Organisationen frisch laden (evtl. gerade erst angelegt)
     const gm=me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);
+    const un=allUnits.filter(u=>u.name!='all').map(u=>u.name);
     $('#main').innerHTML='<h3>'+t('Kalender anlegen')+'</h3><div class="row"><input id="cn" placeholder="'+t('Name')+'"></div>'+
       '<div class="row"><label><input id="cres" type="checkbox"> '+t('Ressource (Raum, Gerät): Doppelbuchungen verhindern')+'</label></div>'+
       '<div class="row"><input id="cu" placeholder="'+t('optional: Internet-Kalender (ICS-URL, https://... oder webcal://...)')+'" style="width:460px"></div>'+
-      '<div class="row">'+t('Art: ')+'<select id="csc"><option value="user">'+t('persönlich')+'</option>'+(me.admin?'<option value="global">'+t('global (alle Benutzer)')+'</option>':'')+(gm.length?'<option value="group">'+t('Gruppe')+'</option>':'')+'</select> '+
+      '<div class="row">'+t('Art: ')+'<select id="csc"><option value="user">'+t('persönlich')+'</option>'+(me.admin?'<option value="global">'+t('global (alle Benutzer)')+'</option>':'')+(gm.length?'<option value="group">'+t('Gruppe')+'</option>':'')+(me.admin&&un.length?'<option value="unit">'+t('Organisation')+'</option>':'')+'</select> '+
       '<span id="cgs" style="display:none">'+t('Gruppe: ')+'<select id="cg">'+gm.map(g=>'<option>'+esc(g)+'</option>').join('')+'</select></span> '+
-      '<span id="cms" style="display:none">'+t('Schreiben: ')+'<select id="cm"><option value="ro">'+t('nur Admins / Gruppen-Admins')+'</option><option value="rw">'+t('alle Berechtigten')+'</option></select></span></div>'+
-      '<button id="cgo">'+t('Anlegen')+'</button><div class="muted row">'+t('Persönlich: nur du. Global: alle lesen. Gruppe: Mitglieder lesen. Alle erscheinen auch in Thunderbird (CalDAV). Mit ICS-URL wird ein Internet-Kalender (z.B. Feiertage, Schulferien) abonniert: nur lesbar, alle 30 Minuten aktualisiert.')+'</div>';
-    $('#csc').onchange=e=>{$('#cgs').style.display=e.target.value=='group'?'':'none';$('#cms').style.display=e.target.value=='user'?'none':'';$('#cm').value=e.target.value=='group'?'rw':'ro';};
+      '<span id="cus" style="display:none">'+t('Organisationen: ')+'<select id="cu2">'+un.map(u=>'<option>'+esc(u)+'</option>').join('')+'</select></span> '+
+      '<span id="cms" style="display:none">'+t('Schreiben: ')+'<select id="cm"><option value="off">'+t('nicht freigegeben (nur Verantwortliche)')+'</option><option value="ro">'+t('nur Admins / Gruppen-Admins')+'</option><option value="rw">'+t('alle Berechtigten')+'</option></select></span></div>'+
+      '<button id="cgo">'+t('Anlegen')+'</button><div class="muted row">'+t('Persönlich: nur du. Global: alle lesen. Gruppe: Mitglieder lesen. Alle erscheinen auch in Thunderbird (CalDAV). Mit ICS-URL wird ein Internet-Kalender (z.B. Feiertage, Schulferien) abonniert: nur lesbar, alle 30 Minuten aktualisiert.')+'</div>'+
+      '<div class="muted row">'+t('Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über "Bearbeiten" (Name, Freigabe, Abo).')+'</div>';
+    const scMode=sc=>{$('#cgs').style.display=sc=='group'?'':'none';$('#cus').style.display=sc=='unit'?'':'none';$('#cms').style.display=sc=='user'?'none':'';
+      $('#cm').options[1].textContent=t(sc=='group'?'nur Admins / Gruppen-Admins':'nur Admins');$('#cm').value='ro';};
+    $('#csc').onchange=e=>scMode(e.target.value);
     $('#cgo').onclick=async()=>{const sc=$('#csc').value;
-      const r=await J('POST','/api/cal',{name:$('#cn').value,scope:sc,group:sc=='group'?$('#cg').value:'',mode:sc=='user'?'':$('#cm').value,url:$('#cu').value,resource:$('#cres').checked});
+      const r=await J('POST','/api/cal',{name:$('#cn').value,scope:sc,group:sc=='group'?$('#cg').value:'',unit:sc=='unit'?$('#cu2').value:'',mode:sc=='user'?'':$('#cm').value,url:$('#cu').value,resource:$('#cres').checked});
       if(r&&r.id){await this.load();this.select(r.id);}};
   },
   async del(){
-    if(!confirm(t('Kalender und alle Termine löschen?')))return;
+    if(!await uiAsk(t('Kalender und alle Termine löschen?')))return;
     if(await api('DELETE','/api/cal/'+encodeURIComponent(sel))){sel=null;await this.load();this.draw();upd();}
   }
 };
@@ -1273,7 +1360,7 @@ function docSection(type){
       openDoc(id);
     },
     async del(){
-      if(!confirm(t('Dokument löschen?')))return;
+      if(!await uiAsk(t('Dokument löschen?')))return;
       const id=sel;leaveDoc();
       if(await api('DELETE','/api/docs/'+encodeURIComponent(id))){sel=null;await this.load();this.home();upd();}
     }
@@ -1297,7 +1384,7 @@ function openDoc(id){
     else if(m.t=='locks'){if(m.by!=me.name)for(const k of m.ks||[]){locks[k]={by:m.by,ts:Infinity};lockUI(k);}}   // Calc: Bereichssperre (Server meldet das Ende selbst)
     else if(m.t=='unlocks'){for(const k of m.ks||[]){delete locks[k];lockUI(k);}}};
   w.onclose=()=>{if(cur!=id||ws!==w)return;
-    if(!w.got&&++wsFail>=3){wsFail=0;cur=null;alert(t('Kein Zugriff mehr auf dieses Dokument.'));location.reload();return;}   // Recht entzogen oder Dokument gelöscht
+    if(!w.got&&++wsFail>=3){wsFail=0;cur=null;uiAlert(t('Kein Zugriff mehr auf dieses Dokument.')).then(()=>location.reload());return;}   // Recht entzogen oder Dokument gelöscht
     setTimeout(()=>{if(cur==id)openDoc(id);},1500);}; // Reconnect -> init = Resync (auch nach Rechteänderung)
 }
 const send=o=>ws&&ws.readyState==1&&ws.send(JSON.stringify(o));
@@ -2215,11 +2302,11 @@ S.files={
     await this.load();this.draw();upd();
   },
   async trDel(k){
-    const x=this.trItem(k);if(!x||!confirm(t('"{0}" endgültig löschen? Das lässt sich nicht rückgängig machen.',x.name)))return;
+    const x=this.trItem(k);if(!x||!await uiAsk(t('"{0}" endgültig löschen? Das lässt sich nicht rückgängig machen.',x.name)))return;
     if(await api('DELETE','/api/trash/'+encodeURIComponent(x.owner)+'/'+encodeURIComponent(x.id))){await this.load();this.draw();upd();}
   },
   async trEmpty(){
-    if(!confirm(t('Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.',this.tr.length)))return;
+    if(!await uiAsk(t('Papierkorb leeren? Alle {0} Einträge werden endgültig gelöscht.',this.tr.length)))return;
     for(const o of [...new Set(this.tr.map(x=>x.owner))])await api('DELETE','/api/trash?owner='+encodeURIComponent(o));
     await this.load();this.draw();upd();
   },
@@ -2229,7 +2316,7 @@ S.files={
   },
   q(){const o=this.ownerOf();return o?'&owner='+encodeURIComponent(o):'';},
   async mkdir(){
-    const n=(prompt(t('Name des neuen Ordners:'))||'').trim().replace(/^\/+|\/+$/g,'');if(!n)return;
+    const n=(await uiPrompt(t('Name des neuen Ordners:'))||'').trim().replace(/^\/+|\/+$/g,'');if(!n)return;
     const full=(this.path?this.path+'/':'')+n;
     if(await api('POST','/api/filesdir?name='+encodeURIComponent(full)+this.q())){await this.load();this.path=full;this.fsel=null;this.draw();}
   },
@@ -2239,7 +2326,7 @@ S.files={
     let last=null;
     for(const f of fl){
       const rel=f.webkitRelativePath||f.name,full=pre+rel;
-      if(have.some(x=>x.owner==ow&&x.name==full)&&!confirm(t('"{0}" existiert bereits. Ersetzen?',full)))continue;
+      if(have.some(x=>x.owner==ow&&x.name==full)&&!await uiAsk(t('"{0}" existiert bereits. Ersetzen?',full)))continue;
       if(f.size>this.maxMB*1048576){alert(t('{0}: größer als {1} MB',f.name,this.maxMB));continue;}
       $('#st').textContent=t('lade hoch: {0} ({1}) …',full,fmtSize(f.size));
       const r=await fetch('/api/files?name='+encodeURIComponent(full)+this.q(),{method:'POST',body:f});
@@ -2249,7 +2336,7 @@ S.files={
   },
   async rename(k,isDir){
     const from=isDir?k.slice(4):k.slice(k.indexOf('/')+1),o=isDir?this.ownerOf():this.find(k).owner;
-    const to=(prompt(t('Neuer Pfad (Ordner/Name):'),from)||'').trim().replace(/^\/+|\/+$/g,'');if(!to||to==from)return;
+    const to=(await uiPrompt(t('Neuer Pfad (Ordner/Name):'),from)||'').trim().replace(/^\/+|\/+$/g,'');if(!to||to==from)return;
     if(await api('POST','/api/filesmove?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+(isDir?'&dir=1':'')+(o.startsWith('@')?'&owner='+encodeURIComponent(o):''))){
       await this.load();this.fsel=null;this.draw();}
   },
@@ -2263,7 +2350,7 @@ S.files={
       d.style.display='';
       $('#dop').onclick=()=>{this.path=full;this.fsel=null;this.draw();};
       if(w){$('#dmv').onclick=()=>this.rename(k,true);
-        $('#ddel').onclick=async()=>{if(!confirm(this.trDays>0?t('Ordner "{0}" mit allen Dateien darin in den Papierkorb verschieben?',full):t('Ordner "{0}" mit allen Dateien darin löschen?',full)))return;
+        $('#ddel').onclick=async()=>{if(!await uiAsk(this.trDays>0?t('Ordner "{0}" mit allen Dateien darin in den Papierkorb verschieben?',full):t('Ordner "{0}" mit allen Dateien darin löschen?',full)))return;
           if(await api('DELETE','/api/files/'+encodeURIComponent(this.ownerOf()||me.name)+'/'+encPath(full)+'?dir=1')){this.fsel=null;await this.load();this.draw();}};}
       return;
     }
@@ -2290,7 +2377,7 @@ S.files={
       if(await api('POST','/api/filesshare/'+fpath(f),b)){await this.load();this.fsel=k;this.draw();}};
   },
   async del(){
-    const f=this.fsel&&this.find(this.fsel);if(!f||!confirm(this.trDays>0?t('"{0}" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)',f.name,this.trDays):t('"{0}" löschen?',f.name)))return;
+    const f=this.fsel&&this.find(this.fsel);if(!f||!await uiAsk(this.trDays>0?t('"{0}" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)',f.name,this.trDays):t('"{0}" löschen?',f.name)))return;
     if(await api('DELETE','/api/files/'+fpath(f))){this.fsel=null;await this.load();this.draw();upd();}
   }
 };
@@ -2414,10 +2501,10 @@ function chSide(){
     const canDel=c.name!='allgemein'&&(o.adm||c.by==me.name);
     return '<div class="cc'+(c.name==CH.c?' act':'')+(u?' un':'')+'" data-c="'+esc(c.name)+'"># '+esc(c.name)+(u?'<span class="n">●</span>':'')+(canDel?'<button class="x" data-x="'+esc(c.name)+'" title="'+t('löschen')+'">[x]</button>':'')+'</div>';}).join('')+
     (o.make?'<div class="cc" id="chnew" style="color:#2563eb">+ '+t('Kanal')+'</div>':'');
-  s.onclick=e=>{
+  s.onclick=async e=>{
     const x=e.target.closest('[data-x]');
-    if(x){e.stopPropagation();const n=x.dataset.x;if(confirm(t('Kanal {0} löschen? (Alle Nachrichten gehen verloren.)',n)))chSend({t:'rmchan',g:CH.g,name:n});return;}
-    if(e.target.closest('#chnew')){const n=prompt(t('Kanalname (a-z 0-9 _ -):'));if(n)chSend({t:'mkchan',g:CH.g,name:n.trim().toLowerCase()});return;}
+    if(x){e.stopPropagation();const n=x.dataset.x;if(await uiAsk(t('Kanal {0} löschen? (Alle Nachrichten gehen verloren.)',n)))chSend({t:'rmchan',g:CH.g,name:n});return;}
+    if(e.target.closest('#chnew')){const n=await uiPrompt(t('Kanalname (a-z 0-9 _ -):'));if(n)chSend({t:'mkchan',g:CH.g,name:n.trim().toLowerCase()});return;}
     const c=e.target.closest('[data-c]');if(c)chOpen(CH.g,c.dataset.c);};
 }
 const dayOf=ms=>new Date(ms).toDateString();
@@ -2456,7 +2543,7 @@ function chList(toEnd){
 async function chOpenRoom(w,r){   // Raum im neuen Tab öffnen (Tab vorher synchron geöffnet: Popup-Blocker)
   if(!r.ok){if(w)w.close();const m=(await r.text()).trim();chErr(r.status==410?t('Die Einladung ist abgelaufen.'):m||String(r.status));if(r.status==410)chList(false);return;}
   const u=(await r.json()).url;
-  if(w){w.opener=null;w.location.href=u;}else prompt(t('Das Fenster wurde blockiert. Adresse kopieren:'),u);
+  if(w){w.opener=null;w.location.href=u;}else uiPrompt(t('Das Fenster wurde blockiert. Adresse kopieren:'),u);
 }
 function chVideo(slot){
   if(slot==3){   // eingebauter Videochat: Einladung anlegen (oder laufende finden), dann über die Chat-Verbindung beitreten
@@ -2468,7 +2555,7 @@ function chVideo(slot){
   fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
 function chJoin(id){const w=window.open('about:blank','_blank');
   fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
-function chClick(e){
+async function chClick(e){
   const pk=e.target.closest('[data-pk]'),pcm=pk&&pk.closest('.cm');
   document.querySelectorAll('.pick').forEach(x=>x.remove());
   if(pk){const cm=pcm;chSend({t:'react',g:CH.g,c:CH.c,id:+cm.dataset.id,e:pk.dataset.pk});return;}
@@ -2477,7 +2564,7 @@ function chClick(e){
   if(a=='re')chSend({t:'react',g:CH.g,c:CH.c,id,e:b.dataset.e});
   else if(a=='pick'){const p=document.createElement('div');p.className='pick';p.innerHTML=CH.rx.map(x=>'<button data-pk="'+x+'">'+x+'</button>').join('');cm.append(p);e.stopPropagation();}
   else if(a=='vjoin'){const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id);if(m&&m.vid&&m.vid.mode=='rtc')rtcJoin(CH.g,CH.c,id);else chJoin(id);}
-  else if(a=='del'){if(confirm(t('Nachricht löschen?')))chSend({t:'del',g:CH.g,c:CH.c,id});}
+  else if(a=='del'){if(await uiAsk(t('Nachricht löschen?')))chSend({t:'del',g:CH.g,c:CH.c,id});}
   else if(a=='edit'){
     const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id),ct=cm.querySelector('.ct');if(!m||!ct)return;
     const ta=document.createElement('textarea');ta.value=m.t;ta.style.cssText='width:100%;box-sizing:border-box;font:inherit';ta.rows=Math.min(8,m.t.split('\n').length+1);
@@ -2813,7 +2900,7 @@ async function tkAct(o){
   const r=await api('POST','/api/tasks/'+encodeURIComponent(TK.cur)+'/act',o);
   if(r)tkShow(TK.cur,true);
 }
-function tkClick(e){
+async function tkClick(e){
   const g=e.target.closest('[data-go]');if(g){e.preventDefault();S.task.select(g.dataset.go);return;}
   const m=e.target.closest('[data-mile]');if(m){tkAct({a:'mile',mile:+m.dataset.mile,done:m.checked});return;}
   const ce=e.target.closest('[data-ce]'),cd=e.target.closest('[data-cd]');
@@ -2821,12 +2908,12 @@ function tkClick(e){
     const ta=document.createElement('textarea');ta.value=e0.t;ta.style.cssText='width:100%;box-sizing:border-box;font:inherit';ta.rows=Math.min(8,e0.t.split('\n').length+1);
     box.querySelector('.ct').replaceWith(ta);ta.focus();
     ta.onkeydown=ev=>{if(ev.key=='Escape')tkDraw(TK.lv);else if(ev.key=='Enter'&&!ev.shiftKey){ev.preventDefault();const v=ta.value.trim();if(v&&v!=e0.t)tkAct({a:'edit',cid:id,text:v});else tkDraw(TK.lv);}};return;}
-  if(cd){if(confirm(t('Kommentar löschen?')))tkAct({a:'delc',cid:+cd.dataset.cd});return;}
+  if(cd){if(await uiAsk(t('Kommentar löschen?')))tkAct({a:'delc',cid:+cd.dataset.cd});return;}
   const b=e.target.closest('[data-tk]');if(!b)return;const a=b.dataset.tk;
   if(a.startsWith('st:'))tkAct({a:'status',status:a.slice(3)});
   else if(a=='take'||a=='give')tkAct({a});
   else if(a=='edit')tkForm(TK.lv);
-  else if(a=='del'){if(confirm(t('Aufgabe "{0}" löschen?',TK.lv.title)))api('DELETE','/api/tasks/'+encodeURIComponent(TK.cur)).then(r=>{if(r){TK.tasks=TK.tasks.filter(y=>y.id!=TK.cur);TK.cur=null;sel=null;S.task.items=S.task.mk();setList(S.task.items);S.task.home();tkBadge();}});}
+  else if(a=='del'){if(await uiAsk(t('Aufgabe "{0}" löschen?',TK.lv.title)))api('DELETE','/api/tasks/'+encodeURIComponent(TK.cur)).then(r=>{if(r){TK.tasks=TK.tasks.filter(y=>y.id!=TK.cur);TK.cur=null;sel=null;S.task.items=S.task.mk();setList(S.task.items);S.task.home();tkBadge();}});}
 }
 function tkForm(x){
   TK.cur=x?x.id:null;if(!x)sel=null;
@@ -2893,8 +2980,8 @@ function idPanel(i){
     ((e.admit||[]).length?' ('+t('Aufnahme: ')+esc(e.admit.join(', '))+')':'');
   const warn=e.unencrypted?t('Achtung: {0} überträgt Passwörter ohne TLS. Bitte ldaps:// oder StartTLS verwenden.',esc(e.url||'')):'';
   return '<div class="panel"><b>'+t('Anmeldung (Konten und Verzeichnis)')+'</b> <small class="muted">'+t('Ohne Verzeichnis melden sich Benutzer mit ihrem cs-team-Namen an. Mit Verzeichnis zusätzlich mit name@Namensraum (Active Directory, LDAP, OpenLDAP, Samba). Änderungen gelten sofort.')+'</small>'+
-   '<div class="row">'+t('Anmeldung erlauben: ')+modeSel('sidmo',i.mode||'',[['','Vorgabe der Startparameter'],['local','nur lokale Konten'],['dir','nur Verzeichnis'],['mixed','Verzeichnis und lokale Konten']],false)+
-    ' &nbsp; <label><input type="checkbox" id="sidloc"'+(i.allowLocal?' checked':'')+'> '+t('lokale Konten zusätzlich erlauben (bei „nur Verzeichnis“)')+'</label></div>'+
+   '<div class="row">'+t('Anmeldung erlauben: ')+modeSel('sidmo',i.mode||'',[['','Vorgabe der Startparameter'],['local','nur lokale Konten'],['mixed','Verzeichnis und lokale Konten']],false)+'</div>'+
+   '<div class="row muted">'+t('Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.')+'</div>'+
    '<div class="row"><input id="sidre" style="width:170px" placeholder="'+t('Namensraum (schule.de)')+'" value="'+esc(i.realm||'')+'"> '+
     '<input id="siddef" style="width:230px" placeholder="'+t('Anzeige-Namensraum (wie angemeldet wird)')+'" value="'+esc(i.defaultRealm||'')+'"> '+
     '<small class="muted">'+t('Angemeldet wird mit name@Namensraum. Ohne eigene Suchbasis wird der Namensraum aus DC=… gebildet.')+'</small></div>'+
@@ -3063,7 +3150,8 @@ S.set={
       if(!(cd>=0&&cd<=365)){alert(t('Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).'));return false;}
       const idb={mode:$('#sidmo').value,realm:$('#sidre').value.trim(),defaultRealm:$('#siddef').value.trim(),localGroup:$('#sidgrp').value.trim(),
         url:$('#sidurl').value.trim(),base:$('#sidbase').value.trim(),bindDn:$('#sidbdn').value.trim(),admit:$('#sidadm').value.split(',').map(x=>x.trim()).filter(Boolean),
-        allowLocal:$('#sidloc').checked,startTls:$('#sidttls').checked,cacheDays:cd};
+        startTls:$('#sidttls').checked,cacheDays:cd};
+      // allowLocal wird nicht mehr gesendet: lokale Konten sind in jedem Modus erlaubt (0.55)
       if($('#sidbwx')&&$('#sidbwx').checked)idb.bindPw='';else if($('#sidbpw').value)idb.bindPw=$('#sidbpw').value;
       if(!await api('POST','/api/settings/auth',idb))return false;
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};aiStart();return true;};
@@ -3207,7 +3295,7 @@ async function aiStart(){
       '<div class="row"><input id="pn2" type="password" autocomplete="new-password" placeholder="'+t('neues Passwort wiederholen')+'"></div>'+
       '<button id="pgo">'+t('Speichern')+'</button></div>';
     $('#pgo').onclick=async()=>{if($('#pn').value!=$('#pn2').value){alert(t('Die Passwörter sind nicht gleich.'));return;}
-      if(await api('POST','/api/me/password',{old:'',new:$('#pn').value})){alert(t('Passwort geändert – bitte neu anmelden.'));location.reload();}};
+      if(await api('POST','/api/me/password',{old:'',new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     return;
   }
   allUsers=(await J('GET','/api/users'))||[];

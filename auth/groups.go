@@ -39,6 +39,13 @@ var Templates = map[string]Template{
 // OnNewGroup: wird nach dem Anlegen einer Gruppe mit Gruppenkalender-Vorlage aufgerufen (main verbindet den Kalender).
 var OnNewGroup func(ctx context.Context, group, calMode string)
 
+// GroupCalState: Freigabe des Gruppenkalenders für die Gruppen-Einstellungen ("" = keiner, sonst "off"/"ro"/"rw");
+// main verbindet den Kalender. GroupCalMode (siehe rename.go) liefert dagegen nur "ro"/"rw"/"" für den Jahrgangswechsel.
+var GroupCalState func(ctx context.Context, group string) string
+
+// OnGroupCal: ändert den Gruppenkalender aus den Gruppen-Einstellungen ("" entfernt ihn); main verbindet den Kalender.
+var OnGroupCal func(ctx context.Context, group, calMode string) error
+
 var (
 	ErrNoGroup      = errors.New("no such group")
 	ErrBadArea      = errors.New("area: cal calc text files")
@@ -46,12 +53,29 @@ var (
 	ErrLastGroup    = errors.New("at least one group must remain")
 	ErrDefaultGroup = errors.New("the default group '" + DefaultGroup + "' cannot be deleted; its admins are the global admins")
 	ErrNoGroups     = errors.New("user needs at least one group")
+	ErrBadMember    = errors.New(`member: name, @cs-team-group or DOMAIN\group`)
+	ErrMemberLoop   = errors.New("membership loop: the group would contain itself (A contains B, B contains A)")
+	ErrNameUsed     = errors.New("name is already a group or an organisation")
+	ErrCalUsed      = errors.New("group calendar is not empty") // Gruppenkalender enthält Termine: erst leeren, dann entfernen
 )
+
+// groupCalMode: Wert der Oberfläche für den Gruppenkalender prüfen und zurückgeben: "" (keiner/entfernen),
+// "off" (Entwurf: nur Verantwortliche sehen ihn), "ro" (Mitglieder lesen), "rw" (Mitglieder dürfen eintragen).
+func groupCalMode(s string) (string, bool) {
+	switch s = strings.ToLower(strings.TrimSpace(s)); s {
+	case "", "off", "ro", "rw":
+		return s, true
+	}
+	return "", false
+}
 
 type Group struct {
 	Areas  []string `json:"areas"`            // Bereiche mit Schreibrecht ("ändern")
 	Read   []string `json:"read,omitempty"`   // Bereiche nur lesen
 	Admins []string `json:"admins,omitempty"` // Gruppen-Admins: verwalten Mitglieder ihrer Gruppe
+	Dir    []string `json:"dir,omitempty"`    // Mitglieder-Quelle Verzeichnis: "DOMAENE\gruppe" oder "gruppe" (0.55)
+	Sub    []string `json:"sub,omitempty"`    // Mitglieder-Quelle cs-team: "@untergruppe" oder Gruppenname (0.55)
+	Unit   []string `json:"unit,omitempty"`   // Mitglieder-Quelle Organisation: "#schule" = alle Mitglieder der Gruppen dieser Organisation (0.55)
 	Chat   string   `json:"chat,omitempty"`   // Gruppen-Chat: "" = member, "admin" (nur Admins schreiben), "off"
 	Msg    string   `json:"msg,omitempty"`    // Nachrichten an die Gruppe: "" = admin, "member", "off"
 	Tasks  string   `json:"tasks,omitempty"`  // wer Aufgaben der Gruppe anlegen darf: "" = member, "admin", "off"
@@ -93,7 +117,9 @@ func GroupsOf(user string) []string {
 	return effGroups(u)
 }
 
-// Allowed: steht der Benutzer in einer Freigabeliste? Einträge: "*" (alle), "g:<gruppe>" oder Benutzername.
+// Allowed: steht der Benutzer in einer Freigabeliste? Einträge: "*" (alle), "g:<gruppe>", "g:<organisation>"
+// oder Benutzername. Eine Organisation ist nur hier ein Empfänger (Freigaben, Text/Calc): sie fasst die Mitglieder
+// ihrer Gruppen zusammen und vergibt selbst keine Rechte (kein Bereich, kein Chat, kein Kalender - KISS 0.55).
 func Allowed(list []string, user string) bool {
 	var gs []string
 	for _, e := range list {
@@ -108,6 +134,9 @@ func Allowed(list []string, user string) bool {
 				if g == e[2:] || (e[2:] == legacyDefault && g == DefaultGroup) { // alte Freigaben an "users"
 					return true
 				}
+			}
+			if InUnit(user, e[2:]) {
+				return true
 			}
 		}
 	}
@@ -216,11 +245,111 @@ func CanManage(ctx context.Context, group string) bool {
 	return false
 }
 
-func effGroups(u Account) []string {
+// handGroups: Handliste eines Kontos (Account.Groups); leer = Standardgruppe. Anders als effGroups enthält sie keine
+// aus dem Verzeichnis oder über Untergruppen abgeleiteten Mitgliedschaften (KISS-Regel 0.55).
+func handGroups(u Account) []string {
 	if len(u.Groups) == 0 {
 		return []string{DefaultGroup}
 	}
 	return u.Groups
+}
+
+// effGroups: alle Gruppen eines Kontos: Handliste (Account.Groups) + berechnete Mitgliedschaften (Account.Member,
+// aus Group.Dir/Group.Sub). Das ist der EINZIGE Rechenweg für Mitgliedschaft: Bereiche, Freigaben, Ordner, Chat und
+// Aufgaben fragen immer hier - wer nicht in effGroups steht, ist nicht Mitglied.
+func effGroups(u Account) []string {
+	if len(u.Member) == 0 {
+		return handGroups(u)
+	}
+	out := make([]string, 0, len(u.Groups)+len(u.Member))
+	seen := map[string]bool{}
+	for _, x := range append(append([]string{}, u.Groups...), u.Member...) {
+		if x != "" && !seen[x] {
+			seen[x] = true
+			out = append(out, x)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// resolveMembers: Mitgliedschaften aus den Gruppenlisten berechnen (KISS-Regel 0.55 - "Zugehoerigkeit darf aus dem
+// Verzeichnis kommen, Verantwortung nie"). Zwei Quellen:
+//
+//	Group.Dir ("DOMAENE\gruppe", "lehrer"): wer in dieser Verzeichnisgruppe ist (Account.DirGroups, beim Login
+//	  gelesen), wird Mitglied der Gruppe.
+//	tGroup.Sub ("@klasse5a", "klasse5a"):  wer in der cs-team-Untergruppe ist, wird Mitglied der Gruppe
+//	  (auch mehrstufig; Schleifen enden nach höchstens len(gs) Runden).
+//	Group.Unit ("#schule"):                wer in einer Gruppe dieser Organisation ist, wird Mitglied der Gruppe.
+//
+// Das Ergebnis steht in Account.Member (nur im Speicher, wird nie geschrieben); die Handliste bleibt unberührt.
+func resolveMembers(us map[string]Account, gs map[string]Group) map[string]Account {
+	if len(us) == 0 || len(gs) == 0 {
+		return us
+	}
+	mem := make(map[string]map[string]bool, len(us))
+	for n, u := range us {
+		s := make(map[string]bool, len(u.Groups)+len(u.DirGroups))
+		for _, g := range u.Groups {
+			s[g] = true
+		}
+		mem[n] = s
+	}
+	for n, u := range us { // Verzeichnisgruppen
+		if u.Source != "dir" || len(u.DirGroups) == 0 {
+			continue
+		}
+		for gn, g := range gs {
+			if len(g.Dir) == 0 || mem[n][gn] {
+				continue
+			}
+			for _, e := range g.Dir {
+				if dirMatch(e, u.DirGroups) {
+					mem[n][gn] = true
+					break
+				}
+			}
+		}
+	}
+	for round := 0; round <= len(gs)+1; round++ { // Untergruppen und Organisationen bis zum Stillstand
+		changed := false
+		for gn, g := range gs {
+			pull := func(s string) { // wer in der Quelle s ist, wird Mitglied von gn
+				if s == "" || s == gn {
+					return
+				}
+				for n := range us {
+					if mem[n][s] && !mem[n][gn] {
+						mem[n][gn] = true
+						changed = true
+					}
+				}
+			}
+			for _, e := range g.Sub {
+				pull(subRef(e))
+			}
+			for _, e := range g.Unit { // "#schule": alle Mitglieder der Gruppen dieser Organisation
+				for _, s := range unitGroups(gs, orgRef(e)) {
+					pull(s)
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	out := make(map[string]Account, len(us))
+	for n, u := range us {
+		u.Member = nil
+		for g := range mem[n] {
+			if g != "" && !contains(u.Groups, g) {
+				u.Member = append(u.Member, g)
+			}
+		}
+		sort.Strings(u.Member)
+		out[n] = u
+	}
+	return out
 }
 
 // areas: Vereinigung der Bereiche aller Gruppen des Benutzers (all = lesen oder ändern, wr = ändern); Admin darf alles.
@@ -366,6 +495,9 @@ func (a *Auth) SetGroup(ctx context.Context, name string, areas, read []string) 
 		if !exists && name == legacyDefault { // "users" ist der alte Name der Standardgruppe: alte Freigaben "g:users" würden sonst an diese Gruppe fallen
 			return ErrBadName
 		}
+		if !exists && contains(a.loadUnits(ctx), name) { // Name ist schon eine Organisation: sonst wäre "#name" mehrdeutig
+			return fmt.Errorf("%w: %s", ErrNameUsed, name)
+		}
 		g.Areas, g.Read = clean, ro
 		if len(ro) == 0 {
 			g.Read = nil
@@ -458,7 +590,12 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Tasks   string   `json:"tasks"`
 			AI      string   `json:"ai"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
+			Entries []string `json:"entries,omitempty"` // Mitgliederliste zum Bearbeiten: Konten + "@untergruppe" + "#organisation" + "DOMAENE\gruppe"
+			Dir     []string `json:"dir,omitempty"`     // Verzeichnisgruppen als Mitgliederquelle (nur Verwalter)
+			Sub     []string `json:"sub,omitempty"`     // cs-team-Untergruppen als Mitgliederquelle (nur Verwalter)
+			Unit    []string `json:"unit,omitempty"`    // Organisationen als Mitgliederquelle: "#schule" (nur Verwalter)
 			Stay    []string `json:"stay,omitempty"`    // Wiederholer (nur für Verwalter der Gruppe)
+			Cal     string   `json:"cal,omitempty"`     // Gruppenkalender: "" keiner, sonst "off"/"ro"/"rw" (Gruppen-Einstellungen)
 			Manage  bool     `json:"manage,omitempty"`
 		}
 		a.mu.Lock()
@@ -476,19 +613,41 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			}
 			if rw.Manage {
 				rw.Members = []string{}
+				rw.Entries = []string{}
 				for un, u := range a.users {
 					for _, x := range effGroups(u) {
 						if x == n {
 							rw.Members = append(rw.Members, un)
+							break
 						}
+					}
+					// Einträge: Handliste (Account.Groups). Spiegelkonten (Source "dir") stehen nicht darin - ihre
+					// Mitgliedschaft kommt über die Verzeichnisgruppen (Group.Dir), nicht über die Handliste (0.55).
+					if u.Source != "dir" && contains(u.Groups, n) {
+						rw.Entries = append(rw.Entries, un)
 					}
 				}
 				sort.Strings(rw.Members)
+				sort.Strings(rw.Entries)
+				rw.Dir = append([]string{}, g.Dir...)
+				rw.Sub = append([]string{}, g.Sub...)
+				rw.Unit = append([]string{}, g.Unit...)
 				rw.Stay = append([]string{}, g.Stay...)
+				// Die Eintragsliste ist die vollständige Bearbeitungsliste der Oberfläche (Handliste, Untergruppen,
+				// Organisationen, Verzeichnisgruppen) - sonst könnte ein Admin einen Eintrag nicht sehen/entfernen.
+				rw.Entries = append(rw.Entries, rw.Sub...)
+				rw.Entries = append(rw.Entries, rw.Unit...)
+				rw.Entries = append(rw.Entries, rw.Dir...)
+				sort.Strings(rw.Entries)
 			}
 			out = append(out, rw)
 		}
 		a.mu.Unlock()
+		if GroupCalState != nil { // Freigabe des Gruppenkalenders liegt im Kalender-Store: außerhalb der Sperre fragen
+			for i := range out {
+				out[i].Cal = GroupCalState(r.Context(), out[i].Name)
+			}
+		}
 		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 		json.NewEncoder(w).Encode(out)
 	})))
@@ -579,11 +738,13 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			OnNewGroup(r.Context(), in.Name, in.Cal)
 		}
 		if len(in.Admins) > 0 {
-			if err := a.SetMembers(r.Context(), in.Name, in.Admins, nil); err != nil {
+			// Erst die Gruppen-Admins (prüft, dass jedes genannte Konto existiert), dann die Mitgliederliste: sonst
+			// bliebe ein Tippfehler als Verzeichnisgruppe in der Gruppe hängen (0.55).
+			if err := a.SetGroupAdmins(r.Context(), in.Name, in.Admins); err != nil {
 				fail_(w, err)
 				return
 			}
-			if err := a.SetGroupAdmins(r.Context(), in.Name, in.Admins); err != nil {
+			if err := a.SetMembers(r.Context(), in.Name, in.Admins, nil); err != nil {
 				fail_(w, err)
 			}
 		}
@@ -593,6 +754,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Areas  []string
 			Read   []string
 			Folder *string
+			Cal    *string // Gruppenkalender: "" keiner (entfernen), "off" Entwurf, "ro", "rw"
 			Units  *[]string
 			Chat   *string
 			Msg    *string
@@ -609,6 +771,21 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		if !exists {
 			fail_(w, ErrNoGroup)
 			return
+		}
+		// Gruppenkalender anlegen, Freigabe ändern, zum Entwurf machen oder entfernen - zuerst, damit ein Fehler die
+		// übrigen Änderungen nicht halb anwendet.
+		if in.Cal != nil {
+			cm, ok := groupCalMode(*in.Cal)
+			if !ok {
+				http.Error(w, `cal: "", "off", "ro" or "rw"`, http.StatusBadRequest)
+				return
+			}
+			if OnGroupCal != nil {
+				if err := OnGroupCal(r.Context(), r.PathValue("name"), cm); err != nil {
+					fail_(w, err)
+					return
+				}
+			}
 		}
 		if in.Areas != nil {
 			if err := a.SetGroup(r.Context(), r.PathValue("name"), in.Areas, in.Read); err != nil {
@@ -664,9 +841,19 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			http.Error(w, "bad json", http.StatusBadRequest)
 			return
 		}
-		if !IsAdmin(r.Context()) { // Gruppen-Admin: nur Konten hinzufügen, die ausschließlich in verwalteten Gruppen sind
+		if !IsAdmin(r.Context()) { // Gruppen-Admin: Konten nur aus eigenen Gruppen; Verzeichnis- und Organisations-Einträge nur der globale Admin
+			for _, n := range append(append([]string{}, in.Add...), in.Remove...) {
+				switch kind, ref := a.entryKind(n); kind {
+				case entDir:
+					http.Error(w, "forbidden: "+n+" is a directory group (ask a global admin)", http.StatusForbidden)
+					return
+				case entUnit:
+					http.Error(w, "forbidden: #"+ref+" is an organisation (ask a global admin)", http.StatusForbidden)
+					return
+				}
+			}
 			for _, n := range in.Add {
-				if !a.manages(r.Context(), n) {
+				if kind, _ := a.entryKind(n); kind == entAccount && !a.manages(r.Context(), n) {
 					http.Error(w, "forbidden: "+n+" belongs to groups you do not manage (ask a global admin)", http.StatusForbidden)
 					return
 				}
@@ -738,7 +925,59 @@ func within(l, allowed []string) bool {
 	return true
 }
 
-// SetMembers: Mitglieder einer Gruppe ändern (add/remove); jeder Benutzer behält mindestens eine Gruppe.
+// Eintragsarten in Mitgliederlisten (KISS-Regel 0.55, Vorrang von oben nach unten):
+//
+//	"*"                       nur in Freigabelisten - in Mitgliederlisten ein Fehler
+//	"@name"                   cs-team-Untergruppe (eindeutig)
+//	"#organisation"           Organisation: alle Mitglieder der Gruppen dieser Organisation (eindeutig)
+//	"DOMAENE\gruppe" / "a=b"  Verzeichnisgruppe (eindeutig)
+//	cs-team-Konto (anna)      Handliste dieses Kontos
+//	cs-team-Gruppe (klasse5a) Untergruppe
+//	sonst (z.B. "lehrer")     Verzeichnisgruppe (nachsichtig: meist ist die Domäne weggelassen)
+const (
+	entBad = iota
+	entAccount
+	entSub
+	entDir
+	entUnit // "#organisation": alle Mitglieder der Gruppen dieser Organisation (0.55)
+)
+
+// entryKind: Art und bereinigter Name eines Eintrags in einer Mitgliederliste. Aufrufer rufen das ohne gehaltene
+// Sperre auf (es liest a.users/a.groups).
+func (a *Auth) entryKind(e string) (int, string) {
+	e = strings.TrimSpace(e)
+	switch {
+	case e == "" || e == "*":
+		return entBad, e
+	case strings.HasPrefix(e, "@"):
+		if n := subRef(e); n != "" {
+			return entSub, n
+		}
+		return entBad, e
+	case strings.HasPrefix(e, "#"): // Organisation ("#schule"): alle Mitglieder ihrer Gruppen
+		if n := orgRef(e); n != "" {
+			return entUnit, n
+		}
+		return entBad, e
+	case strings.ContainsAny(e, `\/:=`): // Verzeichnisgruppe ("DOMAENE\gruppe", "CN=...,OU=...") oder Pfadform
+		return entDir, e
+	}
+	a.mu.Lock()
+	_, isUser := a.users[e]
+	_, isGroup := a.groups[e]
+	a.mu.Unlock()
+	switch {
+	case isUser:
+		return entAccount, e
+	case isGroup:
+		return entSub, e
+	}
+	return entDir, e
+}
+
+// SetMembers: Mitglieder einer Gruppe ändern (add/remove). Einträge werden erkannt (siehe entryKind): cs-team-Konten
+// landen in der Handliste des Kontos (Account.Groups), "@untergruppe"/Gruppenname in Group.Sub, Verzeichnisgruppen
+// ("DOMAENE\gruppe") in Group.Dir. Verzeichnis-Einträge darf nur der globale Admin setzen (Prüfung in der Route).
 func (a *Auth) SetMembers(ctx context.Context, group string, add, remove []string) error {
 	a.refresh(ctx)
 	a.mu.Lock()
@@ -747,6 +986,268 @@ func (a *Auth) SetMembers(ctx context.Context, group string, add, remove []strin
 	if !ok {
 		return ErrNoGroup
 	}
+	var addAcc, remAcc, addSub, remSub, addDir, remDir, addUnit, remUnit []string
+	for _, e := range add {
+		switch k, n := a.entryKind(e); k {
+		case entAccount:
+			addAcc = append(addAcc, n)
+		case entSub:
+			addSub = append(addSub, n)
+		case entUnit:
+			addUnit = append(addUnit, n)
+		case entDir:
+			addDir = append(addDir, n)
+		default:
+			return fmt.Errorf("%w: %q", ErrBadMember, e)
+		}
+	}
+	for _, e := range remove {
+		switch k, n := a.entryKind(e); k {
+		case entAccount:
+			remAcc = append(remAcc, n)
+		case entSub:
+			remSub = append(remSub, n)
+		case entUnit:
+			remUnit = append(remUnit, n)
+		case entDir:
+			remDir = append(remDir, n)
+		default:
+			return fmt.Errorf("%w: %q", ErrBadMember, e)
+		}
+	}
+	known := a.loadUnits(ctx)
+	for _, n := range addUnit {
+		if n == DefaultUnit || !contains(known, n) {
+			return fmt.Errorf("%w: #%s", ErrNoUnit, n) // "#all" wäre "alle Gruppenmitglieder" - nie erlaubt
+		}
+	}
+	if len(addAcc) > 0 || len(remAcc) > 0 {
+		if err := a.setAccountMembers(ctx, group, addAcc, remAcc); err != nil {
+			return err
+		}
+	}
+	if len(addSub)+len(remSub)+len(addDir)+len(remDir)+len(addUnit)+len(remUnit) == 0 {
+		return nil
+	}
+	err := a.mutateGroups(ctx, func(m map[string]Group) error {
+		g, ok := m[group]
+		if !ok {
+			return ErrNoGroup
+		}
+		// Neue Verweise (Untergruppe/Organisation) prüfen: eine Schleife (A enthält B, B enthält A) wird abgelehnt,
+		// sonst hinge die Mitgliedschaft von der Reihenfolge des Ladens ab.
+		var want []string
+		for _, n := range addSub {
+			want = append(want, "@"+subRef(n))
+		}
+		for _, n := range addUnit {
+			want = append(want, "#"+n)
+		}
+		if ref, bad := memberLoop(m, group, want); bad {
+			return fmt.Errorf("%w: %s", ErrMemberLoop, ref)
+		}
+		for _, n := range addSub {
+			g.Sub = uniq(append(g.Sub, "@"+subRef(n)))
+		}
+		for _, n := range remSub {
+			g.Sub = dropRef(g.Sub, n, true)
+		}
+		for _, n := range addUnit {
+			g.Unit = uniq(append(g.Unit, "#"+n))
+		}
+		for _, n := range remUnit {
+			g.Unit = dropRef(g.Unit, n, true)
+		}
+		for _, n := range addDir {
+			if k := dirKey(n); k != "" {
+				g.Dir = uniq(append(g.Dir, n))
+			}
+		}
+		for _, n := range remDir {
+			g.Dir = dropRef(g.Dir, n, false)
+		}
+		m[group] = g
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// Nach dem Ändern der Quellen steht die Mitgliedschaft von selbst richtig (nur im Speicher, siehe effGroups).
+	return nil
+}
+
+// memberLoop: schließt das Setzen der Verweise extra für "group" eine Schleife? Geprüft wird "enthält A B und
+// enthält B (auch über die neuen, noch nicht gespeicherten Verweise) A?" - ein solcher Ring ist nie sinnvoll.
+// Rückgabe: der Verweis, der die Schleife schließt.
+func memberLoop(gs map[string]Group, group string, extra []string) (ref string, bad bool) {
+	if len(extra) == 0 {
+		return "", false
+	}
+	// Kanten: Quelle -> Ziel (Quelle zieht die Mitglieder von Ziel mit).
+	pull := map[string][]string{}
+	for n, g := range gs {
+		for _, e := range g.Sub {
+			if s := subRef(e); s != "" {
+				pull[n] = append(pull[n], s)
+			}
+		}
+		for _, e := range g.Unit {
+			for _, s := range unitGroups(gs, orgRef(e)) {
+				pull[n] = append(pull[n], s)
+			}
+		}
+	}
+	for _, e := range extra {
+		if s := refKey(e); s != "" {
+			pull[group] = append(pull[group], s)
+		}
+	}
+	// Von jeder neuen Quelle aus suchen, ob man über die Kanten wieder bei "group" landet.
+	for _, e := range extra {
+		start := refKey(e)
+		if start == group {
+			return e, true // sich selbst als Mitglied eintragen
+		}
+		seen := map[string]bool{start: true}
+		queue := []string{start}
+		for len(queue) > 0 {
+			n := queue[0]
+			queue = queue[1:]
+			for _, s := range pull[n] {
+				if s == group {
+					return e, true
+				}
+				if !seen[s] {
+					seen[s] = true
+					queue = append(queue, s)
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+// subRef: Verweis auf eine cs-team-Untergruppe ("@klasse5a" oder "klasse5a"); leer = ungültig.
+func subRef(e string) string {
+	e = strings.ToLower(strings.TrimSpace(e))
+	if e == "" || e == "@" {
+		return ""
+	}
+	return strings.TrimPrefix(e, "@")
+}
+
+// orgRef: Verweis auf eine Organisation ("#schule", auch "schule#" ist keiner); leer = kein Organisations-Eintrag.
+func orgRef(e string) string {
+	e = strings.ToLower(strings.TrimSpace(e))
+	if !strings.HasPrefix(e, "#") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(e, "#"))
+}
+
+// refKey: Vergleichsform eines Mitglieder-Eintrags: Untergruppen "name"/"@name" gleich, Organisationen "#name"
+// getrennt (sonst würde ein Entfernen von "@schule" auch "#schule" treffen).
+func refKey(e string) string {
+	if n := orgRef(e); n != "" {
+		return "#" + n
+	}
+	return subRef(e)
+}
+
+// unitGroups: Gruppen, die der Organisation zugeordnet sind. Die Standard-Organisation "all" erbt bewusst nicht:
+// sie steht für "keine andere Zuordnung" und wäre sonst gleichbedeutend mit "alle Gruppenmitglieder".
+func unitGroups(gs map[string]Group, unit string) []string {
+	if unit == "" || unit == DefaultUnit {
+		return nil
+	}
+	var out []string
+	for n, g := range gs {
+		if contains(g.Units, unit) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// dirKey: Vergleichsform eines Verzeichnisgruppennamens: Kleinschreibung, LDAP-DN auf den Kurznamen reduziert
+// ("CN=Lehrer,OU=Schule" -> "lehrer"); "DOMAENE\gruppe" bleibt vollständig.
+func dirKey(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if strings.Contains(s, "=") {
+		s = strings.ToLower(cn(s))
+	}
+	return s
+}
+
+// dirName: Name ohne Domäne: "schule.de\lehrer" -> "lehrer".
+func dirName(s string) string {
+	if i := strings.LastIndexByte(s, '\\'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
+// dirMatch: passt der Eintrag "want" auf eine der Verzeichnisgruppen "have"? Der Domänenteil ist beim Vergleich nicht
+// maßgeblich (in der Regel ist nur ein Verzeichnis eingerichtet): "lehrer" und "schule.de\lehrer" bedeuten dasselbe.
+func dirMatch(want string, have []string) bool {
+	w := dirKey(want)
+	if w == "" {
+		return false
+	}
+	for _, h := range have {
+		if h = dirKey(h); h == w || dirName(h) == dirName(w) {
+			return true
+		}
+	}
+	return false
+}
+
+// dirRefs: Verzeichnisgruppen eines Kontos in Vergleichsform (klein, DN als Kurzname), sortiert und ohne Doppel.
+func dirRefs(gs []string) []string {
+	out := make([]string, 0, len(gs))
+	seen := map[string]bool{}
+	for _, g := range gs {
+		if k := dirKey(g); k != "" && !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// sameList: zwei sortierte Listen gleich?
+func sameList(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// dropRef: Einträge einer Gruppenliste entfernen. sub=true vergleicht "@name"/"#name", sonst Verzeichnisnamen.
+func dropRef(l []string, name string, sub bool) []string {
+	out := []string{}
+	for _, x := range l {
+		if sub && refKey(x) == refKey(name) {
+			continue
+		}
+		if !sub && dirKey(x) == dirKey(name) {
+			continue
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
+
+// setAccountMembers: Handliste (Account.Groups) der genannten cs-team-Konten ändern; jeder Benutzer behält mindestens
+// eine Gruppe. Nur die Handliste wird geschrieben - Mitgliedschaften aus Verzeichnis-/Untergruppen bleiben berechnet.
+func (a *Auth) setAccountMembers(ctx context.Context, group string, add, remove []string) error {
 	return a.mutate(ctx, func(m map[string]Account) error {
 		for _, n := range add {
 			u, ok := m[n]
@@ -916,6 +1417,8 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadName))
 		case r.pw != "" && (len(r.pw) < minPass || len(r.pw) > maxPass): // leer = unverändert (nur vorhandene Benutzer)
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadPass))
+		case r.pw != "" && weakPass(r.pw):
+			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrWeakPass))
 		default:
 			for _, g := range r.groups {
 				if !known[g] {
@@ -1066,7 +1569,9 @@ func (a *Auth) exportRoutes(mux *http.ServeMux) {
 			if IsAdmin(r.Context()) || n == User(r.Context()) { // Webhook-Adressen enthalten Tokens: nur Besitzer und globale Admins (S-09)
 				chat = a.users[n].Chat
 			}
-			lines = append(lines, csvq(n)+";;"+csvq(strings.Join(effGroups(a.users[n]), ","))+";"+csvq(a.users[n].Mail)+";"+csvq(chat))
+			// Handliste exportieren (nicht effGroups): aus dem Verzeichnis abgeleitete Mitgliedschaften gehören
+			// nicht in die Datei, die wieder importiert wird (0.55).
+			lines = append(lines, csvq(n)+";;"+csvq(strings.Join(handGroups(a.users[n]), ","))+";"+csvq(a.users[n].Mail)+";"+csvq(chat))
 		}
 		a.mu.Unlock()
 		csvOut(w, "users.csv", lines)

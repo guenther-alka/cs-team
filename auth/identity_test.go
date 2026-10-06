@@ -95,7 +95,7 @@ func TestIdentityFields(t *testing.T) {
 	if got := id.AdmitGroupNames(); len(got) != 2 || got[0] != "lehrer" || got[1] != "schueler" {
 		t.Fatalf("Aufnahmegruppen: %v", got)
 	}
-	if id.Group() != "teaching" || !id.DirOK() || id.LocalOK() || id.ModeName() != "directory only" || id.Unencrypted() {
+	if id.Group() != "teaching" || !id.DirOK() || !id.LocalOK() || id.ModeName() != "directory + local" || id.Unencrypted() {
 		t.Fatal("Verzeichnis-Einstellung")
 	}
 	if got := (Identity{Base: "DC=Local, DC=de"}).DirRealm(); got != "local.de" {
@@ -115,8 +115,8 @@ func TestIdentityFields(t *testing.T) {
 		{Identity{}, true, "local accounts"},
 		{Identity{Mode: "local"}, true, "local accounts"},
 		{Identity{Mode: "mixed", Realm: "local.de"}, true, "directory + local"},
-		{Identity{Mode: "dir", Realm: "local.de"}, false, "directory only"},
-		{Identity{Mode: "dir", Realm: "local.de", AllowLocal: true}, true, "directory only"},
+		{Identity{Mode: "dir", Realm: "local.de"}, true, "directory + local"},
+		{Identity{Mode: "dir", Realm: "local.de", AllowLocal: true}, true, "directory + local"}, // AllowLocal ohne Wirkung (0.55)
 	} {
 		if c.id.LocalOK() != c.ok || c.id.ModeName() != c.name {
 			t.Fatalf("%+v: LocalOK=%v %s", c.id, c.id.LocalOK(), c.id.ModeName())
@@ -193,9 +193,10 @@ func TestDirLogin(t *testing.T) {
 	if st.puts != 1 {
 		t.Fatalf("Schreibzugriffe nach Cache-Treffer: %d", st.puts)
 	}
-	// Verzeichnisbenutzer ohne Namensraum: bei Mode "dir" keine lokale Anmeldung
-	if code, _ := wrapCall(h, "anna", "geheim123", "192.0.2.5"); code != 403 {
-		t.Fatalf("lokale Anmeldung bei Mode dir: %d", code)
+	// lokale cs-team-Konten bleiben auch bei Mode "dir" anmeldefähig (Notfallzugang, 0.55): es gibt hier aber kein
+	// lokales Konto "anna"
+	if code, _ := wrapCall(h, "anna", "geheim123", "192.0.2.5"); code != 401 {
+		t.Fatalf("lokale Anmeldung ohne lokales Konto: %d", code)
 	}
 	if code, _ := wrapCall(h, "anna@local.de", "falsch123", "192.0.2.5"); code != 401 {
 		t.Fatalf("falsches Passwort: %d", code)
@@ -203,8 +204,37 @@ func TestDirLogin(t *testing.T) {
 	if code, _ := wrapCall(h, "anna@fremd.de", "geheim123", "192.0.2.5"); code != 401 {
 		t.Fatalf("unbekannter Namensraum: %d", code)
 	}
-	if code, _ := wrapCall(h, "anna@local", "geheim123", "192.0.2.5"); code != 403 {
-		t.Fatalf("@local ist eine lokale Anmeldung (abgeschaltet): %d", code)
+	if code, _ := wrapCall(h, "anna@local", "geheim123", "192.0.2.5"); code != 401 {
+		t.Fatalf("@local ist eine lokale Anmeldung (kein Konto): %d", code)
+	}
+}
+
+// TestLocalAlwaysAllowed: KISS-Regel 0.55 - lokale cs-team-Konten sind in JEDEM Modus anmeldefähig (Notfallzugang).
+// Ohne Verzeichnis (kein Namensraum) gibt es keinen weiteren Namensraum: name@fremd wird klar abgelehnt.
+func TestLocalAlwaysAllowed(t *testing.T) {
+	ForceChange = false
+	ctx := context.Background()
+	a := New(store.NewMem())
+	if err := a.Bootstrap(ctx, "root", "rootrootroot"); err != nil {
+		t.Fatal(err)
+	}
+	a.SetIdentitySource(fixedIdentity{Mode: "dir"}) // Mode "dir", aber kein Verzeichnis eingerichtet
+	idc := a.identity()
+	if !idc.LocalOK() || idc.DirOK() {
+		t.Fatalf("LocalOK=%v DirOK=%v", idc.LocalOK(), idc.DirOK())
+	}
+	if _, err := parseLogin("root@schule.de", idc); !errors.Is(err, ErrBadRealm) {
+		t.Fatalf("fremder Namensraum: %v", err)
+	}
+	h := a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(User(r.Context()))) }))
+	if code, body := wrapCall(h, "root", "rootrootroot", "192.0.2.20"); code != 200 || body != "root" {
+		t.Fatalf("lokales Konto: %d %q", code, body)
+	}
+	if code, body := wrapCall(h, "ROOT@LOCAL", "rootrootroot", "192.0.2.20"); code != 200 || body != "root" {
+		t.Fatalf("@local: %d %q", code, body)
+	}
+	if code, _ := wrapCall(h, "root@schule.de", "rootrootroot", "192.0.2.20"); code != 401 {
+		t.Fatalf("fremder Namensraum: %d", code)
 	}
 }
 
@@ -297,7 +327,7 @@ func TestMeDirFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m["realm"] != "local.de" || m["source"] != "dir" || m["name"] != "anna@local.de" ||
-		m["idRealm"] != "local.de" || m["idMode"] != "directory only" || m["allowLocal"] != true {
+		m["idRealm"] != "local.de" || m["idMode"] != "directory + local" || m["allowLocal"] != true {
 		t.Fatalf("/api/me: %v", m)
 	}
 	if gs, _ := m["groups"].([]any); len(gs) != 1 || gs[0] != "teaching" {

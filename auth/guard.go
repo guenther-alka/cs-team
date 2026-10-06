@@ -42,6 +42,25 @@ func (a *Auth) verifyCached(ctx context.Context, name, pass string) (Account, bo
 	return u, true
 }
 
+// cachedGood: gültige Anmeldung nur aus dem Kurzzeit-Cache (authTTL), ohne bcrypt und ohne Verzeichnisabfrage. Damit lässt
+// Wrap bekannte Nutzer auch dann durch, wenn ihre Adresse wegen Fehlversuchen anderer gesperrt ist. Ein Fehlversuch bleibt
+// ein Fehlversuch: unbekannte oder abgelaufene Anmeldungen bedient der Cache nie.
+func (a *Auth) cachedGood(ctx context.Context, name, pass string) (Account, bool) {
+	u, ok := a.get(ctx, name)
+	if !ok || u.Disabled {
+		return Account{}, false
+	}
+	k := sha256.Sum256(append(append(append(a.salt[:], name...), 0), pass...))
+	h := sha256.Sum256([]byte(u.Hash))
+	a.mu.Lock()
+	e, found := a.cache[k]
+	a.mu.Unlock()
+	if found && e.h == h && time.Now().Before(e.exp) {
+		return u, true
+	}
+	return Account{}, false
+}
+
 var (
 	runMu   sync.Mutex
 	runLast string

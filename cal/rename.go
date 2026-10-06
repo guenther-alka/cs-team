@@ -51,8 +51,9 @@ func (b *Backend) RenameGroup(ctx context.Context, from, to string) error {
 	return nil
 }
 
-// GroupCalMode: Modus des Gruppenkalenders ("ro"/"rw") oder "" wenn es keinen gibt.
-func (b *Backend) GroupCalMode(ctx context.Context, g string) string {
+// GroupCalState: Freigabe des Gruppenkalenders für die Gruppen-Einstellungen: "" (keiner), "off" (Entwurf),
+// "ro" (Mitglieder lesen) oder "rw" (Mitglieder dürfen eintragen).
+func (b *Backend) GroupCalState(ctx context.Context, g string) string {
 	raw, _, err := b.St.Get(ctx, key("@"+g, "gruppe", "_meta.json"))
 	if err != nil {
 		return ""
@@ -61,10 +62,22 @@ func (b *Backend) GroupCalMode(ctx context.Context, g string) string {
 	if json.Unmarshal(raw, &m) != nil {
 		return ""
 	}
-	if m.Mode != "ro" {
-		return "rw"
+	switch m.Mode {
+	case "off", "ro", "rw":
+		return m.Mode
 	}
-	return m.Mode
+	return "ro" // Altbestand ohne Angabe: wie "ro" (siehe caldav.go)
+}
+
+// GroupCalMode: Modus des Gruppenkalenders für den Jahrgangswechsel ("ro"/"rw") oder "" wenn es keinen gibt.
+func (b *Backend) GroupCalMode(ctx context.Context, g string) string {
+	switch b.GroupCalState(ctx, g) {
+	case "":
+		return ""
+	case "ro":
+		return "ro"
+	}
+	return "rw" // "rw" und der Entwurf "off" werden als "rw" weitergegeben
 }
 
 // CalUsed: enthält der Gruppenkalender Termine (mehr als die Metadaten)?
