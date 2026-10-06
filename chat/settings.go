@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,6 +50,8 @@ type stored struct {
 	RTC       RTCCfg     `json:"rtc"`                 // eingebauter Videochat (WebRTC)
 	QuotaMB   *int64     `json:"quotaMB,omitempty"`   // Kontingent je Benutzer / Gruppenordner (MB, 0 = unbegrenzt)
 	TrashDays *int       `json:"trashDays,omitempty"` // Papierkorb: Tage (0 = aus)
+	ClosedDays *int      `json:"closedDays,omitempty"` // Aufbewahrung abgeschlossener Aufgaben: Tage (0 = unbegrenzt)
+	Privacy   string     `json:"privacy,omitempty"`   // zusätzlicher Datenschutzhinweis (an die Hinweise zu KI und Videochat angehängt)
 
 	// Anmeldung (Namensraum + Verzeichnis): leer = Vorgabe aus den Startparametern
 	IdMode     string    `json:"idMode,omitempty"`     // "local", "dir" oder "mixed" ("dir" = wie "mixed", siehe 0.55)
@@ -133,6 +136,64 @@ func (s *Settings) setTrashDays(d int) error {
 	}
 	s.cur = n
 	return nil
+}
+
+// ClosedDays: Aufbewahrung abgeschlossener Aufgaben in Tagen (0 = unbegrenzt, Vorgabe).
+func (s *Settings) ClosedDays() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cur.ClosedDays != nil {
+		return *s.cur.ClosedDays
+	}
+	return 0
+}
+
+func (s *Settings) setClosedDays(d int) error {
+	if d < 0 || (d > 0 && d < 7) || d > 36500 { // 7 = auth.MinRetentionDays
+		return errors.New("closed tasks: 0 (off) or 7..36500 days")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.cur
+	n.ClosedDays = &d
+	return s.persist(n)
+}
+
+// Privacy: zusätzlicher Datenschutzhinweis des Admins (leer = keiner).
+func (s *Settings) Privacy() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cur.Privacy
+}
+
+func (s *Settings) setPrivacy(text string) error {
+	text = strings.TrimSpace(strings.ReplaceAll(text, "\r\n", "\n"))
+	if len([]rune(text)) > 2000 || strings.ContainsRune(text, 0) {
+		return errors.New("privacy note: at most 2000 characters")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.cur
+	n.Privacy = text
+	return s.persist(n)
+}
+
+// VideoAddr: Adressen der eingerichteten externen Videoserver (nur Rechnernamen, sortiert, durch Komma getrennt; leer = keine).
+// Ändert sich die Angabe, muss der Hinweis zum Videochat erneut bestätigt werden (auth.AckAddr).
+func (s *Settings) VideoAddr() string {
+	seen := map[string]bool{}
+	var hosts []string
+	for _, o := range s.Video() {
+		if o.URL == "" {
+			continue
+		}
+		if u, err := url.Parse(strings.Replace(o.URL, "{room}", "room", 1)); err == nil && u.Host != "" && !seen[u.Host] {
+			seen[u.Host] = true
+			hosts = append(hosts, u.Host)
+		}
+	}
+	sort.Strings(hosts)
+	return strings.Join(hosts, ", ")
 }
 
 // Quota: Kontingent in Byte (für files.Svc.Quota).
@@ -390,6 +451,8 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			"video":     s.Video(),
 			"quotaMB":   s.QuotaMB(),
 			"trashDays": s.TrashDays(),
+			"closedDays": s.ClosedDays(),
+			"privacy":   own.Privacy,
 			"rtc":       map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
 			"identity": map[string]any{
 				"mode": own.IdMode, "realm": own.IdRealm, "defaultRealm": own.IdDefRealm, "admit": own.IdAdmit,
@@ -418,6 +481,26 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			return
 		}
 		if err := s.setTrashDays(in.Days); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
+	}))
+	mux.Handle("POST /api/settings/closedtasks", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Days *int }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil || in.Days == nil { // "null"/fehlend: nicht stillschweigend 0
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setClosedDays(*in.Days); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
+	}))
+	mux.Handle("POST /api/settings/privacy", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Text string }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setPrivacy(in.Text); err != nil {
 			http.Error(w, err.Error(), 400)
 		}
 	}))

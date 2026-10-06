@@ -280,23 +280,8 @@ func ValidName(n string) bool {
 	return true
 }
 
-// winBad: Namen, die Windows als Gerät oder Datenstrom deutet (CON, NUL, COM1 ..., "a:b", "x::$DATA", Namen mit Punkt/Leerzeichen am Ende).
-// Nur auf Windows-Servern geprüft (Test-/Entwicklungsbetrieb); auf ZFS/Linux sind diese Namen unkritisch.
-func winBad(sg string) bool {
-	if strings.ContainsAny(sg, ":*?\"<>|") || strings.HasSuffix(sg, ".") || strings.HasSuffix(sg, " ") {
-		return true
-	}
-	b := strings.ToUpper(sg)
-	if i := strings.Index(b, "."); i >= 0 {
-		b = b[:i]
-	}
-	switch b {
-	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
-		return true
-	}
-	return false
-}
+// winBad: siehe store.WinBad (nur auf Windows-Servern geprüft, s. ValidName).
+func winBad(sg string) bool { return store.WinBad(sg) }
 
 // Dir/Base eines Namens.
 func Dir(name string) string {

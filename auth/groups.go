@@ -80,6 +80,7 @@ type Group struct {
 	Msg    string   `json:"msg,omitempty"`    // Nachrichten an die Gruppe: "" = admin, "member", "off"
 	Tasks  string   `json:"tasks,omitempty"`  // wer Aufgaben der Gruppe anlegen darf: "" = member, "admin", "off"
 	Chans  string   `json:"chans,omitempty"`  // wer weitere Chat-Kanäle anlegen darf: "" = admin, "member", "off" (niemand)
+	ChatDays int    `json:"chatDays,omitempty"` // Aufbewahrung Chat in Tagen: ältere Nachrichten werden gelöscht (0 = unbegrenzt)
 	Units  []string `json:"units,omitempty"`  // Organisationen (leer = "all")
 	Stay   []string `json:"stay,omitempty"`   // Wiederholer: bleiben beim nächsten Jahrgangswechsel in der Gruppe (wird danach geleert)
 	AI     string   `json:"ai,omitempty"`     // KI-Assistent legt Dokumente an: "" = nur Admins, "member" = auch Mitglieder (Gruppen-Admin schaltet)
@@ -456,7 +457,7 @@ func (a *Auth) mutateGroups(ctx context.Context, fn func(m map[string]Group) err
 
 // SetGroup legt eine Gruppe an oder ändert ihre Bereiche.
 func (a *Auth) SetGroup(ctx context.Context, name string, areas, read []string) error {
-	if !validName.MatchString(name) {
+	if !okName(name) {
 		return ErrBadName
 	}
 	ok := map[string]bool{}
@@ -588,6 +589,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Msg     string   `json:"msg"`
 			Chans   string   `json:"chans"`
 			Tasks   string   `json:"tasks"`
+			ChatDays int     `json:"chatDays"`
 			AI      string   `json:"ai"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
 			Entries []string `json:"entries,omitempty"` // Mitgliederliste zum Bearbeiten: Konten + "@untergruppe" + "#organisation" + "DOMAENE\gruppe"
@@ -601,7 +603,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		a.mu.Lock()
 		out := []row{}
 		for n, g := range a.groups {
-			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), AI: aiMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
+			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, AI: aiMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
 			if n == DefaultGroup { // Gruppen-Admins der Standardgruppe = globale Admins
 				rw.Admins = []string{}
 				for un, u := range a.users {
@@ -665,6 +667,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			MsgMode   string   `json:"msg"`   // member | admin | off (leer = admin)
 			ChansMode string   `json:"chans"` // wer Kanäle anlegen darf: member | admin | off (leer = admin)
 			TasksMode string   `json:"tasks"` // wer Aufgaben anlegen darf: member | admin | off (leer = member)
+			ChatDays  int      `json:"chatDays"` // Aufbewahrung Chat in Tagen (0 = unbegrenzt)
 		}
 		if !body(w, r, &in) {
 			return
@@ -719,6 +722,12 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 				return
 			}
 		}
+		if in.ChatDays != 0 {
+			if err := a.SetGroupChatDays(r.Context(), in.Name, in.ChatDays); err != nil {
+				fail_(w, err)
+				return
+			}
+		}
 		if len(in.Units) > 0 {
 			if err := a.SetGroupUnits(r.Context(), in.Name, in.Units); err != nil {
 				fail_(w, err)
@@ -760,6 +769,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Msg    *string
 			Chans  *string
 			Tasks  *string
+			ChatDays *int
 		}
 		if !body(w, r, &in) {
 			return
@@ -795,6 +805,12 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		}
 		if in.Chat != nil || in.Msg != nil || in.Chans != nil || in.Tasks != nil {
 			if err := a.SetGroupModes(r.Context(), r.PathValue("name"), in.Chat, in.Msg, in.Chans, in.Tasks); err != nil {
+				fail_(w, err)
+				return
+			}
+		}
+		if in.ChatDays != nil {
+			if err := a.SetGroupChatDays(r.Context(), r.PathValue("name"), *in.ChatDays); err != nil {
 				fail_(w, err)
 				return
 			}
@@ -1405,7 +1421,7 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 				continue
 			}
 			switch {
-			case !validName.MatchString(g):
+			case !okName(g):
 				bad = "bad group name " + g
 			case !IsAdmin(ctx) && !CanManage(ctx, g):
 				bad = "not admin of group " + g
@@ -1420,7 +1436,7 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %s", r.line, r.name, bad))
 		case len(r.groups) == 0:
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: group required", r.line, r.name))
-		case !validName.MatchString(r.name):
+		case !okName(r.name):
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadName))
 		case r.pw != "" && (len(r.pw) < minPass || len(r.pw) > maxPass): // leer = unverändert (nur vorhandene Benutzer)
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadPass))

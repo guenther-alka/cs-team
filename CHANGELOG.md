@@ -1,5 +1,42 @@
 cs-team changelog (newest first)
 
+2026-10-06  0.59.0 Audit-Nachbesserung: Anmelde-Erfolgszeile nur einmal nach Fehlversuchen des gleichen Kontos; Gruppenkalender fuer unbekannte Gruppe wird mit 404 abgelehnt; Handbuch Kapitel 14 Audit Result 0.59 (keine Punkte der Kategorie hoch offen). Datenschutz-Nachbesserung nach der DSGVO-Pruefung von 0.58 (Punkte 1-4):
+                   1. Benutzer loeschen mit Option "anonymisieren" (Standard an: Feld anonymize im POST /api/users/{name}/delete, Haken im Dialog, auf Wunsch aus):
+                   der Name des Kontos wird in Chat-Nachrichten (Autor, Reaktionen, Kanalersteller, Versandprotokoll), Aufgaben (Auftraggeber, Bearbeiter,
+                   Beteiligte, Verlauf) und als Teilnehmer/Organisator in Terminen fremder Kalender (Gruppen, Organisationen, global, andere Benutzer) durch den
+                   festen Text "geloeschter Benutzer" ersetzt (im Programm mit Umlaut, Konstante auth.DeletedUser). Die Vorschau (GET .../delete/preview) nennt die
+                   Zahlen (anon: chat, tasks, events). Alles Bisherige bleibt (Dateien, Dokumente, persoenliche Kalender, Freigaben). Das Loeschprotokoll
+                   (users/_delete-log.json) enthaelt nur Name, Zeit, Admin und Zahlen, keinen Inhalt. Neue Hooks auth.AnonHooks (chat/anon.go, tasks/gdpr.go, cal/gdpr.go).
+                   2. Datenauskunft Art. 15/20: GET /api/me/export liefert ein ZIP (gestreamt, Content-Disposition attachment) mit README.txt, account.json (Name,
+                   Gruppen, E-Mail, Sprache, angelegt; nie das Passwort/Hash, Webhook nur als "gesetzt"), files/ (eigene Dateien), calendars/<name>.ics (persoenliche
+                   Kalender, ohne Abos), tasks.json (angelegt oder bearbeitet, Obergrenze 2000), chat.json (eigene Nachrichten mit Gruppe, Kanal, Zeit, Obergrenze
+                   10000). Admin-Variante GET /api/users/{name}/export (nur globale Admins; Audit-Zeile ueber die Protokollierung). Grenzen: 20000 Dateien/8 GB,
+                   hoechstens 3 Exporte gleichzeitig (429), Namen im ZIP gegen zip-slip bereinigt (auth.ZipSafe). Oberflaeche: Konto "Meine Daten exportieren
+                   (ZIP)", Benutzerverwaltung "Daten exportieren". Nicht enthalten (steht im README.txt): Inhalte anderer, Gruppenordner/-kalender, Calc/Text-Dokumente,
+                   Server-Protokolle, Chat-Anhaenge (nur Dateiname).
+                   3. Aufbewahrung: je Gruppe "Aufbewahrung Chat (Tage)" (0 = unbegrenzt, Vorgabe; Gruppen-Dialog, API chatDays) loescht ueber den stuendlichen
+                   Lauf (chat/retention.go) Chat-Nachrichten samt Anhaengen, die aelter sind (Alter aus der Nachrichten-ID); global "Abgeschlossene Aufgaben:
+                   Tage bis zum automatischen Loeschen" (0 = nie; Einstellungen, POST /api/settings/closedtasks; tasks/gdpr.go, im stuendlichen Aufgaben-Lauf).
+                   Je Lauf eine Logzeile mit Zahlen ("retention: group=x deleted n messages", "retention: closed tasks deleted n").
+                   4. Hinweis vor der ersten Nutzung von KI-Assistent und externem Videochat: eigener Dialog nennt Anbieter/Server (aus den Einstellungen), welche
+                   Daten dorthin gehen (KI: Text, Bilder und gewaehlte Dateien der Anfrage; Video: Ton, Bild, Raumname, cs-team sieht nichts) und dass die Nutzung
+                   freiwillig ist ("Verstanden und weiter"/"Abbrechen"). Bestaetigung je Benutzer im Konto (Account.ack, POST /api/me/ack, Hash der Adresse),
+                   in /api/me als ack/ackAddr/privacy; aendert der Admin KI-Anbieter oder Videoserver, wird sie ungueltig. Neues Feld "Datenschutzhinweis
+                   (zusaetzlicher Text)" in den Einstellungen (POST /api/settings/privacy, max. 2000 Zeichen) wird an die Hinweise angehaengt. Der Hinweis ist
+                   nur in der Oberflaeche erzwungen (die API bleibt wie bisher benutzbar). 17 neue Texte in allen 13 Sprachdateien (maschinell uebersetzt).
+                   Tests: gdpr_test.go (Anonymisierung, Export, Hinweis, Aufbewahrungs-Einstellungen), chat/retention_test.go und tasks/gdpr_test.go (mit festem
+                   "jetzt"), auth/export_test.go (ZipSafe). Das Handbuch hat jetzt Kapitel 11 Datenschutz (DSGVO) (de/en, PDFs Version 0.59).
+                   Nachbesserung nach unabhaengiger Pruefung: (a) Audit-Zeile fuer jeden Export ("audit: export user=.. by=.. ip=.."); (b) logMW: 5xx-Zeilen mit
+                   Antworttext (body=, bereinigt, 120 Zeichen), Audit-Praefix "audit-failed:" fuer 400/404/409/422 (abgelehnte Eingabe), "audit-denied:" nur fuer 401/403/429;
+                   (c) Anmeldeprotokoll: Sperr-Zeilen mit eigenem Kontingent (je 30/Minute, getrennt von den Fehlversuchen), die Zusammenfassung "N further ... messages
+                   suppressed" kommt auch ohne weitere Meldung am Ende der Minute, erfolgreiche Anmeldung wird nur nach Fehlversuchen von Benutzer oder Adresse
+                   protokolliert ("auth: login ok user=.. ip=.. after N failed attempts"); (d) Windows-Server: reservierte Geraetenamen (con, nul, com1 ..) und ":" werden
+                   fuer Konten, Gruppen, Organisationen und Kalender-IDs abgelehnt bzw. ersetzt (store.WinBad/WinReserved, files.winBad nutzt sie);
+                   Dateisystemfehler enthalten nie mehr den Serverpfad (store.ErrStorage, Einzelheiten nur im Server-Log "store: ..."); (e) Aufbewahrung: 0 oder
+                   mindestens 7 Tage (Chat je Gruppe und abgeschlossene Aufgaben; 1..6 ergibt 400, Pruefung auch in der Oberflaeche, 1 neuer Text in 13 Sprachdateien);
+                   POST /api/settings/closedtasks mit "null" oder ohne days ist 400 statt stillschweigend 0. Tests: audit59_test.go, auth/authlog_test.go,
+                   store/fserr_test.go, gdpr_test.go erweitert.
+
 2026-10-06  0.58.0 (enthaelt 0.57.1) Nach Multiuser-Live-Test: ICS-Export eines leeren Kalenders lieferte HTTP 500 (jetzt leeres VCALENDAR); Gruppen-Admin darf Konten ohne eigene Gruppe in seine Gruppe aufnehmen; Fehlermeldungen bei Gruppenname/Bereich praeziser; Protokoll: fehlgeschlagene Anmeldungen und Sperren (begrenzt, ohne Passwoerter), Audit-Zeilen fuer Aenderungen an Benutzern/Gruppen/Einstellungen/Passwoertern (audit:/audit-denied:), 5xx-Fehler und Abstuerze (panic abgefangen), Startzeile mit Version, optional CS_LOG_ACCESS=1 fuer ein Zugriffsprotokoll; Windows-Server: Dateinamen wie CON, NUL, a:b werden abgelehnt. Oberflaeche: Dunkelmodus (folgt prefers-color-scheme, color-scheme light dark; alle Bereiche: Listen, Calc/Text,
                    Kalender, Dateien, Chat, Aufgaben, KI-Assistent, Assistent, Dialoge), sichtbarer Tastaturfokus (:focus-visible), Eintraege der linken Liste mit Tab
                    erreichbar und per Enter/Leertaste waehlbar (role=button, aria-current), Grundlagen fuer Screenreader (Navigation, main, Beschriftung von Sprachwahl,

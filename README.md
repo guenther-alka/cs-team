@@ -35,6 +35,16 @@ Security: bcrypt passwords with lockout, SSRF block list for webhooks, calendar 
 UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left), uk, pl, el, ja; more can be added without rebuilding
 (`CS_LANGDIR`).
 
+## Privacy / GDPR
+
+cs-team keeps all data on your own server (folder/ZFS dataset or S3); no cookies, no tracking, no external fonts or scripts.
+- **Access / portability (Art. 15, 20):** "Export my data (ZIP)" on the account page (account without password hash, own files, calendars, tasks, chat); admins can export for a user.
+- **Erasure (Art. 17):** user deletion with preview, snapshot and the option to replace the name in chat, tasks and events with "gelöschter Benutzer" (anonymize, on by default).
+- **Retention:** per group "Chat retention (days)", global "Closed tasks: days until automatic deletion", trash days; each run is logged (`retention: ...`).
+- **Notice before first use** of the AI assistant and the external video chat (provider/server, data sent, voluntary); acknowledgement per user, reset when the provider or server changes; optional additional privacy text in Settings.
+- **Logs:** failed logins, lockouts, audit lines (who changed users/groups/settings) and errors, never passwords or contents; they contain user names and IP addresses, so rotate them externally (30-90 days).
+- The handbook chapter 11 "Privacy (GDPR)" adds a TOM checklist, templates for schools (notice, record of processing activities, consent) and a 72-hour data breach procedure. It is technical help, not legal advice.
+
 ## Quick start
 
 ```

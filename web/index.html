@@ -385,17 +385,18 @@ function uiDlg(msg,o){return new Promise(res=>{
  const prev=document.activeElement,ov=document.createElement('div'),bx=document.createElement('div'),p=document.createElement('div'),bar=document.createElement('div'),ok=document.createElement('button');
  ov.className='uidov';bx.className='uidbx';bx.setAttribute('role',o.cancel?'dialog':'alertdialog');bx.setAttribute('aria-modal','true');
  p.className='uidm';p.id='uidm';p.textContent=String(msg);bx.setAttribute('aria-labelledby','uidm');bx.appendChild(p);
- let inp=null,cn=null;
+ let inp=null,cn=null,ck=null;
  if(o.input!==undefined){inp=document.createElement('input');inp.className='uidin';inp.value=o.input;if(o.pw){inp.type='password';inp.autocomplete='new-password';}bx.appendChild(inp);}
- ok.textContent='OK';ok.className='uidok';
+ if(o.chk){const lb=document.createElement('label');lb.style.cssText='display:block;margin:10px 0';ck=document.createElement('input');ck.type='checkbox';ck.checked=!!o.chkv;lb.appendChild(ck);lb.appendChild(document.createTextNode(' '+o.chk));bx.appendChild(lb);}
+ ok.textContent=o.ok||'OK';ok.className='uidok';
  if(o.cancel){cn=document.createElement('button');cn.textContent=t('Abbrechen');bar.appendChild(cn);}
  bar.className='uidb';bar.appendChild(ok);bx.appendChild(bar);ov.appendChild(bx);document.body.appendChild(ov);
  const done=v=>{document.removeEventListener('keydown',kd,true);ov.remove();try{if(prev&&prev.focus)prev.focus();}catch(e){}res(v);};
- const yes=()=>done(inp?inp.value:true),no=()=>done(inp?null:o.cancel?false:undefined);
+ const yes=()=>done(inp?inp.value:ck?{checked:ck.checked}:true),no=()=>done(inp?null:o.cancel?false:undefined);
  const kd=e=>{
   if(e.key=='Escape'){e.preventDefault();e.stopPropagation();no();}
   else if(e.key=='Enter'&&document.activeElement!=cn){e.preventDefault();e.stopPropagation();yes();}
-  else if(e.key=='Tab'){const f=[inp,cn,ok].filter(Boolean),i=f.indexOf(document.activeElement);e.preventDefault();f[(i+(e.shiftKey?-1:1)+f.length)%f.length].focus();}
+  else if(e.key=='Tab'){const f=[inp,ck,cn,ok].filter(Boolean),i=f.indexOf(document.activeElement);e.preventDefault();f[(i+(e.shiftKey?-1:1)+f.length)%f.length].focus();}
  };
  ok.onclick=yes;if(cn)cn.onclick=no;ov.onmousedown=e=>{if(e.target==ov&&o.cancel)no();};
  document.addEventListener('keydown',kd,true);(inp||ok).focus();if(inp)inp.select();
@@ -415,6 +416,20 @@ async function api(method,url,body){
   }catch(e){alert(e);return null;}
 }
 async function J(m,u,b){const r=await api(m,u,b);return r?await r.json().catch(()=>({})):null;}
+// Hinweis vor der ersten Nutzung von KI und externem Videochat: zeigt Ziel und Daten; die Bestätigung merkt der Server je Benutzer
+// und sie gilt, bis der Admin Anbieter/Server ändert. ackOK = zwischengespeicherter Stand (höchstens 10 Minuten alt), needAck fragt nach.
+const ackOK=k=>!!(me.ack&&me.ack[k]&&Date.now()-(me.ackT||0)<600000);
+async function needAck(key){
+  const m=await J('GET','/api/me');if(!m)return false;
+  me.ack=m.ack||{};me.ackT=Date.now();
+  if(me.ack[key])return true;
+  const addr=(m.ackAddr||{})[key]||'';
+  const txt=key=='ai'?t('Hinweis zum KI-Assistenten')+'\n\n'+t('Deine Fragen werden an den KI-Anbieter {0} gesendet, zusammen mit allem, was du bei dieser Anfrage mitschickst: dem eingegebenen Text sowie angehängten Bildern und gewählten Dateien oder Dokumenten. Die Nutzung ist freiwillig.',addr)
+    :t('Hinweis zum Videochat')+'\n\n'+t('Der Videochat läuft über einen externen Server: {0}. Ton, Bild und der Raumname gehen an diesen Server; cs-team selbst sieht davon nichts. Die Nutzung ist freiwillig.',addr);
+  if(!await uiDlg(txt+(m.privacy?'\n\n'+m.privacy:''),{cancel:1,ok:t('Verstanden und weiter')}))return false;
+  if(!await api('POST','/api/me/ack',{key,addr}))return false;
+  me.ack[key]=true;return true;
+}
 const fmtSize=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB';
 const fmtDT=iso=>{const d=new Date(iso);return isNaN(d)?'':d.toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'});};
 const names=s=>s.split(/[\s,;]+/).map(x=>x.trim()).filter(x=>x&&x!='*');
@@ -507,8 +522,10 @@ const modeSel=(id,v,opts,dis)=>'<select id="'+id+'"'+(dis?' disabled':'')+'>'+op
 const chatModes=(p,g,dis)=>'<div class="row">'+t('Chat: ')+modeSel(p+'c',g.chat||'member',[['member','Mitglieder schreiben'],['admin','nur Admins schreiben'],['off','aus']],dis)+' &nbsp; '+
   t('Kanäle anlegen: ')+modeSel(p+'k',g.chans||'admin',[['admin','nur Admins'],['member','jedes Mitglied'],['off','niemand']],dis)+' &nbsp; '+
   t('Nachricht senden: ')+modeSel(p+'m',g.msg||'admin',[['admin','nur Admins'],['member','jedes Mitglied'],['off','aus']],dis)+' &nbsp; '+
-  t('Aufgaben anlegen: ')+modeSel(p+'t',g.tasks||'member',[['member','jedes Mitglied'],['admin','nur Admins'],['off','aus']],dis)+'</div>';
-const chatVals=p=>({chat:$('#'+p+'c').value,chans:$('#'+p+'k').value,msg:$('#'+p+'m').value,tasks:$('#'+p+'t').value});
+  t('Aufgaben anlegen: ')+modeSel(p+'t',g.tasks||'member',[['member','jedes Mitglied'],['admin','nur Admins'],['off','aus']],dis)+'</div>'+
+  '<div class="row">'+t('Aufbewahrung Chat (Tage): ')+'<input id="'+p+'d" type="number" min="0" max="36500" style="width:90px" value="'+(g.chatDays||0)+'"'+(dis?' disabled':'')+'> <span class="muted">'+t('(0 = unbegrenzt; ältere Chat-Nachrichten der Gruppe werden automatisch gelöscht)')+'</span></div>';
+const chatVals=p=>({chat:$('#'+p+'c').value,chans:$('#'+p+'k').value,msg:$('#'+p+'m').value,tasks:$('#'+p+'t').value,chatDays:Math.max(0,Math.round(+$('#'+p+'d').value)||0)});
+const chatDaysOK=p=>{const d=Math.max(0,Math.round(+$('#'+p+'d').value)||0);if(d>0&&d<7){alert(t('Aufbewahrung: 0 (aus) oder mindestens 7 Tage.'));return false;}return true;};
 S.users={
   items:[],
   canAdd:()=>isGA(),delable:k=>me.admin&&k!=me.name&&!(allUsers.find(x=>x.name==k)||{}).sys,
@@ -525,9 +542,11 @@ S.users={
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
      '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+contactPanel(me.mail,me.chat,true)+
+     '<div class="panel"><div class="row"><button id="mexp">'+t('Meine Daten exportieren (ZIP)')+'</button></div><div class="muted">'+t('Alles, was cs-team über dich gespeichert hat (Konto, eigene Dateien, Kalender, Aufgaben, Chat), als ZIP-Datei (Auskunft nach Art. 15 und 20 DSGVO).')+'</div></div>'+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
     $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
+    $('#mexp').onclick=()=>{location.href='/api/me/export';};
   },
   add(){
     const m=manageable();
@@ -562,6 +581,7 @@ S.users={
     else h+='<div class="muted">'+t('Gruppenzuordnung: Mitglieder in der Gruppen-Ansicht (Menü Gruppen) ändern.')+'</div>';
     if(u.sys)h+='<div class="row"><b>'+t('Sysadmin-Konto')+'</b> <span class="muted">'+t('lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).')+'</span></div>';
     if((!u.admin||me.admin)&&(!u.sys||u.name==me.name))h+='<div class="row"><button id="fp">'+t('Passwort setzen')+'</button></div>';
+    if(me.admin)h+='<div class="row"><button id="uxp">'+t('Daten exportieren')+'</button></div>';
     h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
     $('#main').innerHTML=h;
     contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c)=>{u.mail=m;if(c!==undefined){u.chat=c;u.chatSet=!!c;}});
@@ -571,6 +591,7 @@ S.users={
       $('#fd').onchange=e=>flag({disabled:e.target.checked});
       $('#fgs').onclick=async()=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/groups',{groups:names($('#fg').value)})){await this.load();this.select(k);}};
     }
+    if($('#uxp'))$('#uxp').onclick=()=>{location.href='/api/users/'+encodeURIComponent(k)+'/export';};
     if($('#fp'))$('#fp').onclick=async()=>{const p=await uiPrompt(t('Neues Passwort für {0} (min. 8):',k),'',1);if(p)await api('POST','/api/users/'+encodeURIComponent(k)+'/password',{password:p});};
   },
   async del(){
@@ -579,11 +600,12 @@ S.users={
     const c=pv.counts||{};
     let m=t('Benutzer {0} löschen?',k)+'\n\n'+t('Gelöscht werden: {0} Dateien, {1} Dokumente, {2} Kalendereinträge. Freigaben und der Gruppen-Admin-Eintrag dieses Namens werden entfernt. Nachrichten und Aufgaben in Gruppen bleiben.',c.files||0,c.documents||0,c.calendar||0);
     m+='\n\n'+(pv.snapshot=='none'?t('Es ist kein Snapshot möglich: die Daten sind danach unwiederbringlich weg.'):t('Vorher wird ein Snapshot angelegt.'));
-    if(!await uiAsk(m))return;
+    const an=pv.anon||{};m+='\n\n'+t('Wird anonymisiert: {0} Chat-Einträge, {1} Aufgaben, {2} Termine anderer Kalender.',an.chat||0,an.tasks||0,an.events||0);
+    const dr=await uiDlg(m,{cancel:1,chk:t('Namen in Chat, Aufgaben und Terminen durch „{0}“ ersetzen (anonymisieren)',pv.replacement||''),chkv:true});if(!dr)return;
     const p=await uiPrompt(t('Zur Bestätigung dein Passwort eingeben:'),'',1);if(!p)return;
     let ns=false;
     if(pv.snapshot=='none'){if(!await uiAsk(t('Ohne Snapshot löschen?')))return;ns=true;}
-    if(await api('POST','/api/users/'+encodeURIComponent(k)+'/delete',{password:p,noSnapshot:ns})){sel=null;await this.load();this.home();upd();}
+    if(await api('POST','/api/users/'+encodeURIComponent(k)+'/delete',{password:p,noSnapshot:ns,anonymize:dr.checked})){sel=null;await this.load();this.home();upd();}
   }
 };
 
@@ -671,6 +693,7 @@ S.groups={
     for(const n of ['team','klasse'])$('#gt-'+n).onclick=()=>{const v=TPL[n];rightsSet('ga',v.areas,v.read);
       $('#gfo-on').checked=!!v.folder;$('#gfo-w').checked=v.folder=='rw';$('#gca-on').checked=!!v.cal;$('#gca-w').checked=v.cal=='rw';};
     $('#ggo').onclick=async()=>{const n=$('#gn').value;
+      if(!chatDaysOK('gn'))return;
       const b={name:n,...rightsVals('ga'),folder:modeVal('gfo'),cal:modeVal('gca'),...chatVals('gn'),admins:names($('#gad').value),units:names($('#gun').value)};
       if(await api('POST','/api/groups',b)){await this.load();this.select(n);}};
   },
@@ -695,7 +718,7 @@ S.groups={
     if(g.manage)$('#gais').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/ai',{mode:$('#gai').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(me.admin){
       rightsBind('ge');modeBind('gfe');
-      $('#gs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),cal:$('#gce').value,...chatVals('gx')})){await this.load();this.select(k);}};
+      $('#gs').onclick=async()=>{if(!chatDaysOK('gx'))return;if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),cal:$('#gce').value,...chatVals('gx')})){await this.load();this.select(k);}};
       $('#gus').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{units:names($('#gun').value)})){await this.load();this.select(k);}};
       if($('#gas'))$('#gas').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/admins',{admins:names($('#gad').value)})){await this.load();this.select(k);}};
     }
@@ -862,7 +885,7 @@ function ctAI(){
   $('#ctout').innerHTML='<div class="row">'+esc(t('Frage (leer = neutrale Zusammenfassung und Hinweise auf Mobbing)'))+'<br><textarea id="ctq" rows="2" style="width:100%;box-sizing:border-box"></textarea></div>'+
    '<div class="wwarn"><label><input type="checkbox" id="ctqc"> '+esc(t('Ich bestätige: die ausgewählten Nachrichten werden an den eingestellten KI-Anbieter gesendet. Die KI liefert nur eine Einschätzung, keine Entscheidung.'))+'</label></div>'+
    '<div class="row"><button id="ctqg">'+esc(t('Auswerten'))+'</button></div><pre id="ctqr" style="white-space:pre-wrap;background:#fff;border:1px solid #d6d9de;border-radius:8px;padding:8px 12px;display:none"></pre>';
-  $('#ctqg').onclick=async()=>{if(!$('#ctqc').checked){alert(t('Bitte bestätigen.'));return;}$('#ctqg').disabled=true;
+  $('#ctqg').onclick=async()=>{if(!$('#ctqc').checked){alert(t('Bitte bestätigen.'));return;}if(!ackOK('ai')&&!await needAck('ai'))return;$('#ctqg').disabled=true;
     const r=await J('POST','/api/ai/review',{reason:CT.reason,refs:ctRefs(),question:$('#ctq').value,confirm:true,lang:(typeof LOC!='undefined'?LOC:'de').slice(0,2)});$('#ctqg').disabled=false;
     if(r){const p=$('#ctqr');p.style.display='block';p.textContent=r.reply;ctLog();}};}
 function ctDelete(){
@@ -2621,10 +2644,12 @@ function chVideo(slot){
       if(!r.ok){chErr((await r.text()).trim()||String(r.status));return;}
       rtcJoin(CH.g,CH.c,(await r.json()).id);}).catch(e=>chErr(String(e)));
     return;}
-  const w=window.open('about:blank','_blank');
-  fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
-function chJoin(id){const w=window.open('about:blank','_blank');
-  fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});}
+  const go=()=>{const w=window.open('about:blank','_blank');
+    fetch(chUrl(CH.g,CH.c,'video'),{method:'POST',body:JSON.stringify({slot})}).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});};
+  if(ackOK('video'))go();else needAck('video').then(ok=>{if(ok)go();});}
+function chJoin(id){const go=()=>{const w=window.open('about:blank','_blank');
+  fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});};
+  if(ackOK('video'))go();else needAck('video').then(ok=>{if(ok)go();});}
 async function chClick(e){
   const pk=e.target.closest('[data-pk]'),pcm=pk&&pk.closest('.cm');
   document.querySelectorAll('.pick').forEach(x=>x.remove());
@@ -3254,6 +3279,10 @@ S.set={
      '<div class="row"><input id="sq" type="number" min="0" style="width:90px" value="'+(c.quotaMB||0)+'"> '+t('Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)')+'</div>'+
      '<div class="row"><input id="strash" type="number" min="0" max="3650" style="width:90px" value="'+(c.trashDays??30)+'"> '+t('Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)')+'</div>'+
      '<div class="row"><button id="susage" type="button">'+t('Belegung anzeigen')+'</button></div><div id="usagebox"></div></div>'+
+     '<div class="panel"><b>'+t('Datenschutz und Aufbewahrung')+'</b>'+
+     '<div class="row"><input id="sclosed" type="number" min="0" max="36500" style="width:90px" value="'+(c.closedDays||0)+'"> '+t('Abgeschlossene Aufgaben: Tage bis zum automatischen Löschen (0 = nie)')+'</div>'+
+     '<div class="row">'+t('Datenschutzhinweis (zusätzlicher Text)')+'<br><textarea id="spriv" rows="3" maxlength="2000" style="width:100%;box-sizing:border-box">'+esc(c.privacy||'')+'</textarea></div>'+
+     '<div class="muted">'+t('Wird an den Hinweis vor der ersten Nutzung von KI-Assistent und externem Videochat angehängt (z.B. Ansprechperson für Datenschutz).')+'</div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -3280,6 +3309,10 @@ S.set={
       if(!await api('POST','/api/settings/quota',{mb:qm}))return false;
       const td=Math.round(+$('#strash').value);if(!(td>=0&&td<=3650)){alert(t('Papierkorb: Zahl der Tage (0 = kein Papierkorb).'));return false;}
       if(!await api('POST','/api/settings/trash',{days:td}))return false;
+      const cdd=Math.round(+$('#sclosed').value||0);if(!(cdd>=0&&cdd<=36500)){alert(t('Abgeschlossene Aufgaben: Zahl der Tage (0 = nie löschen).'));return false;}
+      if(cdd>0&&cdd<7){alert(t('Aufbewahrung: 0 (aus) oder mindestens 7 Tage.'));return false;}
+      if(!await api('POST','/api/settings/closedtasks',{days:cdd}))return false;
+      if(!await api('POST','/api/settings/privacy',{text:$('#spriv').value}))return false;
       const sp=x=>x.split(/[\s,]+/).filter(Boolean),rb={on:$('#rtcon').checked,stun:sp($('#rtcstun').value),turn:sp($('#rtcturn').value)};
       if($('#rtcsec').value)rb.secret=$('#rtcsec').value;
       if(!await api('POST','/api/settings/rtc',rb))return false;
@@ -3351,6 +3384,7 @@ async function aiImage(file){   // verkleinern (max. 1568 px, JPEG): weniger Dat
     AI.imgs.push(c.toDataURL('image/jpeg',.85));aiThumbs();}catch(e){}finally{URL.revokeObjectURL(u);}}
 async function aiSend(text){
   text=(text||'').trim();if(AI.busy||(!text&&!AI.imgs.length))return;
+  if(!ackOK('ai')){AI.busy=true;const okAck=await needAck('ai');AI.busy=false;if(!okAck)return;}
   const imgs=AI.imgs;AI.imgs=[];aiThumbs();
   AI.msgs.push({role:'user',text});
   aiBubble('u',aiFmt(text)+(imgs.length?'<br>'+imgs.map(d=>'<img src="'+d+'">').join(''):''));
@@ -3418,7 +3452,7 @@ async function aiStart(){
 
 /* ---------- Start ---------- */
 (async()=>{
-  me=(await J('GET','/api/me'))||me;
+  me=(await J('GET','/api/me'))||me;me.ackT=Date.now();
   await initLang(me.lang);
   $('#who').textContent=me.name+' ('+(me.admin?t('Globaler Admin'):(me.adminOf||[]).length?t('Gruppen-Admin'):t('Benutzer'))+')';
   $('#logout').onclick=async()=>{   // Basic Auth: ungültige Zugangsdaten an /logout überschreiben die gemerkten, dann neu laden -> Login-Dialog

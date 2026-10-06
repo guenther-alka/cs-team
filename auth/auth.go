@@ -77,6 +77,7 @@ type Account struct {
 	Source   string   `json:"source,omitempty"`    // "dir" = Spiegelkonto eines Verzeichnisbenutzers
 	DirSeen  string   `json:"dirSeen,omitempty"`   // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
 	DirGroups []string `json:"dirGroups,omitempty"` // Verzeichnisgruppen des Kontos (beim Login gelesen; 0.55)
+	Ack       map[string]string `json:"ack,omitempty"` // bestätigte Datenschutzhinweise: "ai" | "video" -> Hash der Adresse zum Zeitpunkt der Bestätigung (ack.go)
 	Member    []string `json:"-"`                   // berechnete Mitgliedschaften aus Group.Dir/Group.Sub (nur im Speicher)
 }
 
@@ -291,8 +292,12 @@ func (a *Auth) Bootstrap(ctx context.Context, user, pass string) error {
 	})
 }
 
+// okName: gültiger Name für neue Konten, Gruppen und Organisationen; auf Windows-Servern zusätzlich ohne
+// reservierte Gerätenamen (con, nul, com1 ...), weil daraus Verzeichnisnamen werden.
+func okName(n string) bool { return validName.MatchString(n) && !store.WinReserved(n) }
+
 func addTo(m map[string]Account, name, pass string, admin bool, groups []string) error {
-	if !validName.MatchString(name) {
+	if !okName(name) {
 		return ErrBadName
 	}
 	if _, ok := m[name]; ok {
@@ -497,12 +502,41 @@ func (a *Auth) failedMax(key string, max int) {
 	if f.n >= max {
 		f.until = now.Add(lockFor)
 		if f.n == max {
-			logLimited("auth: locked %q for %v after %d failed attempts", safeName(key), lockFor, max)
+			logLocked("auth: locked %q for %v after %d failed attempts", safeName(key), lockFor, max)
 		}
 	}
 }
 
-func (a *Auth) ok(key string) { a.mu.Lock(); delete(a.fails, key); a.mu.Unlock() }
+// ok löscht den Fehlzähler von key (erfolgreiche Anmeldung) und liefert die Zahl der Fehlversuche, die
+// innerhalb von failWindow vorausgingen (0 = keine).
+func (a *Auth) ok(key string) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	n := a.recentFails(key)
+	delete(a.fails, key)
+	return n
+}
+
+// recentFails: Fehlversuche von key im Zeitfenster (Aufrufer hält a.mu).
+func (a *Auth) recentFails(key string) int {
+	if f := a.fails[key]; f != nil && time.Since(f.last) <= failWindow {
+		return f.n
+	}
+	return 0
+}
+
+// failsBefore: größte Zahl jüngster Fehlversuche über mehrere Schlüssel (Benutzer+Adresse, Adresse, Benutzer).
+func (a *Auth) failsBefore(keys ...string) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	m := 0
+	for _, k := range keys {
+		if n := a.recentFails(k); n > m {
+			m = n
+		}
+	}
+	return m
+}
 
 // verify prüft Passwort; deaktivierte/unbekannte Benutzer kosten dieselbe Rechenzeit.
 func (a *Auth) verify(ctx context.Context, name, pass string) (Account, bool) {
@@ -594,7 +628,11 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			}
 			return
 		}
-		a.ok(key)
+		// Nur wenn für genau dieses Konto von dieser Adresse Fehlversuche vorausgingen, wird die Anmeldung einmal protokolliert
+		// (der Zähler wird dabei gelöscht; Fehlversuche anderer Konten derselben Adresse erzeugen keine Zeilen).
+		if n := a.ok(key); n > 0 {
+			logLimited("auth: login ok user=%q ip=%s after %d failed attempts", safeName(name), cip, n)
+		}
 		if u.Must && ForceChange && r.URL.Path != "/api/me" && r.URL.Path != "/api/me/password" && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html")) {
 			w.Header().Set("X-Must-Change", "1")
 			http.Error(w, "password change required", http.StatusForbidden)

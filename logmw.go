@@ -36,11 +36,18 @@ func logMW(next http.Handler) http.Handler {
 			p := r.URL.Path
 			switch {
 			case sw.code >= 500:
-				log.Printf("http: %d %s %s user=%q ip=%s", sw.code, r.Method, cleanLog(p), logUser(r), logIP(r))
+				log.Printf("http: %d %s %s user=%q ip=%s body=%q", sw.code, r.Method, cleanLog(p), logUser(r), logIP(r), cleanLog(strings.TrimSpace(string(sw.body))))
 			case audited(r) && r.Method != http.MethodGet && r.Method != http.MethodHead:
 				verb := "audit"
-				if sw.code >= 400 {
-					verb = "audit-denied"
+				switch sw.code {
+				case 400, 404, 409, 422:
+					verb = "audit-failed" // Eingabe abgelehnt (Validierung)
+				case 401, 403, 429:
+					verb = "audit-denied" // keine Berechtigung bzw. gesperrt
+				default:
+					if sw.code >= 400 {
+						verb = "audit-failed"
+					}
 				}
 				log.Printf("%s: %s %s -> %d user=%q ip=%s", verb, r.Method, cleanLog(p), sw.code, logUser(r), logIP(r))
 			case all && !strings.HasPrefix(p, "/lang/") && p != "/" && sw.code != 101:
@@ -91,7 +98,10 @@ type statusWriter struct {
 	http.ResponseWriter
 	code  int
 	wrote bool
+	body  []byte // erste Bytes der Antwort, nur für das 5xx-Protokoll (höchstens bodyCap)
 }
+
+const bodyCap = 512
 
 func (s *statusWriter) WriteHeader(c int) {
 	if !s.wrote {
@@ -102,6 +112,13 @@ func (s *statusWriter) WriteHeader(c int) {
 
 func (s *statusWriter) Write(b []byte) (int, error) {
 	s.wrote = true
+	if s.code >= 500 && len(s.body) < bodyCap {
+		n := bodyCap - len(s.body)
+		if n > len(b) {
+			n = len(b)
+		}
+		s.body = append(s.body, b[:n]...)
+	}
 	return s.ResponseWriter.Write(b)
 }
 

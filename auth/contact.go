@@ -180,6 +180,28 @@ func (a *Auth) SetGroupModes(ctx_ context.Context, group string, chat, msg, chan
 	})
 }
 
+// MinRetentionDays: kleinster erlaubter Aufbewahrungswert (außer 0 = aus); schützt vor Tippfehlern, die Daten sofort löschen.
+const MinRetentionDays = 7
+
+// ErrBadDays: Aufbewahrung nicht 0 und nicht in MinRetentionDays..36500.
+var ErrBadDays = errors.New("retention: 0 (off) or 7..36500 days")
+
+// SetGroupChatDays: Aufbewahrung Chat der Gruppe in Tagen (0 = unbegrenzt).
+func (a *Auth) SetGroupChatDays(ctx_ context.Context, group string, days int) error {
+	if days < 0 || (days > 0 && days < MinRetentionDays) || days > 36500 {
+		return ErrBadDays
+	}
+	return a.mutateGroups(ctx_, func(m map[string]Group) error {
+		g, ok := m[group]
+		if !ok {
+			return ErrNoGroup
+		}
+		g.ChatDays = days
+		m[group] = g
+		return nil
+	})
+}
+
 // ---- Abfragen für die Pakete chat/message (ohne Request-Kontext) ----
 
 type GInfo struct {
@@ -188,6 +210,7 @@ type GInfo struct {
 	Msg    string
 	Chans  string // wer Kanäle anlegen darf: member | admin | off
 	Tasks  string // wer Aufgaben anlegen darf: member | admin | off
+	ChatDays int  // Aufbewahrung Chat in Tagen (0 = unbegrenzt)
 	Admins []string
 }
 
@@ -202,7 +225,7 @@ func GroupInfoOf(name string) (GInfo, bool) {
 	if !ok {
 		return GInfo{}, false
 	}
-	return GInfo{Name: name, Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), Admins: adminsOf(std, name, g)}, true
+	return GInfo{Name: name, Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, Admins: adminsOf(std, name, g)}, true
 }
 
 // AllGroupNames: Namen aller Gruppen (sortiert).

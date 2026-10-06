@@ -137,7 +137,7 @@ func (a *Auth) planYear(ctx context.Context, p YearParams) (*Plan, error) {
 	pl := &Plan{Routine: "yearchange", Leave: p.Leave, effects: map[string]effect{}}
 	if p.Leave == "archive" {
 		p.Archive = strings.TrimSpace(p.Archive)
-		if !validName.MatchString(p.Archive) || p.Archive == DefaultGroup {
+		if !okName(p.Archive) || p.Archive == DefaultGroup {
 			return nil, errors.New("archive group: name a-z 0-9 . _ -")
 		}
 		pl.Archive = p.Archive

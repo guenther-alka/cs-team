@@ -58,7 +58,7 @@ func (a *Auth) mutateUnits(ctx context.Context, fn func(l []string) ([]string, e
 }
 
 func (a *Auth) AddUnit(ctx context.Context, name string) error {
-	if !validName.MatchString(name) {
+	if !okName(name) {
 		return ErrBadName
 	}
 	gs, ok := a.loadGroups(ctx)

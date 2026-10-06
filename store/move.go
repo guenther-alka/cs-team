@@ -47,7 +47,7 @@ func (s *FS) Move(_ context.Context, from, to string) error {
 		return ErrNotFound
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
+		return sanitize(err)
 	}
 	for i := 0; i < 10; i++ { // Windows: kurzzeitig gesperrt, solange die Datei gelesen wird
 		if err = os.Rename(src, dst); err == nil {
@@ -56,7 +56,7 @@ func (s *FS) Move(_ context.Context, from, to string) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 	if err != nil {
-		return err
+		return sanitize(err)
 	}
 	for d := filepath.Dir(src); d != s.root && strings.HasPrefix(d, s.root); d = filepath.Dir(d) {
 		if os.Remove(d) != nil { // nur leere Ordner

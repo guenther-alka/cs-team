@@ -218,6 +218,16 @@ Optionales Widget "KI" (Einstellungen: Anbieter Anthropic, OpenAI-kompatibel ode
 was der Benutzer selbst sehen darf, schreibt nichts selbst und schlägt neue Dokumente (Text, Calc) nur vor; angelegt wird nach Bestätigung.
 Gewählte Dateien (Text, CSV, DOCX, XLSX, PDF mit Text, Bilder) werden ausgewertet. Ein zweiter Anbieter springt bei Ausfall ein.
 
+## Datenschutz (DSGVO)
+
+cs-team hält alle Daten auf dem eigenen Server (Ordner/ZFS-Dataset oder S3); keine Cookies, kein Tracking, keine externen Schriften oder Skripte.
+- **Auskunft/Datenübertragung (Art. 15, 20):** "Meine Daten exportieren (ZIP)" auf der Kontoseite (Konto ohne Passwort-Hash, eigene Dateien, Kalender, Aufgaben, Chat); Admins können den Export für einen Benutzer erstellen.
+- **Löschung (Art. 17):** Benutzer löschen mit Vorschau, Snapshot und der Option, den Namen in Chat, Aufgaben und Terminen durch "gelöschter Benutzer" zu ersetzen (anonymisieren, Standard an).
+- **Aufbewahrung:** je Gruppe "Aufbewahrung Chat (Tage)", global "Abgeschlossene Aufgaben: Tage bis zum automatischen Löschen", Papierkorb-Tage; jeder Lauf steht im Log (`retention: ...`).
+- **Hinweis vor der ersten Nutzung** von KI-Assistent und externem Videochat (Anbieter/Server, welche Daten, freiwillig); Bestätigung je Benutzer, ungültig bei Wechsel von Anbieter oder Server; optionaler Zusatztext in den Einstellungen.
+- **Protokolle:** fehlgeschlagene Anmeldungen, Sperren, Audit-Zeilen (wer hat Benutzer/Gruppen/Einstellungen geändert) und Fehler, nie Passwörter oder Inhalte; sie enthalten Benutzernamen und IP-Adressen, daher extern rotieren (30-90 Tage).
+- Das Handbuch-Kapitel 11 "Datenschutz (DSGVO)" enthält eine TOM-Checkliste, Vorlagen für Schulen (Hinweis, Verzeichnis der Verarbeitungstätigkeiten, Einwilligung) und eine Anleitung für Datenpannen (72 Stunden). Es ist eine technische Hilfe, keine Rechtsberatung.
+
 ## Sicherheit (Auswahl)
 
 Chat-/Webhook-Adressen enthalten Zugangsschlüssel und sind nur für den Benutzer und globale Admins sichtbar und änderbar (0.13.9).

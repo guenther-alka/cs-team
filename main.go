@@ -109,7 +109,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.58.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.59.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -255,6 +255,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		cs.MaxMB = int64(n)
 	}
 	cs.Routes(mux, a.Wrap)
+	cs.RunRetention(context.Background()) // Aufbewahrung Chat je Gruppe (stündlich)
 	envSMTP := chat.SMTP{Host: os.Getenv("CS_SMTP_HOST"), Port: os.Getenv("CS_SMTP_PORT"), User: os.Getenv("CS_SMTP_USER"), Pass: os.Getenv("CS_SMTP_PASS"), From: os.Getenv("CS_SMTP_FROM"), TLS: os.Getenv("CS_SMTP_TLS")}
 	cfg := chat.NewSettings(st, envSMTP, os.Getenv("CS_CHAT_ALLOW_PRIVATE") == "1") // Einstellungen der Oberfläche; Umgebung nur als Vorgabe
 	if n, err := strconv.ParseInt(os.Getenv("CS_QUOTA_MB"), 10, 64); err == nil && n > 0 {
@@ -282,6 +283,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		mailer.Notify(ctx, user, subj, text)
 	}
 	ts.Base = cfg.PublicURL
+	ts.ClosedDays = cfg.ClosedDays // Aufbewahrung abgeschlossener Aufgaben (globale Einstellung, 0 = unbegrenzt)
 	ts.Routes(mux, a.Wrap)
 	ts.Start(context.Background())
 	auth.RenameHooks = []auth.RenameHook{ // Jahrgangswechsel im Modus "Gruppe wird umbenannt": jedes Modul benennt seine Daten um
@@ -299,8 +301,29 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		{Name: "documents", Count: hub.UserCount, Purge: hub.PurgeUser},
 		{Name: "calendar", Count: cb.UserCount, Purge: cb.PurgeUser},
 	}
+	auth.AnonHooks = []auth.AnonHook{ // Benutzer löschen mit Option "anonymize": der Name bleibt in Inhalten der Gruppen nicht stehen
+		{Name: "chat", Count: cs.AnonCount, Anon: cs.Anon},
+		{Name: "tasks", Count: ts.AnonCount, Anon: ts.Anon},
+		{Name: "events", Count: cb.AnonCount, Anon: cb.Anon},
+	}
+	auth.ExportHooks = []auth.ExportHook{ // Datenauskunft: ZIP mit den Daten einer Person
+		{Name: "files", Write: fsvc.ExportUser},
+		{Name: "calendar", Write: cb.ExportUser},
+		{Name: "tasks", Write: ts.ExportUser},
+		{Name: "chat", Write: cs.ExportUser},
+	}
 	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
 	aiSvc.H = mux
+	auth.AckAddr = func(key string) string { // Hinweis vor der ersten Nutzung: Ziel der Daten (KI-Anbieter, Videoserver)
+		switch key {
+		case "ai":
+			return aiSvc.AckAddr()
+		case "video":
+			return cfg.VideoAddr()
+		}
+		return ""
+	}
+	auth.PrivacyNote = cfg.Privacy
 	aiSvc.Chat = cs
 	aiSvc.Docs = hub
 	cs.AIReview = aiSvc.ReviewEnabled

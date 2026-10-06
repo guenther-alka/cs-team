@@ -26,7 +26,7 @@ func fail_(w http.ResponseWriter, err error) {
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
 		code = http.StatusNotFound
-	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
+	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadDays), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
 		code = http.StatusBadRequest
 	}
 	http.Error(w, err.Error(), code)
@@ -64,7 +64,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			realm, src = RealmLocal, "local"
 		}
 		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
-			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK()})
+			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(),
+			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote()})
 	})))
 
 	// eigene Oberflächensprache speichern ("" = automatisch)
@@ -237,6 +238,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	a.purgeRoutes(mux, adm)
 	a.contactRoutes(mux, usr)
 	a.exportRoutes(mux)
+	a.dataExportRoutes(mux, adm)
+	a.ackRoutes(mux)
 	mux.Handle("POST /api/users/{name}/flags", adm(func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Admin, Disabled *bool }
 		if !body(w, r, &in) {

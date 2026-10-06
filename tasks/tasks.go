@@ -89,6 +89,8 @@ type Svc struct {
 	St     store.Store
 	Notify func(user, subject, text string) // optional: E-Mail/Webhook
 	Base   func() string                    // optional: öffentliche Adresse für Links in Benachrichtigungen
+	// ClosedDays: Aufbewahrung abgeschlossener Aufgaben in Tagen (0 oder nil = unbegrenzt), siehe gdpr.go
+	ClosedDays func() int
 	mu     sync.Mutex
 	tasks  map[string]*Task
 	conns  map[*client]bool
@@ -685,7 +687,7 @@ func (s *Svc) Tick(now time.Time) {
 func (s *Svc) Start(ctx context.Context) {
 	go func() {
 		time.Sleep(30 * time.Second)
-		s.Tick(time.Now())
+		s.hourly(time.Now())
 		tk := time.NewTicker(time.Hour)
 		defer tk.Stop()
 		for {
@@ -693,7 +695,7 @@ func (s *Svc) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-tk.C:
-				s.Tick(time.Now())
+				s.hourly(time.Now())
 			}
 		}
 	}()

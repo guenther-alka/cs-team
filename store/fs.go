@@ -98,7 +98,7 @@ func mapFS(err error) error {
 	case errors.Is(err, fs.ErrNotExist):
 		return ErrNotFound
 	}
-	return err
+	return sanitize(err)
 }
 
 func (s *FS) Get(_ context.Context, key string) ([]byte, string, error) {
@@ -116,7 +116,7 @@ func (s *FS) Get(_ context.Context, key string) ([]byte, string, error) {
 		return nil, "", ErrNotFound
 	}
 	b, err := io.ReadAll(f)
-	return b, etagOf(fi), err
+	return b, etagOf(fi), sanitize(err)
 }
 
 // commit: tmp-Datei atomar an Ziel setzen; Änderungszeit strikt größer als die alte (eindeutiger ETag).
@@ -139,20 +139,21 @@ func (s *FS) commit(tmp, dst string) (string, error) {
 	}
 	if err != nil {
 		os.Remove(tmp)
-		return "", err
+		return "", sanitize(err)
 	}
 	fi, err := os.Stat(dst)
 	if err != nil {
-		return "", err
+		return "", sanitize(err)
 	}
 	return etagOf(fi), nil
 }
 
 func (s *FS) tmpFile(dst string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return nil, err
+		return nil, sanitize(err)
 	}
-	return os.CreateTemp(filepath.Dir(dst), ".w*"+tmpSuffix)
+	f, err := os.CreateTemp(filepath.Dir(dst), ".w*"+tmpSuffix)
+	return f, sanitize(err)
 }
 
 func (s *FS) Put(_ context.Context, key string, data []byte, ifMatch string) (string, error) {
@@ -180,7 +181,7 @@ func (s *FS) Put(_ context.Context, key string, data []byte, ifMatch string) (st
 	}
 	if werr != nil {
 		os.Remove(f.Name())
-		return "", werr
+		return "", sanitize(werr)
 	}
 	return s.commit(f.Name(), dst)
 }
@@ -200,12 +201,12 @@ func (s *FS) PutStream(_ context.Context, key string, r io.Reader, _ int64, _ st
 	}
 	if werr != nil {
 		os.Remove(f.Name())
-		return werr
+		return sanitize(werr)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err = s.commit(f.Name(), dst)
-	return err
+	return err // commit liefert bereits bereinigte Fehler
 }
 
 func (s *FS) GetStream(_ context.Context, key string) (io.ReadCloser, error) {
@@ -235,7 +236,7 @@ func (s *FS) Delete(_ context.Context, key string) error {
 		return nil
 	}
 	if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+		return sanitize(err)
 	}
 	for d := filepath.Dir(p); d != s.root && strings.HasPrefix(d, s.root); d = filepath.Dir(d) {
 		if os.Remove(d) != nil { // nur leere Ordner
@@ -284,5 +285,5 @@ func (s *FS) List(_ context.Context, prefix string) ([]Info, error) {
 		out = append(out, Info{key, etagOf(fi), fi.Size(), fi.ModTime()})
 		return nil
 	})
-	return out, err
+	return out, sanitize(err)
 }

@@ -144,7 +144,7 @@ func (a *Auth) planRename(ctx context.Context, p YearParams) (*Plan, error) {
 		case p.Leave == "archive":
 			an := p.archiveName(n)
 			_, ex := a.groups[an]
-			if !validName.MatchString(an) || ex || targets[an] {
+			if !okName(an) || ex || targets[an] {
 				pg.Kind, pg.To = "blocked", ""
 				pg.Note = "archive name " + an + " is invalid or taken"
 			} else {
@@ -212,7 +212,7 @@ func (a *Auth) planRename(ctx context.Context, p YearParams) (*Plan, error) {
 	for _, pr := range pl.Pairs { // neue Gruppen: Namen, die keine umbenannte Gruppe übernimmt
 		if !targets[pr.From] {
 			g := a.groups[pr.From]
-			n := Group{Areas: append([]string{}, g.Areas...), Read: append([]string{}, g.Read...), Chat: g.Chat, Msg: g.Msg, Chans: g.Chans,
+			n := Group{Areas: append([]string{}, g.Areas...), Read: append([]string{}, g.Read...), Chat: g.Chat, Msg: g.Msg, Chans: g.Chans, ChatDays: g.ChatDays,
 				Tasks: g.Tasks, Units: append([]string{}, g.Units...), Folder: g.Folder}
 			if p.NewAdmins {
 				n.Admins = append([]string{}, g.Admins...)

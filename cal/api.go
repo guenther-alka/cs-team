@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"cs-team/auth"
+	"cs-team/store"
 )
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
@@ -149,6 +150,17 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "not admin of group", 403)
 			return
 		}
+		known := false
+		for _, g := range auth.AllGroupNames() {
+			if g == in.Group {
+				known = true
+				break
+			}
+		}
+		if !known {
+			http.Error(w, "no such group", 404)
+			return
+		}
 		owner, m.Mode = "@"+in.Group, "ro"
 	case "unit":
 		if !auth.IsAdmin(r.Context()) {
@@ -179,7 +191,7 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := slug(in.Name)
-	if id == "" || (owner == me && id == "default") {
+	if id == "" || (owner == me && id == "default") || store.WinReserved(id) {
 		id += hex4()
 	}
 	if err := b.createIn(r.Context(), owner, id, m); err != nil {

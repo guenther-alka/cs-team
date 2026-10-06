@@ -12,30 +12,71 @@ import (
 // (höchstens logBurst Zeilen je Minute), damit ein Angriff das Log nicht füllt.
 const logBurst = 30
 
-var logRate struct {
+// logQuota: ein Minutenkontingent. Gesperrt-Zeilen und Fehlversuch-Zeilen haben je ein eigenes,
+// damit ein Angriff mit vielen Fehlversuchen die Sperr-Meldungen nicht verdrängt (und umgekehrt).
+type logQuota struct {
 	sync.Mutex
+	label   string
+	burst   int
+	span    time.Duration // Länge des Fensters (Minute; im Test kürzer)
 	win     time.Time
 	n       int
 	dropped int
+	timer   *time.Timer
 }
 
-// logLimited schreibt eine Zeile, solange das Minutenkontingent reicht; danach wird nur gezählt.
-func logLimited(format string, args ...any) {
-	logRate.Lock()
+var (
+	failQuota   = &logQuota{label: "failed-login", burst: logBurst, span: time.Minute}
+	lockedQuota = &logQuota{label: "locked", burst: logBurst, span: time.Minute}
+)
+
+// allow: true, solange das Kontingent der laufenden Minute reicht. Beim ersten Verwerfen wird ein Timer
+// gestartet, der am Ende des Fensters die Zusammenfassung schreibt, auch wenn keine Meldung mehr folgt.
+func (q *logQuota) allow() bool {
+	q.Lock()
+	defer q.Unlock()
 	now := time.Now()
-	if now.Sub(logRate.win) >= time.Minute {
-		if logRate.dropped > 0 {
-			log.Printf("auth: %d further messages suppressed in the last minute", logRate.dropped)
-		}
-		logRate.win, logRate.n, logRate.dropped = now, 0, 0
+	if now.Sub(q.win) >= q.span {
+		q.summary()
+		q.win, q.n = now, 0
 	}
-	logRate.n++
-	over := logRate.n > logBurst
-	if over {
-		logRate.dropped++
+	q.n++
+	if q.n <= q.burst {
+		return true
 	}
-	logRate.Unlock()
-	if !over {
+	q.dropped++
+	if q.dropped == 1 {
+		q.timer = time.AfterFunc(q.win.Add(q.span).Sub(now), func() {
+			q.Lock()
+			q.summary()
+			q.Unlock()
+		})
+	}
+	return false
+}
+
+// summary schreibt die Zusammenfassung der verworfenen Zeilen (Aufrufer hält die Sperre).
+func (q *logQuota) summary() {
+	if q.timer != nil {
+		q.timer.Stop()
+		q.timer = nil
+	}
+	if q.dropped > 0 {
+		log.Printf("auth: %d further %s messages suppressed in the last minute", q.dropped, q.label)
+		q.dropped = 0
+	}
+}
+
+// logLimited schreibt eine Fehlversuch-Zeile, solange das Minutenkontingent reicht.
+func logLimited(format string, args ...any) {
+	if failQuota.allow() {
+		log.Printf(format, args...)
+	}
+}
+
+// logLocked schreibt eine Sperr-Zeile (eigenes Kontingent).
+func logLocked(format string, args ...any) {
+	if lockedQuota.allow() {
 		log.Printf(format, args...)
 	}
 }
