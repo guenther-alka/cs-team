@@ -55,8 +55,11 @@ func (b *Backend) apiExport(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Children = append(out.Children, events...)
 	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(out); err != nil {
-		http.Error(w, err.Error(), 500)
+	if len(out.Children) == 0 { // leerer Kalender: der Encoder verlangt mindestens einen Eintrag, ein leeres VCALENDAR ist aber gültig
+		nm := strings.NewReplacer("\r", "", "\n", " ", "\\", "\\\\", ",", "\\,", ";", "\\;").Replace(c.m.Name)
+		buf.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//cs-team//EN\r\nX-WR-CALNAME:" + nm + "\r\nEND:VCALENDAR\r\n")
+	} else if err := ical.NewEncoder(&buf).Encode(out); err != nil {
+		http.Error(w, "export failed", 500)
 		return
 	}
 	name := slug(c.m.Name)

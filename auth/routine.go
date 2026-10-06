@@ -382,7 +382,7 @@ func (a *Auth) applyYear(ctx context.Context, admin string, pl *Plan) (*LogEntry
 				continue
 			}
 			if e.disable {
-				u.Disabled = true
+				u.Disabled = u.Disabled || !u.Sys // das Sysadmin-Konto wird nie gesperrt
 			} else {
 				u.Groups = finalGroups(u, e)
 			}

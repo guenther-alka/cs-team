@@ -219,3 +219,37 @@ func TestMembersDirRouteOnlyGlobalAdmin(t *testing.T) {
 	}
 }
 
+
+// TestDirAccountRoles: globale Admins und Gruppen-Admins duerfen Verzeichniskonten sein; die Rolle wird immer lokal
+// vergeben (Account.Admin bzw. Gruppe in groups.json). Den Notfallzugang haelt das Sysadmin-Konto (sysadmin_test.go).
+func TestDirAccountRoles(t *testing.T) {
+	ForceChange = false
+	ctx := context.Background()
+	a := New(store.NewMem())
+	if err := a.Bootstrap(ctx, "anna", "annageheim1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SetGroup(ctx, "klasse5a", []string{"files"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	a.SetDirChecker(&fakeDir{users: map[string]string{"dirk": "geheim123"}, info: map[string]DirUser{"dirk": {}}})
+	a.SetIdentitySource(fixedIdentity{Realm: "local.de"})
+	id := loginID{Key: "dirk@local.de", Name: "dirk", Realm: "local.de", Source: "dir"}
+	if _, err := a.verifyDir(ctx, id, "geheim123"); err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	if err := a.SetFlags(ctx, "dirk@local.de", &yes, nil); err != nil { // weitere globale Admins duerfen Verzeichniskonten sein (0.57.1)
+		t.Errorf("globaler Admin fuer Verzeichniskonto: %v", err)
+	}
+	if err := a.SetGroupAdmins(ctx, "klasse5a", []string{"dirk@local.de"}); err != nil {
+		t.Fatalf("Gruppen-Admin fuer Verzeichniskonto: %v", err)
+	}
+	a.refresh(ctx)
+	if l := a.adminOf("dirk@local.de"); len(l) != 1 || l[0] != "klasse5a" {
+		t.Errorf("adminOf Verzeichniskonto: %v", l)
+	}
+	if err := a.SetGroupAdmins(ctx, "klasse5a", []string{"gibtsnicht@local.de"}); !errors.Is(err, ErrNoUser) {
+		t.Errorf("unbekanntes Konto: %v", err)
+	}
+}

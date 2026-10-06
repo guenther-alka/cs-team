@@ -766,5 +766,16 @@
  "Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.": "عدد الأيام التي يبقى فيها تسجيل الدخول صالحًا عند تعذّر الوصول إلى الدليل (0 = بلا ذاكرة مؤقتة). كلمة المرور التي تتغيّر في الدليل تسري فورًا، والقديمة حتى انتهاء المدة كحدٍّ أقصى.",
  "Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).": "الذاكرة المؤقتة: عدد الأيام (0 = إيقاف، 365 كحدٍّ أقصى).",
  "Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.": "يمكن لحسابات cs-team المحلية تسجيل الدخول دائمًا (وصول طوارئ) حتى لو تم إعداد دليل.",
- "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "مدخلات مفصولة بفاصلة أو مسافة أو سطر جديد: حساب cs-team (anna) أو مجموعة فرعية (@klasse5a) أو مجموعة دليل (النطاق واسم المجموعة مفصولان بشرطة مائلة عكسية؛ يكفي الاسم المختصر غالبًا). من ينتمي إلى مجموعة الدليل أو المجموعة الفرعية يصبح عضوًا. لا يستطيع إضافة مجموعات الدليل إلا مسؤول عام. الحسابات المُزالة تبقى في مجموعة أخرى واحدة على الأقل."
+ "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "مدخلات مفصولة بفاصلة أو مسافة أو سطر جديد: حساب cs-team (anna) أو مجموعة فرعية (@klasse5a) أو مجموعة دليل (النطاق واسم المجموعة مفصولان بشرطة مائلة عكسية؛ يكفي الاسم المختصر غالبًا). من ينتمي إلى مجموعة الدليل أو المجموعة الفرعية يصبح عضوًا. لا يستطيع إضافة مجموعات الدليل إلا مسؤول عام. الحسابات المُزالة تبقى في مجموعة أخرى واحدة على الأقل.",
+ "Heute und überfällig": "اليوم والمتأخرة",
+ "Diese Woche": "هذا الأسبوع",
+ "Bitte einen Titel eingeben": "الرجاء إدخال عنوان",
+ "Aufgabe angelegt": "تم إنشاء المهمة",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "الصيغة: @المسؤول (@ich أو @me = أنا)، !hoch أو !high / !niedrig أو !low، #المجموعة، التاريخ: heute/today، morgen/tomorrow، übermorgen، nächste Woche/next week، اسم يوم الأسبوع (monday …)، 24.12. أو 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "مهمة جديدة … (مثال: رسالة إلى أولياء الأمور @anna !hoch morgen)",
+ "Sysadmin": "مدير النظام",
+ "Sysadmin-Konto": "حساب مدير النظام",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "محلي، مسؤول دائمًا، لا يمكن حذفه؛ لا يغيّر كلمة مروره إلا الحساب نفسه أو سطر الأوامر (cs-team sysadmin الاسم).",
+ "Aufgabe fällig: {0}": "مهمة مستحقة: {0}",
+ "Meilenstein: {0}": "معلم: {0}"
 }

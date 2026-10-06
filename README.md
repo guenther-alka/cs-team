@@ -32,7 +32,7 @@ rights changes that take effect at once on open documents, CSV user/group import
 Security: bcrypt passwords with lockout, SSRF block list for webhooks, calendar feeds and AI endpoints, chat addresses
 (webhook URLs hold access keys) visible only to the user and global admins, security headers, no formula injection in exports.
 
-UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left); more can be added without rebuilding
+UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left), uk, pl, el, ja; more can be added without rebuilding
 (`CS_LANGDIR`).
 
 ## Quick start
@@ -55,7 +55,7 @@ Basic Auth is used - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind a
 |----------|---------|---------|
 | `CS_LISTEN` | address/port | `:8080` |
 | `CS_DIR` or `S3_*` | storage (folder or S3 bucket) | - |
-| `CS_ADMIN_USER` / `CS_ADMIN_PASS` | first admin (only if no user exists) | - |
+| `CS_ADMIN_USER` / `CS_ADMIN_PASS` | first admin (only if no user exists); this account becomes the **sysadmin**: local, always admin, cannot be deleted, disabled or demoted (change with `cs-team sysadmin NAME`) | - |
 | `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS certificate / key (PEM) | HTTP |
 | `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
 | `CS_MAX_FAILS_IP` | failed sign-ins per address before it is locked (signed-in users exempt) | `60` |

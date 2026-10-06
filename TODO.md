@@ -58,7 +58,10 @@ PLAN ZUM ABSCHLUSS VON 0.50.0 (Gea 2026-10-02, Nutzungslimit knapp): nur noch (a
  3. ANZEIGE-CACHE + ROLLENVERWEIS: Cache group->members nur fuer die Anzeige (TTL 30-60 s, nie Rechtequelle);
     Rollenverweis "ga:@cs-team-gruppe" fuer den Fachschaftsfall (eine Zeile statt vieler Konten).
  4. JAHRGANGSWECHSEL traegt die .dir-Zuordnungen mit (rename.go/routine.go).
- Offen (Entscheidungen von Gea): (b) Praefix-Regel blank/"\"/"@" in den Textlisten, (c) Verzeichnis-Eintraege in
+ STAND 2026-10-06 (Gea entschied (b)-(e) wie empfohlen): Phase 1 (a),(c),(d),(e) sind umgesetzt und seit 0.57.0 veroeffentlicht (lokale Konten in jedem Modus, hasLocalAdmin, Group.Dir/Sub/effGroups, "dir"=="mixed", Verzeichnis-Eintraege nur durch globale Admins).
+ (b) Rollen (Gea 2026-10-06): Gruppen sind immer lokal, Konten auch remote. SYSADMIN-Konto = Konto aus CS_ADMIN_USER (Altbestand: aeltestes aktives lokales Admin-Konto), lokal, immer Admin, nicht loeschbar/sperrbar/herabstufbar, Passwort nur selbst oder per Kommandozeile ("cs-team sysadmin NAME"); weitere globale Admins und Gruppen-Admins beliebig (lokal oder Verzeichnis, Rolle immer lokal vergeben). [erledigt, unveroeffentlicht 0.57.1; Handbuch Rollen-Tabelle ergaenzt]
+ Offen: Phase 2-4 (verschachtelte Verzeichnisgruppen, Anzeige-Cache + Rollenverweis, Jahrgangswechsel mit .dir).
+ Offen (Entscheidungen von Gea) - erledigt: (b) Praefix-Regel blank/"\"/"@" in den Textlisten, (c) Verzeichnis-Eintraege in
  Mitgliederlisten nur durch den globalen Admin, (d) Account.Groups bleibt Handliste vs. alles in der Gruppenliste,
  (e) "nur Verzeichnis" und "Verzeichnis + lokal" zusammenlegen. Zwischenspeicher-Empfehlung 7-14 Tage (CacheDays).
  Doku: howto.ai\cs-team.info um den 0.55-Abschnitt "Who is managed where" ergaenzt (Sicherung
@@ -113,6 +116,8 @@ PLAN ZUM ABSCHLUSS VON 0.50.0 (Gea 2026-10-02, Nutzungslimit knapp): nur noch (a
  ../h560pdf/cs-team_de.pdf, dann en; Vorlage/Ergebnis-Ordner h530pdf), (c) Release nach Geas Go: main.go version, CHANGELOG.md
  (Eintrag 0.56.0 vorbereitet, bei gemeinsamer Veroeffentlichung mit 0.54/0.55 umzunummerieren), changelog.txt,
  Binaries/PDFs, Tag + GitHub.
+
+ 0.58 (Gea 2026-10-06, "hoch umsetzen" + "0.58 bauen"): [erledigt, unveroeffentlicht] Dunkelmodus + Tastaturfokus + Tastaturbedienung der Listen, Lang-Druck im Kalender (Touch-Ersatz fuer Doppelklick), Aufgaben-Faelligkeiten im Kalender, Sprachen uk/pl/el/ja, Handbuch Kapitel 10 (Einstellungen) + 10.6 Sprachen. Im Browser per DevTools geprueft (Dunkelmodus, Touch, Fokus); offen: Handpruefung auf echtem Handy/Tablet, Screenreader-Test, manuelles Gegenlesen der neuen Sprachen, Release 0.58.0 nach Geas Go (build-all.ps1 -Test, Skripte *0580, PDFs sind gebaut).
 
 Reihenfolge (nach Nutzen):
 1. [erledigt, veroeffentlicht 0.50.0] Version-Tooltip am Titel "cs-team" + Versionsstand 0.50.0 (/api/me liefert version).

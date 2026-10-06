@@ -47,7 +47,9 @@ var (
 	ErrExists   = errors.New("user exists")
 	ErrNoUser   = errors.New("no such user")
 	ErrLastAdm  = errors.New("at least one enabled admin must remain")
-	ErrBadName  = errors.New("user: a-z 0-9 . _ - (max 32)")
+	ErrSysAdmin = errors.New("the sysadmin account is protected: only the sysadmin itself or the command line can change it")
+	ErrSysLocal = errors.New("the sysadmin must be a local cs-team account")
+	ErrBadName  = errors.New("name: a-z 0-9 . _ - (max 32)")
 	ErrBadPass  = errors.New("password: 8..72 bytes")
 	ErrWeakPass = errors.New("password too common (e.g. 12345678, password, one repeated character)")
 	validName   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,31}$`)
@@ -63,6 +65,7 @@ type ctxAdminOf struct{}
 type Account struct {
 	Hash     string   `json:"hash"`
 	Admin    bool     `json:"admin,omitempty"`
+	Sys      bool     `json:"sys,omitempty"` // Sysadmin-Konto (0.57.1): lokal, immer Admin, nicht löschbar
 	Disabled bool     `json:"disabled,omitempty"`
 	Created  string   `json:"created,omitempty"`
 	Groups   []string `json:"groups,omitempty"` // Handliste: Gruppen, die diesem Konto ausdrücklich gegeben wurden
@@ -282,7 +285,7 @@ func (a *Auth) Bootstrap(ctx context.Context, user, pass string) error {
 			return err
 		}
 		u := m[user]
-		u.Must = true // Startpasswort steht in Konfiguration/Umgebung: beim ersten Login ändern (ForceChange)
+		u.Must, u.Sys = true, true // Sysadmin; Startpasswort steht in Konfiguration/Umgebung: beim ersten Login ändern (ForceChange)
 		m[user] = u
 		return nil
 	})
@@ -378,6 +381,9 @@ func (a *Auth) SetFlags(ctx context.Context, name string, admin, disabled *bool)
 		if !ok {
 			return ErrNoUser
 		}
+		if u.Sys && ((admin != nil && !*admin) || (disabled != nil && *disabled)) {
+			return ErrSysAdmin
+		}
 		if admin != nil {
 			u.Admin = *admin
 		}
@@ -396,6 +402,9 @@ func (a *Auth) DeleteUser(ctx context.Context, name string) error {
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		if _, ok := m[name]; !ok {
 			return ErrNoUser
+		}
+		if m[name].Sys {
+			return ErrSysAdmin
 		}
 		delete(m, name)
 		if !hasLocalAdmin(m) {
@@ -487,6 +496,9 @@ func (a *Auth) failedMax(key string, max int) {
 	f.last = now
 	if f.n >= max {
 		f.until = now.Add(lockFor)
+		if f.n == max {
+			logLimited("auth: locked %q for %v after %d failed attempts", safeName(key), lockFor, max)
+		}
 	}
 }
 
@@ -564,6 +576,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			}
 		}
 		if !good {
+			logLimited("auth: login failed user=%q ip=%s (%s %s)", safeName(name), cip, r.Method, safeName(r.URL.Path))
 			a.failed(key)
 			a.failedMax(ipKey, MaxFailsIP)     // Passwort-Spraying über viele Namen von einer Adresse
 			a.failedMax(userKey, maxFailsUser) // verteilter Angriff auf einen Namen (hohe Schwelle)

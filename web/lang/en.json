@@ -766,5 +766,16 @@
  "Abo: ICS-URL (https://... oder webcal://...); leeren = Abo beenden": "Subscription: ICS URL (https://... or webcal://...); empty = end subscription",
  "Gespeichert.": "Saved.",
  "Verantwortliche ändern den Kalender: persönliche der Benutzer, Gruppenkalender deren Gruppen-Admins, globale und Organisations-Kalender die globalen Admins. Freigabe \"nicht freigegeben\" zeigt den Kalender nur den Verantwortlichen, \"rw\" erlaubt allen Berechtigten Termine.": "The responsible persons edit the calendar: personal calendars their owners, group calendars their group admins, global and organisation calendars the global admins. Sharing \"not released\" shows the calendar only to the responsible persons, \"rw\" lets all authorised users add events.",
- "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo).": "Calendars: your own first, then those of the group and the organisation, then global ones; subscriptions are read-only. In the calendar bar, responsible persons change their calendar via \"Edit\" (name, sharing, subscription)."
+ "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo).": "Calendars: your own first, then those of the group and the organisation, then global ones; subscriptions are read-only. In the calendar bar, responsible persons change their calendar via \"Edit\" (name, sharing, subscription).",
+ "Heute und überfällig": "Today and overdue",
+ "Diese Woche": "This week",
+ "Bitte einen Titel eingeben": "Please enter a title",
+ "Aufgabe angelegt": "Task created",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "Syntax: @assignee (@me = myself), !high or !low, #group, date: today, tomorrow, next week, weekday name (e.g. friday), 24.12. or 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "New task … (e.g. Parents letter @anna !high tomorrow)",
+ "Sysadmin": "Sysadmin",
+ "Sysadmin-Konto": "Sysadmin account",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "local, always admin, cannot be deleted; only the account itself or the command line can change its password (cs-team sysadmin NAME).",
+ "Aufgabe fällig: {0}": "Task due: {0}",
+ "Meilenstein: {0}": "Milestone: {0}"
 }

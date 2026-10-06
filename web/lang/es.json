@@ -766,5 +766,16 @@
  "Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.": "días que vale un inicio de sesión sin directorio accesible (0 = sin caché). Una contraseña cambiada en el directorio vale de inmediato; la anterior, como máximo hasta que caduque.",
  "Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).": "caché: número de días (0 = desactivado, máximo 365).",
  "Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.": "Las cuentas locales de cs-team siempre pueden iniciar sesión (acceso de emergencia), aunque haya un directorio configurado.",
- "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "Entradas separadas por coma, espacio o salto de línea: cuenta de cs-team (anna), subgrupo (@klasse5a) o grupo del directorio (dominio y nombre del grupo separados por una barra invertida; normalmente basta el nombre corto). Quien esté en el grupo del directorio o en el subgrupo pasa a ser miembro. Solo un administrador global puede añadir grupos del directorio. Las cuentas eliminadas conservan al menos otro grupo."
+ "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "Entradas separadas por coma, espacio o salto de línea: cuenta de cs-team (anna), subgrupo (@klasse5a) o grupo del directorio (dominio y nombre del grupo separados por una barra invertida; normalmente basta el nombre corto). Quien esté en el grupo del directorio o en el subgrupo pasa a ser miembro. Solo un administrador global puede añadir grupos del directorio. Las cuentas eliminadas conservan al menos otro grupo.",
+ "Heute und überfällig": "Hoy y vencidas",
+ "Diese Woche": "Esta semana",
+ "Bitte einen Titel eingeben": "Introduzca un título",
+ "Aufgabe angelegt": "Tarea creada",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "Sintaxis: @responsable (@ich o @me = yo), !hoch o !high / !niedrig o !low, #grupo, fecha: heute/today, morgen/tomorrow, übermorgen, nächste Woche/next week, día de la semana (monday …), 24.12. o 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "Nueva tarea … (p. ej. Carta a los padres @anna !hoch morgen)",
+ "Sysadmin": "Sysadmin",
+ "Sysadmin-Konto": "Cuenta de sysadmin",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "local, siempre administrador, no se puede eliminar; solo la propia cuenta o la línea de comandos pueden cambiar su contraseña (cs-team sysadmin NOMBRE).",
+ "Aufgabe fällig: {0}": "Tarea pendiente: {0}",
+ "Meilenstein: {0}": "Hito: {0}"
 }

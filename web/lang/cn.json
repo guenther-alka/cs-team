@@ -766,5 +766,16 @@
  "Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.": "目录不可用时登录仍然有效的天数（0 = 不缓存）。在目录中更改的密码立即生效，旧密码最迟到过期为止。",
  "Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).": "缓存：天数（0 = 关闭，最多 365）。",
  "Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.": "本地 cs-team 账户始终可以登录（应急访问），即使已配置目录。",
- "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "条目以逗号、空格或换行分隔：cs-team 账户 (anna)、子组 (@klasse5a) 或目录组（域和组名以反斜杠分隔；通常只需简称）。属于目录组或子组的人即成为成员。只有全局管理员可以添加目录组。被移除的账户至少保留另一个组。"
+ "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "条目以逗号、空格或换行分隔：cs-team 账户 (anna)、子组 (@klasse5a) 或目录组（域和组名以反斜杠分隔；通常只需简称）。属于目录组或子组的人即成为成员。只有全局管理员可以添加目录组。被移除的账户至少保留另一个组。",
+ "Heute und überfällig": "今天和逾期",
+ "Diese Woche": "本周",
+ "Bitte einen Titel eingeben": "请输入标题",
+ "Aufgabe angelegt": "任务已创建",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "写法：@负责人（@ich 或 @me = 我自己）、!hoch 或 !high / !niedrig 或 !low、#小组、日期：heute/today、morgen/tomorrow、übermorgen、nächste Woche/next week、星期名称（monday …）、24.12. 或 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "新任务 …（例如：给家长的信 @anna !hoch morgen）",
+ "Sysadmin": "系统管理员",
+ "Sysadmin-Konto": "系统管理员账户",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "本地账户，始终为管理员，不可删除；只有该账户本人或命令行可以更改其密码（cs-team sysadmin 名称）。",
+ "Aufgabe fällig: {0}": "任务到期：{0}",
+ "Meilenstein: {0}": "里程碑：{0}"
 }

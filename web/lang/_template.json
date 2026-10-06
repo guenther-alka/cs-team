@@ -765,5 +765,16 @@
  "Abo: ICS-URL (https://... oder webcal://...); leeren = Abo beenden": "Abo: ICS-URL (https://... oder webcal://...); leeren = Abo beenden",
  "Gespeichert.": "Gespeichert.",
  "Verantwortliche ändern den Kalender: persönliche der Benutzer, Gruppenkalender deren Gruppen-Admins, globale und Organisations-Kalender die globalen Admins. Freigabe \"nicht freigegeben\" zeigt den Kalender nur den Verantwortlichen, \"rw\" erlaubt allen Berechtigten Termine.": "Verantwortliche ändern den Kalender: persönliche der Benutzer, Gruppenkalender deren Gruppen-Admins, globale und Organisations-Kalender die globalen Admins. Freigabe \"nicht freigegeben\" zeigt den Kalender nur den Verantwortlichen, \"rw\" erlaubt allen Berechtigten Termine.",
- "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo).": "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo)."
+ "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo).": "Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über \"Bearbeiten\" (Name, Freigabe, Abo).",
+ "Heute und überfällig": "Heute und überfällig",
+ "Diese Woche": "Diese Woche",
+ "Bitte einen Titel eingeben": "Bitte einen Titel eingeben",
+ "Aufgabe angelegt": "Aufgabe angelegt",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)",
+ "Sysadmin": "Sysadmin",
+ "Sysadmin-Konto": "Sysadmin-Konto",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).",
+ "Aufgabe fällig: {0}": "Aufgabe fällig: {0}",
+ "Meilenstein: {0}": "Meilenstein: {0}"
 }

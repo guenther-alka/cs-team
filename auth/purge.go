@@ -87,6 +87,10 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			return
 		}
 		ctx := r.Context()
+		if t, _ := a.get(ctx, name); t.Sys { // das Sysadmin-Konto bleibt (Notfallzugang)
+			fail_(w, ErrSysAdmin)
+			return
+		}
 		// Vorbedingung vor allem Löschen: nicht der letzte aktive lokale Admin (Notfallzugang, 0.55)
 		if u, _ := a.get(ctx, name); u.Admin && !strings.Contains(name, "@") {
 			if a.LocalAdmins(ctx) <= 1 {

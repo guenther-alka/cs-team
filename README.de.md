@@ -5,7 +5,7 @@ Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-U
 
 Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
 ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Maussteuerung (Klick auf Tag = neuer Termin, Umschalt+Klick = Mehrtagesbereich, Ziehen, Strg+X/C/V), Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
-und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; neun Sprachen.
+und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; dreizehn Sprachen.
 Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
 Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
 
@@ -24,7 +24,7 @@ Bitte hinter TLS-Proxy betreiben (Basic Auth).
 ## Benutzerverwaltung
 
 `users/users.json`: `name -> {hash (bcrypt), admin, disabled, created}` (Altformat `name -> hash` wird gelesen).
-Der Start mit `CS_ADMIN_USER`/`CS_ADMIN_PASS` legt den ersten Admin an, aber nur wenn noch kein Benutzer existiert.
+Der Start mit `CS_ADMIN_USER`/`CS_ADMIN_PASS` legt den ersten Admin an, aber nur wenn noch kein Benutzer existiert. Dieses Konto ist der **Sysadmin**: lokales cs-team-Konto, immer Admin und aktiv, nicht löschbar, sperrbar oder herabstufbar; sein Passwort ändert nur es selbst oder die Kommandozeile (`cs-team sysadmin NAME` bestimmt ein anderes lokales Konto). Weitere globale Admins und Gruppen-Admins dürfen lokale Konten oder Verzeichniskonten sein; die Rolle wird immer lokal vergeben.
 Admins (Web-UI: "Benutzer"): anlegen, löschen (optional mit Kalendern), sperren, Admin-Rolle, Passwort zurücksetzen.
 Jeder Benutzer: eigenes Passwort ändern ("Konto"). Der letzte aktive Admin ist geschützt.
 Passwort 8..72 Bytes; triviale Passwörter (z. B. `password1`, `12345678`, `qwertzui`) werden abgelehnt. Startpasswörter
@@ -118,7 +118,7 @@ Dokument gehört dem Benutzer).
   Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
 
 ## Sprachen (0.6.0)
-Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr und ar (rechts-nach-links). Die Auswahl steht oben rechts und wird im
+Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr, ar (rechts-nach-links), uk, pl, el und ja. Die Auswahl steht oben rechts und wird im
 Benutzerkonto gespeichert; ohne Auswahl gilt die Browsersprache, sonst `CS_LANG` (Standard de).
 
 Weitere Sprachen, z.B. für Schüler mit anderem Sprachhintergrund: `CS_LANGDIR=/pfad/lang` setzen und dort `<code>.json`

@@ -1,5 +1,28 @@
 cs-team changelog (newest first)
 
+2026-10-06  0.58.0 (enthaelt 0.57.1) Nach Multiuser-Live-Test: ICS-Export eines leeren Kalenders lieferte HTTP 500 (jetzt leeres VCALENDAR); Gruppen-Admin darf Konten ohne eigene Gruppe in seine Gruppe aufnehmen; Fehlermeldungen bei Gruppenname/Bereich praeziser; Protokoll: fehlgeschlagene Anmeldungen und Sperren (begrenzt, ohne Passwoerter), Audit-Zeilen fuer Aenderungen an Benutzern/Gruppen/Einstellungen/Passwoertern (audit:/audit-denied:), 5xx-Fehler und Abstuerze (panic abgefangen), Startzeile mit Version, optional CS_LOG_ACCESS=1 fuer ein Zugriffsprotokoll; Windows-Server: Dateinamen wie CON, NUL, a:b werden abgelehnt. Oberflaeche: Dunkelmodus (folgt prefers-color-scheme, color-scheme light dark; alle Bereiche: Listen, Calc/Text,
+                   Kalender, Dateien, Chat, Aufgaben, KI-Assistent, Assistent, Dialoge), sichtbarer Tastaturfokus (:focus-visible), Eintraege der linken Liste mit Tab
+                   erreichbar und per Enter/Leertaste waehlbar (role=button, aria-current), Grundlagen fuer Screenreader (Navigation, main, Beschriftung von Sprachwahl,
+                   Filter, KI-Knopf, KI-Fenster), reduzierte Bewegung. Kalender: Aufgaben-Faelligkeiten (eigene offene Aufgaben und Meilensteine) als Markierung in
+                   Monat, Woche/Tag (ganztaegig) und Agenda, ueberfaellig rot, Klick oeffnet die Aufgabe; Lang-Druck (550 ms) als Touch-Ersatz fuer den Doppelklick
+                   (neuer Termin im Zeitraster und in Tageszellen). 4 neue Sprachen (13 insgesamt): Ukrainisch, Polnisch, Griechisch, Japanisch; 2 neue Texte in allen
+                   Sprachdateien. Handbuch de/en: Kapitel 10 Einstellungen im Detail (mit Screenshot napp-it Service-Menue), 10.6 Sprachen, Darstellung/Tastatur,
+                   Aufgaben im Kalender, Touch. Geprueft im Browser (headless Chrome ueber DevTools): Dunkelmodus Kalender/Einstellungen/Aufgaben, Aufgaben-Markierungen,
+                   Lang-Druck (Touch-Emulation) legt Termin an, Tastaturfokus in der Liste; go test ./... gruen.
+
+2026-10-06  0.57.1 (unveroeffentlicht) Sysadmin-Konto (Gea): genau ein lokales cs-team-Konto ist der Notfallzugang - immer Admin und aktiv, nicht loeschbar,
+                   nicht sperrbar, nicht herabstufbar (HTTP 403), sein Passwort aendert nur es selbst oder die Kommandozeile (auch nicht per CSV-Import oder
+                   Jahrgangswechsel). Festgelegt wird es beim Start: das Konto aus CS_ADMIN_USER (erster Start), bei Altbestaenden das aelteste aktive lokale
+                   Admin-Konto; ein vorhandenes bleibt, Wechsel mit "cs-team sysadmin NAME". Alle weiteren globalen Admins und Gruppen-Admins duerfen lokale Konten
+                   oder Verzeichniskonten (name@realm) sein; die Rolle wird immer lokal vergeben (Admin-Flag am Konto bzw. Gruppen-Admin-Liste an der Gruppe),
+                   das Verzeichnis liefert sie nie. Benutzerliste: "Sysadmin" statt "Globaler Admin", Haken gesperrt, kein Loeschen-Knopf. 3 neue Texte in allen
+                   Sprachdateien. Getestet: auth/sysadmin_test.go, auth/members_test.go TestDirAccountRoles, alle Testpakete gruen.
+                   Aufgaben-Oberflaeche, Runde 1: Schnellzeile ueber der Liste ("Elternbrief schreiben @anna !hoch morgen": @Bearbeiter, @ich, !hoch/!niedrig,
+                   #Gruppe, heute/morgen/uebermorgen/naechste Woche/Wochentag/24.12./2026-12-24, deutsch und englisch; Vorschau unter dem Feld, Unbekanntes bleibt im
+                   Titel), Haekchen in der Liste (eigene offene Aufgabe erledigt melden, erledigte abnehmen; Rechte prueft der Server), neuer Filter "Heute und
+                   ueberfaellig" und Gliederung Ueberfaellig/Heute/Diese Woche (frueheste offene Faelligkeit oder Meilenstein). 6 neue Texte in allen Sprachdateien.
+                   Geprueft: Syntaxtest und Katalogtest (webui_test.go), Parser mit 12 Beispielsaetzen in Node; im Browser noch nicht von Hand getestet.
+
 2026-10-06  0.57.0 Release: fasst 0.54-0.56 (Verzeichnis-/LDAP-Anmeldung, hierarchische Kalender) und 0.56.1 zusammen.
                    Anmeldesperre, Startpasswoerter, Uebersetzungen, eigene Dialoge (0.56.1):
                    Sperre je Adresse: Standard jetzt 60 statt 20 Fehlversuche (einstellbar mit CS_MAX_FAILS_IP). Vorher sperrten 20 Fehlversuche

@@ -766,5 +766,16 @@
  "Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.": "dizine ulaşılamadığında bir girişin geçerli olduğu gün sayısı (0 = önbellek yok). Dizinde değiştirilen parola hemen geçerli olur, eskisi en geç süresi dolana kadar.",
  "Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).": "önbellek: gün sayısı (0 = kapalı, en çok 365).",
  "Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.": "Yerel cs-team hesapları, dizin kurulu olsa bile her zaman giriş yapabilir (acil erişim).",
- "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "Virgül, boşluk veya satır sonuyla ayrılmış girdiler: cs-team hesabı (anna), alt grup (@klasse5a) veya dizin grubu (alan adı ve grup adı ters eğik çizgiyle ayrılır; genellikle kısa ad yeterlidir). Dizin grubunda veya alt grupta olan üye olur. Dizin gruplarını yalnızca genel yönetici ekleyebilir. Çıkarılan hesaplar en az bir başka grupta kalır."
+ "Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.": "Virgül, boşluk veya satır sonuyla ayrılmış girdiler: cs-team hesabı (anna), alt grup (@klasse5a) veya dizin grubu (alan adı ve grup adı ters eğik çizgiyle ayrılır; genellikle kısa ad yeterlidir). Dizin grubunda veya alt grupta olan üye olur. Dizin gruplarını yalnızca genel yönetici ekleyebilir. Çıkarılan hesaplar en az bir başka grupta kalır.",
+ "Heute und überfällig": "Bugün ve gecikenler",
+ "Diese Woche": "Bu hafta",
+ "Bitte einen Titel eingeben": "Lütfen bir başlık girin",
+ "Aufgabe angelegt": "Görev oluşturuldu",
+ "Schreibweise: @Bearbeiter (@ich = ich selbst), !hoch oder !niedrig, #Gruppe, Datum: heute, morgen, übermorgen, nächste Woche, Wochentag, 24.12. oder 2026-12-24": "Yazım: @sorumlu (@ich veya @me = ben), !hoch veya !high / !niedrig veya !low, #grup, tarih: heute/today, morgen/tomorrow, übermorgen, nächste Woche/next week, haftanın günü (monday …), 24.12. veya 2026-12-24",
+ "Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)": "Yeni görev … (ör. Veli mektubu @anna !hoch morgen)",
+ "Sysadmin": "Sysadmin",
+ "Sysadmin-Konto": "Sysadmin hesabı",
+ "lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).": "yerel, her zaman yönetici, silinemez; parolayı yalnızca hesabın kendisi veya komut satırı değiştirebilir (cs-team sysadmin AD).",
+ "Aufgabe fällig: {0}": "Görev teslim tarihi: {0}",
+ "Meilenstein: {0}": "Kilometre taşı: {0}"
 }

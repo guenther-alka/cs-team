@@ -20,11 +20,13 @@ func body(w http.ResponseWriter, r *http.Request, v any) bool {
 func fail_(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch {
+	case errors.Is(err, ErrSysAdmin):
+		code = http.StatusForbidden
 	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed):
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
 		code = http.StatusNotFound
-	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
+	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
 		code = http.StatusBadRequest
 	}
 	http.Error(w, err.Error(), code)
@@ -61,7 +63,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		if realm == "" {
 			realm, src = RealmLocal, "local"
 		}
-		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "version": Version,
+		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
 			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK()})
 	})))
 
@@ -134,6 +136,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			Mail     string   `json:"mail,omitempty"`
 			Chat     string   `json:"chat,omitempty"`
 			ChatSet  bool     `json:"chatSet,omitempty"` // Webhook-Adresse vorhanden (die Adresse selbst nur für den Besitzer und globale Admins, S-09)
+			Sys      bool     `json:"sys,omitempty"`     // Sysadmin-Konto (geschützt)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -141,7 +144,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != ""})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys})
 			case n == me:
 				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != ""})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
@@ -204,6 +207,10 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		}
 		if !a.manages(r.Context(), r.PathValue("name")) {
 			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if t, ok := a.get(r.Context(), r.PathValue("name")); ok && t.Sys && User(r.Context()) != r.PathValue("name") { // Sysadmin-Passwort: nur er selbst oder die Kommandozeile
+			fail_(w, ErrSysAdmin)
 			return
 		}
 		if err := a.ResetPassword(r.Context(), r.PathValue("name"), in.Password); err != nil {

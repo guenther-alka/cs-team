@@ -109,7 +109,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.57.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.58.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -121,6 +121,7 @@ func main() {
 		return
 	}
 	loadConf()
+	log.Printf("cs-team %s (%s/%s, %s) starting", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 	var st store.Store
 	switch {
 	case os.Getenv("CS_MEM") == "1": // Demo/Test ohne Speicher (Daten nur im RAM)
@@ -153,6 +154,14 @@ func main() {
 		log.Println("migrate groups:", err)
 	}
 
+	// cs-team sysadmin <name>   (bestimmt das Sysadmin-Konto: lokales cs-team-Konto, immer Admin, nicht löschbar)
+	if len(os.Args) == 3 && os.Args[1] == "sysadmin" {
+		if err := a.SetSys(ctx, os.Args[2]); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("ok: sysadmin", os.Args[2])
+		return
+	}
 	// cs-team adduser <name> <pw> [admin]   (legt an oder setzt Passwort; "admin" macht zum Admin)
 	if len(os.Args) >= 4 && os.Args[1] == "adduser" {
 		if err := a.SetUser(ctx, os.Args[2], os.Args[3], len(os.Args) > 4 && os.Args[4] == "admin"); err != nil {
@@ -165,6 +174,10 @@ func main() {
 		if err := a.Bootstrap(ctx, u, p); err != nil {
 			log.Fatal("bootstrap: ", err)
 		}
+	}
+
+	if err := a.EnsureSys(ctx, os.Getenv("CS_ADMIN_USER")); err != nil { // Sysadmin-Konto: lokal, immer Admin, nicht löschbar (0.57.1)
+		log.Println("sysadmin:", err)
 	}
 
 	handler := routes(st, a)
@@ -306,7 +319,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	web, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /lang/", a.Wrap(http.HandlerFunc(langHandler)))
 	mux.Handle("/", a.Wrap(http.FileServerFS(web)))
-	return secHeaders(mux)
+	return logMW(secHeaders(mux))
 }
 
 // secHeaders: Sicherheits-Header für alle Antworten (Clickjacking, MIME-Sniffing, Referrer, Skript-Quellen).

@@ -48,7 +48,7 @@ var OnGroupCal func(ctx context.Context, group, calMode string) error
 
 var (
 	ErrNoGroup      = errors.New("no such group")
-	ErrBadArea      = errors.New("area: cal calc text files")
+	ErrBadArea      = errors.New("area: use only cal, calc, text, files")
 	ErrGroupUsed    = errors.New("group is the only group of a user")
 	ErrLastGroup    = errors.New("at least one group must remain")
 	ErrDefaultGroup = errors.New("the default group '" + DefaultGroup + "' cannot be deleted; its admins are the global admins")
@@ -853,7 +853,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 				}
 			}
 			for _, n := range in.Add {
-				if kind, _ := a.entryKind(n); kind == entAccount && !a.manages(r.Context(), n) {
+				if kind, _ := a.entryKind(n); kind == entAccount && !a.manages(r.Context(), n) && !a.unassigned(r.Context(), n) {
 					http.Error(w, "forbidden: "+n+" belongs to groups you do not manage (ask a global admin)", http.StatusForbidden)
 					return
 				}
@@ -901,6 +901,13 @@ func (a *Auth) manages(ctx context.Context, target string) bool {
 	}
 	u, ok := a.get(ctx, target)
 	return ok && !u.Admin && shares(effGroups(u), AdminOf(ctx)) && within(own(effGroups(u)), AdminOf(ctx))
+}
+
+// unassigned: Konto ohne eigene Gruppe (nur alluser) und kein Admin - ein Gruppen-Admin darf es in seine Gruppe aufnehmen
+// (neue Schüler/Mitarbeiter), ohne dass der globale Admin jedes Mal eingreifen muss.
+func (a *Auth) unassigned(ctx context.Context, target string) bool {
+	u, ok := a.get(ctx, target)
+	return ok && !u.Admin && !u.Disabled && len(own(effGroups(u))) == 0
 }
 
 // own: ohne die Standardgruppe (alluser = jeder; sie zählt nicht als "fremde" Gruppe).
@@ -1301,7 +1308,7 @@ func (a *Auth) SetGroupAdmins(ctx context.Context, group string, admins []string
 	a.refresh(ctx)
 	a.mu.Lock()
 	for _, n := range admins {
-		if _, ok := a.users[n]; !ok {
+		if _, ok := a.users[n]; !ok { // Gruppen-Admins duerfen auch Verzeichniskonten sein (name@realm); vergeben wird die Rolle lokal an der Gruppe
 			a.mu.Unlock()
 			return fmt.Errorf("%w: %s", ErrNoUser, n)
 		}
@@ -1483,6 +1490,8 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 			switch {
 			case ex && !update:
 				res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: exists", r.line, r.name))
+			case ex && u.Sys && r.h != "" && r.name != User(ctx):
+				res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: the sysadmin password can only be changed by the sysadmin", r.line, r.name))
 			case ex:
 				if !IsAdmin(ctx) {
 					own := AdminOf(ctx)
