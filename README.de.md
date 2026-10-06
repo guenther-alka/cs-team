@@ -1,6 +1,6 @@
 # cs-team
 
-Kleine, in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kalender (CalDAV), Calc, Text, Dateien (WebDAV),
+Kleine und in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kalender (CalDAV), Calc, Text, Dateien (WebDAV),
 Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
 
 Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
