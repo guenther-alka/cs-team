@@ -180,6 +180,12 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .cm:hover .acts{display:block}
 .cm .acts button{border:0;background:none;cursor:pointer;padding:2px 5px}
 .rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.poll{border:1px solid #b9cdea;border-radius:6px;padding:8px 10px;background:#f7faff;margin:2px 0;max-width:460px}
+.poll .po{position:relative;display:flex;justify-content:space-between;gap:8px;border:1px solid #d5dfef;border-radius:4px;margin-top:4px;padding:3px 8px;overflow:hidden;background:#fff;width:100%;box-sizing:border-box;text-align:left;font:inherit;color:inherit}
+.poll button.po{cursor:pointer}.poll .po.mine{border-color:#3b82f6}
+.poll .pb{position:absolute;left:0;top:0;bottom:0;background:#dbeafe}.poll .po>span:not(.pb){position:relative}
+.poll .pv{font-size:12px;color:#666;margin:1px 0 0 8px;overflow-wrap:anywhere}
+.poll .pf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:12px;color:#666}
 .rx button{border:1px solid #ddd;background:#f5f5f5;border-radius:10px;cursor:pointer;padding:0 7px;font-size:13px}
 .rx button.mine{background:#dbeafe;border-color:#3b82f6}
 .day{display:flex;align-items:center;gap:8px;color:#888;font-size:12px;margin:10px 0 4px}
@@ -319,6 +325,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
  .chh,.chc{border-color:#333}.cm:hover{background:#1f2429}.cm .ct a{color:#7db3ff}.cm.mn{background:#3a3320}.cm .ct .me{background:#6b5a1a;color:#fff}
  .chc textarea{background:#22272d;color:#e3e6ea;border-color:#444}.pick,.cm .acts{background:#22272d;border-color:#444}.cm .att{background:#22272d;border-color:#444;color:#7db3ff}
  .rx button{background:#262c33;border-color:#444;color:#e3e6ea}.rx button.mine{background:#25405f}.vcard{background:#1f2a3a;border-color:#3d5f8f}.vcard.old{background:#22272d;border-color:#444}
+.poll{background:#1f2a3a;border-color:#3d5f8f}.poll .po{background:#22272d;border-color:#444}.poll .pb{background:#25405f}.poll .pv,.poll .pf{color:#9aa4ae}
  .day{color:#8a939d}.day:before,.day:after{border-top-color:#333}
  .tkdesc{background:#1f2328;border-color:#333}.tkc,.tkleg .lg.by{background:#22344f}.tkc.as,.tkleg .lg.as{background:#20362a}.tkc.ot,.tkleg .lg.ot{background:#2a2d32}.tkleg .lg{color:#e3e6ea}
  .tkm.dn label{color:#7a838d}#tkc{background:#16191d}
@@ -400,6 +407,18 @@ function uiDlg(msg,o){return new Promise(res=>{
  };
  ok.onclick=yes;if(cn)cn.onclick=no;ov.onmousedown=e=>{if(e.target==ov&&o.cancel)no();};
  document.addEventListener('keydown',kd,true);(inp||ok).focus();if(inp)inp.select();
+});}
+// uiBox: Dialog mit frei gebautem Inhalt el (Umfrage, Dateiversionen). o.ok = Text der OK-Taste (fehlt: nur "Schließen"); o.check() darf OK ablehnen.
+function uiBox(title,el,o){o=o||{};return new Promise(res=>{
+ const ov=document.createElement('div'),bx=document.createElement('div'),p=document.createElement('div'),bar=document.createElement('div'),cn=document.createElement('button');
+ ov.className='uidov';bx.className='uidbx';bx.style.cssText='width:min(520px,100%);max-height:88vh;overflow:auto';bx.setAttribute('role','dialog');bx.setAttribute('aria-modal','true');
+ p.className='uidm';p.style.fontWeight='600';p.textContent=title;bx.append(p,el);
+ cn.textContent=o.ok?t('Abbrechen'):t('Schließen');bar.className='uidb';bar.append(cn);
+ let ok=null;if(o.ok){ok=document.createElement('button');ok.className='uidok';ok.textContent=o.ok;bar.append(ok);}
+ bx.append(bar);ov.append(bx);document.body.append(ov);
+ const kd=e=>{if(e.key=='Escape'){e.preventDefault();e.stopPropagation();done(false);}},done=v=>{document.removeEventListener('keydown',kd,true);ov.remove();res(v);};
+ cn.onclick=()=>done(false);if(ok)ok.onclick=()=>{if(!o.check||o.check())done(true);};ov.onmousedown=e=>{if(e.target==ov)done(false);};
+ document.addEventListener('keydown',kd,true);el.close=()=>done(false);(el.querySelector('input,textarea,button')||cn).focus();
 });}
 const uiAsk=m=>uiDlg(m,{cancel:1});
 const uiPrompt=(m,d,pw)=>uiDlg(m,{cancel:1,input:d===undefined?'':d,pw:pw});
@@ -526,6 +545,121 @@ const chatModes=(p,g,dis)=>'<div class="row">'+t('Chat: ')+modeSel(p+'c',g.chat|
   '<div class="row">'+t('Aufbewahrung Chat (Tage): ')+'<input id="'+p+'d" type="number" min="0" max="36500" style="width:90px" value="'+(g.chatDays||0)+'"'+(dis?' disabled':'')+'> <span class="muted">'+t('(0 = unbegrenzt; ältere Chat-Nachrichten der Gruppe werden automatisch gelöscht)')+'</span></div>';
 const chatVals=p=>({chat:$('#'+p+'c').value,chans:$('#'+p+'k').value,msg:$('#'+p+'m').value,tasks:$('#'+p+'t').value,chatDays:Math.max(0,Math.round(+$('#'+p+'d').value)||0)});
 const chatDaysOK=p=>{const d=Math.max(0,Math.round(+$('#'+p+'d').value)||0);if(d>0&&d<7){alert(t('Aufbewahrung: 0 (aus) oder mindestens 7 Tage.'));return false;}return true;};
+/* ---------- Zwei-Faktor-Anmeldung (Konto): Einrichten, Ausschalten, App-Passwörter ---------- */
+/* Minimaler QR-Encoder (Byte-Modus, Fehlerkorrektur M, Versionen 1..10, keine Bibliothek); Rueckgabe: Matrix (Array von Zeilen mit 0/1) oder null */
+function qrMatrix(text){
+  const data=Array.from(new TextEncoder().encode(text));
+  const CAP=[0,14,26,42,62,84,106,122,152,180,213],ECC=[0,10,16,26,18,24,16,18,22,22,26],BLK=[0,1,1,1,2,2,4,4,4,5,5];
+  let ver=1;while(ver<=10&&data.length>CAP[ver])ver++;
+  if(ver>10)return null;
+  const size=ver*4+17;
+  let raw=(16*ver+128)*ver+64,al=[];
+  if(ver>=2){const n=Math.floor(ver/7)+2,step=ver==32?26:Math.ceil((ver*4+4)/(n*2-2))*2;raw-=(25*n-10)*n-55;if(ver>=7)raw-=36;
+    al=[6];for(let p=size-7;al.length<n;p-=step)al.splice(1,0,p);}
+  const nData=Math.floor(raw/8)-ECC[ver]*BLK[ver];
+  /* Datenbits: Modus 0100, Laenge (8 Bit, ab Version 10: 16), Bytes, Abschluss, Fuellbytes */
+  const bits=[],put=(v,n)=>{for(let i=n-1;i>=0;i--)bits.push((v>>>i)&1);};
+  put(4,4);put(data.length,ver>=10?16:8);data.forEach(b=>put(b,8));
+  put(0,Math.min(4,nData*8-bits.length));while(bits.length%8)bits.push(0);
+  const cw=[];for(let i=0;i<bits.length;i+=8){let v=0;for(let j=0;j<8;j++)v=v*2+bits[i+j];cw.push(v);}
+  for(let pad=0xEC;cw.length<nData;pad^=0xEC^0x11)cw.push(pad);
+  /* Reed-Solomon ueber GF(256), Polynom 0x11D */
+  const mul=(x,y)=>{let z=0;for(let i=7;i>=0;i--){z=(z<<1)^((z>>>7)*0x11D);z^=((y>>>i)&1)*x;}return z;};
+  const div=[];for(let i=0;i<ECC[ver]-1;i++)div.push(0);div.push(1);
+  for(let i=0,root=1;i<ECC[ver];i++){for(let j=0;j<div.length;j++){div[j]=mul(div[j],root);if(j+1<div.length)div[j]^=div[j+1];}root=mul(root,2);}
+  const nb=BLK[ver],short=nb-Math.floor(raw/8)%nb,shortLen=Math.floor(Math.floor(raw/8)/nb),blocks=[];
+  for(let i=0,k=0;i<nb;i++){const len=shortLen-ECC[ver]+(i<short?0:1),d=cw.slice(k,k+len);k+=len;
+    const r=new Array(ECC[ver]).fill(0);d.forEach(b=>{const f=b^r.shift();r.push(0);div.forEach((c,x)=>{r[x]^=mul(c,f);});});
+    if(i<short)d.push(-1);blocks.push(d.concat(r));}
+  const out=[];for(let i=0;i<blocks[0].length;i++)blocks.forEach((b,j)=>{if(i!=shortLen-ECC[ver]||j>=short)out.push(b[i]);});
+  /* Matrix mit Funktionsmustern */
+  const m=[],fn=[];for(let y=0;y<size;y++){m.push(new Array(size).fill(0));fn.push(new Array(size).fill(false));}
+  const set=(x,y,v)=>{m[y][x]=v?1:0;fn[y][x]=true;};
+  for(let i=0;i<size;i++){set(6,i,i%2==0);set(i,6,i%2==0);}
+  const finder=(x,y)=>{for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const d=Math.max(Math.abs(dx),Math.abs(dy)),xx=x+dx,yy=y+dy;if(xx>=0&&xx<size&&yy>=0&&yy<size)set(xx,yy,d!=2&&d!=4);}};
+  finder(3,3);finder(size-4,3);finder(3,size-4);
+  for(let i=0;i<al.length;i++)for(let j=0;j<al.length;j++){if((i==0&&j==0)||(i==0&&j==al.length-1)||(i==al.length-1&&j==0))continue;
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)set(al[i]+dx,al[j]+dy,Math.max(Math.abs(dx),Math.abs(dy))!=1);}
+  const bit=(v,i)=>((v>>>i)&1)!=0;
+  const fmt=mask=>{const d=mask;let r=d;for(let i=0;i<10;i++)r=(r<<1)^((r>>>9)*0x537);const b=((d<<10)|r)^0x5412;   /* M = 00 */
+    for(let i=0;i<=5;i++)set(8,i,bit(b,i));set(8,7,bit(b,6));set(8,8,bit(b,7));set(7,8,bit(b,8));for(let i=9;i<15;i++)set(14-i,8,bit(b,i));
+    for(let i=0;i<8;i++)set(size-1-i,8,bit(b,i));for(let i=8;i<15;i++)set(8,size-15+i,bit(b,i));set(8,size-8,true);};
+  fmt(0);
+  if(ver>=7){let r=ver;for(let i=0;i<12;i++)r=(r<<1)^((r>>>11)*0x1F25);const b=(ver<<12)|r;
+    for(let i=0;i<18;i++){const a=size-11+i%3,c=Math.floor(i/3);set(a,c,bit(b,i));set(c,a,bit(b,i));}}
+  /* Codewoerter im Zickzack */
+  for(let i=0,right=size-1;right>=1;right-=2){if(right==6)right=5;
+    for(let v=0;v<size;v++)for(let j=0;j<2;j++){const x=right-j,y=((right+1)&2)==0?size-1-v:v;
+      if(!fn[y][x]&&i<out.length*8){m[y][x]=bit(out[i>>>3],7-(i&7))?1:0;i++;}}}
+  const inv=[(x,y)=>(x+y)%2==0,(x,y)=>y%2==0,(x,y)=>x%3==0,(x,y)=>(x+y)%3==0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2==0,
+    (x,y)=>x*y%2+x*y%3==0,(x,y)=>(x*y%2+x*y%3)%2==0,(x,y)=>((x+y)%2+x*y%3)%2==0];
+  const mask=k=>{for(let y=0;y<size;y++)for(let x=0;x<size;x++)if(!fn[y][x]&&inv[k](x,y))m[y][x]^=1;};
+  const pen=()=>{let s=0;
+    const line=g=>{let run=1;for(let i=1;i<size;i++){if(g(i)==g(i-1)){run++;if(run==5)s+=3;else if(run>5)s++;}else run=1;}
+      let h=0;for(let i=0;i<size;i++){h=((h<<1)|g(i))&0x7FF;if(i>=10&&(h==0x5D||h==0x5D0))s+=40;}};   /* 10111010000 / 00001011101 (11 Bit) */
+    for(let y=0;y<size;y++)line(i=>m[y][i]);for(let x=0;x<size;x++)line(i=>m[i][x]);
+    for(let y=0;y<size-1;y++)for(let x=0;x<size-1;x++){const c=m[y][x];if(c==m[y][x+1]&&c==m[y+1][x]&&c==m[y+1][x+1])s+=3;}
+    let dark=0;m.forEach(r=>r.forEach(v=>dark+=v));s+=(Math.ceil(Math.abs(dark*20-size*size*10)/(size*size))-1)*10;return s;};
+  let best=0,bs=1e9;
+  for(let k=0;k<8;k++){mask(k);fmt(k);const p=pen();if(p<bs){bs=p;best=k;}mask(k);}
+  mask(best);fmt(best);
+  return m;
+}
+/* SVG (schwarz auf weiss, Ruhezone 4 Module); '' wenn der Text zu lang ist */
+function qrSvg(text,px){
+  const m=qrMatrix(text);if(!m)return '';
+  const n=m.length+8;let d='';
+  m.forEach((r,y)=>r.forEach((v,x)=>{if(v)d+='M'+(x+4)+' '+(y+4)+'h1v1h-1z';}));
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+n+' '+n+'" width="'+(px||200)+'" height="'+(px||200)+'" shape-rendering="crispEdges" role="img"><rect width="'+n+'" height="'+n+'" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+}
+
+const b32g=s=>s.replace(/(.{4})/g,'$1 ').trim();
+const tfCopy=async(v,btn)=>{let ok=false;try{await navigator.clipboard.writeText(v);ok=true;}catch(e){}
+  if(!ok){const x=document.createElement('textarea');x.value=v;document.body.appendChild(x);x.select();try{ok=document.execCommand('copy');}catch(e){}x.remove();}
+  if(ok)btn.textContent=t('kopiert');};
+async function tfaInit(){
+  const bx=$('#tfa');if(!bx)return;
+  const r=await J('GET','/api/me/2fa');if(!r)return;
+  const h0='<b>'+t('Zwei-Faktor-Anmeldung (TOTP)')+'</b>';
+  if(!r.local){bx.innerHTML=h0+'<div class="muted row">'+t('Gilt nur für lokale Konten: Verzeichniskonten (LDAP/AD) melden sich wie im Verzeichnis üblich an.')+'</div>';return;}
+  if(!r.on){
+    bx.innerHTML=h0+'<div class="row"><button id="tfon" type="button">'+t('Zwei-Faktor-Anmeldung (TOTP) einrichten')+'</button></div>'+
+      '<div class="muted">'+t('Mit einer Authenticator-App (z.B. FreeOTP, Aegis, Google Authenticator). Danach meldest du dich mit Passwort + Code an, z.B. geheim123456.')+' '+t('Gilt nur für lokale Konten, nicht für Verzeichniskonten (LDAP/AD).')+'</div><div id="tfsetup"></div>';
+    $('#tfon').onclick=async()=>{
+      const s=await J('POST','/api/me/2fa/setup');if(!s)return;
+      const q=qrSvg(s.uri,200);
+      $('#tfsetup').innerHTML='<div class="row">'+t('1. Code in die App scannen oder den Schlüssel eintippen:')+'</div>'+(q?'<div class="row">'+q+'</div>':'')+
+        '<div class="row"><code style="user-select:all">'+esc(b32g(s.secret))+'</code> <button id="tfcs" type="button">'+t('Schlüssel kopieren')+'</button></div>'+
+        '<div class="row"><input id="tfu" readonly style="width:calc(100% - 150px)" value="'+esc(s.uri)+'"> <button id="tfcu" type="button">'+t('Adresse kopieren')+'</button></div>'+
+        '<div class="row">'+t('2. Passwort und den 6-stelligen Code aus der App eingeben:')+'</div>'+
+        '<div class="row"><input id="tfpw" type="password" autocomplete="current-password" placeholder="'+t('Passwort')+'"> <input id="tfcode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="width:90px" placeholder="123456"> <button id="tfact" type="button">'+t('Aktivieren')+'</button></div>';
+      $('#tfcs').onclick=()=>tfCopy(s.secret,$('#tfcs'));$('#tfcu').onclick=()=>tfCopy(s.uri,$('#tfcu'));
+      $('#tfact').onclick=async()=>{
+        const j=await J('POST','/api/me/2fa/activate',{password:$('#tfpw').value,code:$('#tfcode').value.trim()});if(!j)return;
+        await uiAlert(t('Zwei-Faktor-Anmeldung ist eingeschaltet. Wiederherstellungscodes (jeder gilt einmal, nur jetzt sichtbar, bitte sicher aufbewahren):')+'\n\n'+(j.codes||[]).join('\n')+'\n\n'+t('Anmeldung künftig: Passwort + Code, z.B. geheim123456. Für WebDAV-/CalDAV-Programme lege App-Passwörter an.')+'\n\n'+t('Bitte jetzt mit Passwort + Code neu anmelden. Der eben benutzte Code ist verbraucht: auf den nächsten Code warten.'));
+        me.twofa=true;$('#logout').onclick();};   // das bisherige Passwort allein gilt nicht mehr: abmelden, dann mit Passwort + Code anmelden
+    };
+    return;}
+  const apps=r.apps||[],dt=s=>s?esc(fmtDT(s)):'';
+  bx.innerHTML=h0+'<div class="row">'+t('Eingeschaltet. Anmeldung mit Passwort + Code, z.B. geheim123456.')+' '+t('Wiederherstellungscodes übrig: {0}',r.recovery)+'</div><div class="muted">'+t('Ein schon benutzter Code gilt nicht noch einmal: nach einer Passwortänderung oder dem Ein-/Ausschalten bitte auf den nächsten Code warten.')+'</div>'+
+    (r.enforce?'<div class="muted">'+t('Für Admin-Konten vorgeschrieben (Einstellungen).')+'</div>':'<div class="row"><button id="tfoff" type="button">'+t('Ausschalten')+'</button></div>')+
+    '<div class="row"><b>'+t('App-Passwörter')+'</b></div><div class="muted">'+t('Für WebDAV, CalDAV und Datei-Programme, die keinen Code eingeben können. Sie gelten nur für Dateien und Kalender, nicht für Konto und Verwaltung, und werden nur einmal angezeigt.')+'</div>'+
+    (apps.length?'<table class="ftab"><tr><th>'+t('Name')+'</th><th>'+t('Angelegt')+'</th><th>'+t('Zuletzt benutzt')+'</th><th></th></tr>'+
+      apps.map(p=>'<tr class="fr"><td>'+esc(p.name)+'</td><td>'+dt(p.created)+'</td><td>'+(dt(p.used)||t('nie'))+'</td><td><button class="tfrev" type="button" data-id="'+esc(p.id)+'" data-n="'+esc(p.name)+'">'+t('Widerrufen')+'</button></td></tr>').join('')+'</table>':'')+
+    (apps.length<r.max?'<div class="row"><button id="tfapp" type="button">'+t('Neues App-Passwort')+'</button></div>':'<div class="muted">'+t('Höchstens {0} App-Passwörter.',r.max)+'</div>');
+  if($('#tfoff'))$('#tfoff').onclick=async()=>{
+    const p=await uiPrompt(t('Passwort:'),'',1);if(!p)return;
+    const c=await uiPrompt(t('Aktueller Code (6 Stellen) oder Wiederherstellungscode:'));if(!c)return;
+    if(await api('POST','/api/me/2fa/disable',{password:p,code:c.trim()}))uiAlert(t('Zwei-Faktor ist ausgeschaltet – bitte neu anmelden.')).then(()=>location.reload());};
+  if($('#tfapp'))$('#tfapp').onclick=async()=>{
+    const n=await uiPrompt(t('Name des App-Passworts (z.B. Thunderbird, Handy):'));if(!n||!n.trim())return;
+    const p=await uiPrompt(t('Zur Bestätigung dein Passwort eingeben:'),'',1);if(!p)return;
+    const j=await J('POST','/api/me/apppass',{password:p,name:n.trim()});if(!j)return;
+    await uiPrompt(t('App-Passwort für {0} (wird nur jetzt angezeigt, bitte kopieren):',j.name),j.password);tfaInit();};
+  bx.querySelectorAll('.tfrev').forEach(b=>b.onclick=async()=>{
+    if(!await uiAsk(t('App-Passwort "{0}" widerrufen?',b.dataset.n)))return;
+    if(await api('DELETE','/api/me/apppass/'+encodeURIComponent(b.dataset.id)))tfaInit();});
+}
 S.users={
   items:[],
   canAdd:()=>isGA(),delable:k=>me.admin&&k!=me.name&&!(allUsers.find(x=>x.name==k)||{}).sys,
@@ -541,12 +675,13 @@ S.users={
      '<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
-     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+contactPanel(me.mail,me.chat,true)+
+     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+'<div class="panel" id="tfa"></div>'+contactPanel(me.mail,me.chat,true)+
      '<div class="panel"><div class="row"><button id="mexp">'+t('Meine Daten exportieren (ZIP)')+'</button></div><div class="muted">'+t('Alles, was cs-team über dich gespeichert hat (Konto, eigene Dateien, Kalender, Aufgaben, Chat), als ZIP-Datei (Auskunft nach Art. 15 und 20 DSGVO).')+'</div></div>'+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
     $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
     $('#mexp').onclick=()=>{location.href='/api/me/export';};
+    tfaInit();
   },
   add(){
     const m=manageable();
@@ -581,10 +716,15 @@ S.users={
     else h+='<div class="muted">'+t('Gruppenzuordnung: Mitglieder in der Gruppen-Ansicht (Menü Gruppen) ändern.')+'</div>';
     if(u.sys)h+='<div class="row"><b>'+t('Sysadmin-Konto')+'</b> <span class="muted">'+t('lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).')+'</span></div>';
     if((!u.admin||me.admin)&&(!u.sys||u.name==me.name))h+='<div class="row"><button id="fp">'+t('Passwort setzen')+'</button></div>';
+    if(me.admin&&u.totp&&u.name!=me.name)h+='<div class="row">'+t('Zwei-Faktor-Anmeldung: eingeschaltet')+' <button id="f2r" type="button">'+t('Zwei-Faktor zurücksetzen')+'</button></div><div class="muted">'+t('Bei verlorenem Gerät: danach meldet sich der Benutzer wieder nur mit dem Passwort an und richtet Zwei-Faktor neu ein.')+'</div>';
     if(me.admin)h+='<div class="row"><button id="uxp">'+t('Daten exportieren')+'</button></div>';
+    if(u.name==me.name)h+='<div class="panel" id="tfa"></div>';
     h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
     $('#main').innerHTML=h;
     contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c)=>{u.mail=m;if(c!==undefined){u.chat=c;u.chatSet=!!c;}});
+    tfaInit();
+    if($('#f2r'))$('#f2r').onclick=async()=>{if(!await uiAsk(t('Zwei-Faktor-Anmeldung von {0} zurücksetzen? Wiederherstellungscodes und App-Passwörter werden gelöscht.',k)))return;
+      if(await api('POST','/api/users/'+encodeURIComponent(k)+'/2fa/reset')){await this.load();this.select(k);}};
     if(me.admin){
       const flag=async f=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/flags',f)){await this.load();}else this.select(k);};
       $('#fa').onchange=e=>flag({admin:e.target.checked});
@@ -2277,7 +2417,7 @@ S.files={
   vmode:lsGet('cs.files.view','list'),sortk:'name',sortd:1,
   isG:f=>f.owner.startsWith('@'),
   async load(){
-    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;this.trDays=r.trashDays||0;
+    const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;this.pubMax=r.pubMax||0;this.trDays=r.trashDays||0;
     const q=await J('GET','/api/trash');this.tr=(q&&q.items)||[];
     this.build();
   },
@@ -2451,23 +2591,47 @@ S.files={
     const g=this.isG(f),own=f.owner==me.name,mgr=own||(g&&f.rw),url='/api/files/'+fpath(f);
     let h='<div style="display:flex;align-items:center"><b style="flex:1;word-break:break-all">'+esc(baseOf(f.name))+'</b></div>'+
       '<div class="muted">'+(f.name.includes('/')?esc(f.name.slice(0,f.name.lastIndexOf('/')))+'/<br>':'')+fmtSize(f.size)+' · '+esc(f.type)+'<br>'+esc(fmtDT(new Date(f.mod/1e6).toISOString()))+' · '+(g?t('Gruppenordner')+' '+esc(f.owner.slice(1)):t('Besitzer ')+esc(f.owner))+(f.rw&&!own&&!g?t(' · Schreibrecht'):'')+'</div>'+
-      '<div class="row"><a href="'+url+'?dl=1"><button>'+t('Download')+'</button></a>'+(f.view?' <a href="'+url+'" target="_blank"><button>'+t('Öffnen')+'</button></a>':'')+(mgr?' <button id="fmv">'+t('Umbenennen / Verschieben')+'</button> <button id="fdel">'+t('Löschen')+'</button>':'')+'</div>';
+      '<div class="row"><a href="'+url+'?dl=1"><button>'+t('Download')+'</button></a>'+(f.view?' <a href="'+url+'" target="_blank"><button>'+t('Öffnen')+'</button></a>':'')+(own||f.rw||mgr?' <button id="fver">'+t('Versionen')+'</button>':'')+(mgr?' <button id="fmv">'+t('Umbenennen / Verschieben')+'</button> <button id="fdel">'+t('Löschen')+'</button>':'')+'</div>';
     if(f.view&&f.type.startsWith('image/'))h+='<img class="prev" style="max-height:200px" src="'+url+'">';
     if(mgr){
       const pub=f.pub?location.origin+f.pub:'';
-      const pubRows='<div class="row"><label><input id="sp" type="checkbox" '+(f.pub?'checked':'')+'>'+t(' öffentlicher Link (jeder mit dem Link kann lesen)')+'</label></div>'+(pub?'<div class="row"><input id="pl" style="width:calc(100% - 90px)" readonly value="'+esc(pub)+'"> <button id="pcp" type="button">'+t('Kopieren')+'</button></div><div class="muted">'+t('Der Link enthält ein zufälliges Token. Haken entfernen macht ihn ungültig.')+'</div>':'');
+      const mx=this.pubMax||0;
+      let po=[[1,t('1 Tag')],[7,t('7 Tage')],[30,t('30 Tage')],[0,t('unbegrenzt')]];
+      if(mx){po=po.filter(x=>x[0]>0&&x[0]<=mx);if(!po.some(x=>x[0]==mx))po.push([mx,t('{0} Tage',mx)]);}
+      const pdef=po.some(x=>x[0]==7)?7:po[po.length-1][0];
+      const pubExp='<div class="row">'+t('Gültig für: ')+'<select id="pd">'+(f.pub?'<option value="">'+t('(unverändert)')+'</option>':'')+po.map(x=>'<option value="'+x[0]+'"'+(!f.pub&&x[0]==pdef?' selected':'')+'>'+esc(x[1])+'</option>').join('')+'</select>'+
+        (f.pub?' <span class="muted">'+(f.exp?t('Läuft ab am {0}',new Date(f.exp*1000).toLocaleDateString(LOC,{dateStyle:'medium'})):t('Läuft nicht ab (unbegrenzt)'))+'</span>':'')+'</div>';
+      const pubRows='<div class="row"><label><input id="sp" type="checkbox" '+(f.pub?'checked':'')+'>'+t(' öffentlicher Link (jeder mit dem Link kann lesen)')+'</label></div>'+pubExp+(pub?'<div class="row"><input id="pl" style="width:calc(100% - 90px)" readonly value="'+esc(pub)+'"> <button id="pcp" type="button">'+t('Kopieren')+'</button></div><div class="muted">'+t('Der Link enthält ein zufälliges Token. Haken entfernen macht ihn ungültig.')+'</div>':'');
       h+='<div class="panel" style="background:#fff"><b>'+t('Teilen')+'</b>'+(g?'<div class="muted">'+t('Zugriff regelt die Gruppe (Mitglieder lesen{0}).',f.rw?t(', du darfst schreiben'):'')+'</div>'+pubRows+'<button id="ss">'+t('Speichern')+'</button>':sharePanel(f,pubRows))+'</div>';
     }
     d.innerHTML=h;d.style.display='';
     if($('#fdel'))$('#fdel').onclick=()=>this.del();
+    if($('#fver'))$('#fver').onclick=()=>this.versions(f,k);
     if($('#fmv'))$('#fmv').onclick=()=>this.rename(k,false);
     if(mgr&&$('#pl')){$('#pl').onclick=()=>$('#pl').select();
       $('#pcp').onclick=async()=>{const u=$('#pl').value;let ok=false;try{await navigator.clipboard.writeText(u);ok=true;}catch(e){}
         if(!ok){$('#pl').select();try{ok=document.execCommand('copy');}catch(e){}}$('#pcp').textContent=ok?t('kopiert'):t('Kopieren');};}
+    if(mgr&&f.pub)$('#pd').onchange=()=>$('#ss').click();   // Frist ändern/verlängern wirkt sofort
     if(mgr)$('#sp').onchange=()=>$('#ss').click();   // Haken wirkt sofort (Link wird erzeugt bzw. ungültig gemacht)
     if(mgr)$('#ss').onclick=async()=>{
-      const b=g?{}:shareBody();b.public=$('#sp').checked;
+      const b=g?{}:shareBody();b.public=$('#sp').checked;if(b.public&&$('#pd').value!=='')b.days=+$('#pd').value;
       if(await api('POST','/api/filesshare/'+fpath(f),b)){await this.load();this.fsel=k;this.draw();}};
+  },
+  // Versionen aus ZFS-Snapshots (nur lesen): Liste, Herunterladen, Wiederherstellen (die aktuelle Datei kommt vorher in den Papierkorb)
+  async versions(f,k){
+    const u='/api/filesversions/'+fpath(f),r=await J('GET',u);if(!r)return;
+    const el=document.createElement('div'),vs=r.versions||[],when=v=>fmtDT(new Date(v.mod*1000).toISOString());
+    if(!r.supported)el.textContent=t('Versionen brauchen ein ZFS-Dataset mit Snapshots (siehe Handbuch)');
+    else if(!vs.length)el.textContent=t('Keine früheren Versionen gefunden.');
+    else{
+      el.innerHTML='<table class="t"><tr><th>'+t('Datum')+'</th><th>'+t('Größe')+'</th><th></th></tr>'+vs.map((v,i)=>'<tr><td>'+esc(when(v))+'</td><td>'+fmtSize(v.size)+'</td><td><a href="'+u+'?snap='+encodeURIComponent(v.snap)+'&dl=1" download><button>'+t('Herunterladen')+'</button></a>'+(f.rw?' <button data-i="'+i+'">'+t('Wiederherstellen')+'</button>':'')+'</td></tr>').join('')+'</table>';
+      el.onclick=async e=>{
+        const b=e.target.closest('button[data-i]');if(!b)return;const v=vs[+b.dataset.i];
+        if(!await uiAsk(t('Version vom {0} wiederherstellen? Die aktuelle Datei kommt in den Papierkorb.',when(v))))return;
+        if(await api('POST','/api/filesrestore/'+fpath(f)+'?snap='+encodeURIComponent(v.snap))){el.close();alert(t('Version wiederhergestellt.'));await this.load();this.fsel=k;this.draw();upd();}
+      };
+    }
+    uiBox(t('Versionen')+': '+baseOf(f.name),el);
   },
   async del(){
     const f=this.fsel&&this.find(this.fsel);if(!f||!await uiAsk(this.trDays>0?t('"{0}" in den Papierkorb verschieben? (Wiederherstellung {1} Tage lang möglich)',f.name,this.trDays):t('"{0}" löschen?',f.name)))return;
@@ -2555,12 +2719,12 @@ function chShell(){
   const o=chGrp(CH.g);if(!o)return;
   $('#main').className='chat';
   $('#main').innerHTML='<div class="chw"><div class="chs" id="chs"></div><div class="chm" id="chm"><div class="chh" id="chh"></div><div id="chl"></div><div id="cherr"></div>'+
-   '<div class="chc"><button id="chf" title="'+t('Datei anhängen')+'">📎</button><input type="file" id="chfi" style="display:none"><textarea id="chi" rows="1" placeholder="'+t('Nachricht schreiben …')+'"></textarea><button id="chgo">➤</button></div></div></div>';
+   '<div class="chc"><button id="chf" title="'+t('Datei anhängen')+'">📎</button><button id="chpoll" title="'+t('Umfrage')+'">📊</button><input type="file" id="chfi" style="display:none"><textarea id="chi" rows="1" placeholder="'+t('Nachricht schreiben …')+'"></textarea><button id="chgo">➤</button></div></div></div>';
   const ta=$('#chi'),go_=()=>{const v=ta.value.trim();if(!v)return;chSend({t:'send',g:CH.g,c:CH.c,text:v});ta.value='';ta.style.height='';};
   ta.onkeydown=e=>{if(e.key=='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();go_();}};
   ta.oninput=()=>{ta.style.height='';ta.style.height=Math.min(140,ta.scrollHeight)+'px';};
   $('#chgo').onclick=go_;
-  $('#chf').onclick=()=>$('#chfi').click();
+  $('#chf').onclick=()=>$('#chfi').click();$('#chpoll').onclick=chPollNew;
   $('#chfi').onchange=e=>{for(const f of e.target.files)chUpload(f);e.target.value='';};
   ta.onpaste=e=>{for(const it of (e.clipboardData&&e.clipboardData.items)||[])if(it.kind=='file'){const f=it.getAsFile();if(f){e.preventDefault();chUpload(f.name&&f.name!='image.png'?f:new File([f],'bild-'+Date.now()+'.png',{type:f.type}));}}};
   const m=$('#chm');
@@ -2586,7 +2750,7 @@ function chHead(){
   h.innerHTML='<span>'+esc(CH.g)+' &nbsp;# '+esc(CH.c)+'</span><span class="sp"></span>'+(o.w?'':'<span class="muted">'+t('nur lesen')+'</span>')+
    (window.Notification&&Notification.permission=='default'?'<button id="chbell" title="'+t('Desktop-Benachrichtigungen')+'">🔔</button>':'');
   const b=$('#chbell');if(b)b.onclick=async()=>{await Notification.requestPermission();chHead();};
-  const ta=$('#chi');if(ta){ta.disabled=!o.w;$('#chf').disabled=!o.w;$('#chgo').disabled=!o.w;}
+  const ta=$('#chi');if(ta){ta.disabled=!o.w;$('#chf').disabled=!o.w;$('#chpoll').disabled=!o.w;$('#chgo').disabled=!o.w;}
 }
 function chSide(){
   const s=$('#chs'),o=chGrp(CH.g);if(!s||!o)return;
@@ -2617,12 +2781,13 @@ function chList(toEnd){
         body+=/^image\/(png|jpeg|gif|webp)$/.test(m.att.type)?'<a href="'+u+'" target="_blank" rel="noopener"><img class="cimg" loading="lazy" src="'+u+'" alt="'+esc(m.att.name)+'"></a>':'<a class="att" href="'+u+'" download="'+esc(m.att.name)+'">📎 '+esc(m.att.name)+' <small>('+fmtSize(m.att.size)+')</small></a>';}
       if(m.vid){const old=m.vid.exp&&Date.now()>m.vid.exp;
         body+='<div class="vcard'+(old?' old':'')+'">📹 <b>'+esc(t('Videochat'))+': '+esc(m.vid.name)+'</b> <small class="muted">'+esc(m.vid.mode=='group'?t('Fester Raum'):(old?t('abgelaufen'):t('gültig bis {0}',new Date(m.vid.exp).toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'}))))+'</small>'+(old?'':'<button data-a="vjoin">'+esc(t('Beitreten'))+'</button>')+'</div>';}
+      else if(m.poll)body+=chPoll(m);
       else if(m.t)body+='<div class="ct">'+chFmt(m.t)+(m.ed?' <span class="ed">('+t('bearbeitet')+')</span>':'')+'</div>';
       const re=Object.entries(m.re||{});
       if(re.length)body+='<div class="rx">'+re.map(([e,us])=>'<button data-a="re" data-e="'+e+'" class="'+(us.includes(me.name)?'mine':'')+'" title="'+esc(us.join(', '))+'">'+e+' '+us.length+'</button>').join('')+'</div>';
     }
     const tm=pad2(d.getHours())+':'+pad2(d.getMinutes());
-    const acts=m.del?'':'<div class="acts">'+(o.w?'<button data-a="pick" title="'+t('Reaktion')+'">😀</button>':'')+(m.by==me.name&&m.t&&!m.vid?'<button data-a="edit" title="'+t('bearbeiten')+'">✎</button>':'')+((m.by==me.name||o.adm)?'<button data-a="del" title="'+t('löschen')+'">🗑</button>':'')+'</div>';
+    const acts=m.del?'':'<div class="acts">'+(o.w?'<button data-a="pick" title="'+t('Reaktion')+'">😀</button>':'')+(m.by==me.name&&m.t&&!m.vid&&!m.poll?'<button data-a="edit" title="'+t('bearbeiten')+'">✎</button>':'')+((m.by==me.name||o.adm)?'<button data-a="del" title="'+t('löschen')+'">🗑</button>':'')+'</div>';
     h+='<div class="cm'+(mn?' mn':'')+'" data-id="'+m.id+'">'+(head?'<div class="av" style="background:'+avCol(m.by)+'">'+esc(m.by.slice(0,1).toUpperCase())+'</div>':'<div class="gap">'+tm+'</div>')+
        '<div class="bd">'+(head?'<div class="hd">'+esc(m.by)+'<small>'+tm+'</small></div>':'')+body+'</div>'+acts+'</div>';
     prev=m;
@@ -2650,6 +2815,50 @@ function chVideo(slot){
 function chJoin(id){const go=()=>{const w=window.open('about:blank','_blank');
   fetch(chUrl(CH.g,CH.c,'video/'+id)).then(r=>chOpenRoom(w,r)).catch(e=>{if(w)w.close();chErr(String(e));});};
   if(ackOK('video'))go();else needAck('video').then(ok=>{if(ok)go();});}
+/* ---------- Umfragen: eine Umfrage ist eine Chat-Nachricht mit m.poll. Anonym: der Server kennt nur Zähler und wer teilgenommen hat. ---------- */
+const CHP={},CHT={};   // noch nicht abgeschickte Auswahl je Umfrage (Nachrichten-ID); Zeitgeber für das Ergebnis nach dem Ende
+function chPoll(m){
+  const p=m.poll,open=!p.closed&&(!p.end||Date.now()<p.end),n=p.n||0,vs=p.votes||{},my=p.anon?[]:(vs[me.name]||[]);
+  const voted=p.anon?!!p.me:me.name in vs,can=open&&!(p.anon&&voted),sl=CHP[m.id]||my,hide=p.cnt===undefined;   // hide: anonym und offen, der Server sendet keine Zähler
+  if(p.anon&&hide&&p.end&&!CHT[m.id]){const g=CH.g,c=CH.c;CHT[m.id]=setTimeout(()=>{delete CHT[m.id];delete CH.msgs[chK(g,c)];if(CH.g==g&&CH.c==c&&sec=='chat')chOpen(g,c);},Math.min(2e9,Math.max(1000,p.end-Date.now()+1500)));}   // nach dem Ende Ergebnis nachladen
+  let h='<div class="poll"><b>'+esc(p.q)+'</b><div class="pf">'+esc(p.anon?t('Anonym')+' · '+t('Anonyme Stimmen können nicht geändert werden')+(hide?' · '+t('Ergebnis erst nach Ende der Umfrage'):''):t('Namentlich'))+(p.multi?' · '+esc(t('Mehrfachauswahl')):'')+'</div>';
+  p.opts.forEach((x,i)=>{
+    const c=(p.cnt||[])[i]||0,pc=n&&!hide?Math.round(100*c/n):0,who=Object.keys(vs).filter(u=>vs[u].includes(i)).sort(),on=can?sl.includes(i):my.includes(i);
+    h+=(can?'<button':'<div')+' class="po'+(on?' mine':'')+'"'+(can?' data-a="pvote" data-i="'+i+'"':'')+(who.length?' title="'+esc(who.join(', '))+'"':'')+'><span class="pb" style="width:'+pc+'%"></span><span>'+(on?'✓ ':'')+esc(x)+'</span><span>'+(hide?'':c+' · '+pc+'%')+'</span>'+(can?'</button>':'</div>');
+    if(who.length)h+='<div class="pv">'+esc(who.join(', '))+'</div>';
+  });
+  const end=!open?t('Beendet'):p.end?t('Endet {0}',new Date(p.end).toLocaleString(LOC,{dateStyle:'short',timeStyle:'short'})):'';
+  return h+'<div class="pf"><span>'+esc(t('{0} Teilnehmer',n))+'</span>'+(end?'<span>'+esc(end)+'</span>':'')+
+   (can&&(p.anon||p.multi)?'<button data-a="pgo"'+(sl.length||my.length?'':' disabled')+'>'+esc(t('Abstimmen'))+'</button>':'')+
+   (open&&(m.by==me.name||(chGrp(CH.g)||{}).adm)?'<button data-a="pend">'+esc(t('Beenden'))+'</button>':'')+'</div></div>';
+}
+async function chPollAct(m,a,i){
+  const p=m.poll,my=p.anon?[]:((p.votes||{})[me.name]||[]);let sl=(CHP[m.id]||my).slice();
+  if(a=='pend'){if(await uiAsk(t('Umfrage beenden?')))chSend({t:'pollclose',g:CH.g,c:CH.c,id:m.id});return;}
+  if(a=='pvote'){
+    sl=p.multi?(sl.includes(i)?sl.filter(x=>x!=i):sl.concat(i)):(sl.includes(i)?[]:[i]);
+    if(!p.multi&&!p.anon){delete CHP[m.id];chSend({t:'vote',g:CH.g,c:CH.c,id:m.id,sel:sl});return;}   // einfach + namentlich: ein Klick genügt
+    CHP[m.id]=sl;chList(false);return;}
+  if(p.anon&&!await uiAsk(t('Anonyme Stimmen können nicht geändert werden')+'\n\n'+t('Jetzt abstimmen?')))return;
+  delete CHP[m.id];chSend({t:'vote',g:CH.g,c:CH.c,id:m.id,sel:sl});
+}
+async function chPollNew(){
+  const el=document.createElement('div');
+  el.innerHTML='<input class="uidin pq" maxlength="200" placeholder="'+esc(t('Frage'))+'"><div class="pos"></div><button type="button" class="poa">+ '+esc(t('Antwort hinzufügen'))+'</button>'+
+   '<label style="display:block;margin-top:10px"><input type="checkbox" class="pm"> '+esc(t('Mehrfachauswahl'))+'</label>'+
+   '<label style="display:block;margin-top:4px"><input type="checkbox" class="pa"> '+esc(t('Anonym'))+'</label><div class="muted pah" style="font-size:12px;display:none">'+esc(t('Anonyme Stimmen können nicht geändert werden'))+'</div>'+
+   '<label style="display:block;margin-top:10px">'+esc(t('Ende (optional)'))+' <input type="datetime-local" class="pe"></label><div class="perr" style="color:#c0392b;margin-top:8px"></div>';
+  const q=s=>el.querySelector(s),os=q('.pos'),add=()=>{const x=document.createElement('input');x.className='uidin';x.maxLength=100;x.placeholder=t('Antwort {0}',os.children.length+1);os.append(x);};
+  add();add();q('.poa').onclick=()=>{if(os.children.length<10)add();};
+  q('.pa').onchange=e=>{q('.pah').style.display=e.target.checked?'':'none';};
+  let out=null;
+  const ok=await uiBox(t('Umfrage'),el,{ok:t('Umfrage erstellen'),check:()=>{
+    const f=q('.pq').value.trim(),opts=[...os.children].map(x=>x.value.trim()).filter(Boolean),ev=q('.pe').value,end=ev?new Date(ev).getTime():0;
+    if(!f||opts.length<2||new Set(opts).size<opts.length){q('.perr').textContent=t('Bitte eine Frage und mindestens zwei verschiedene Antworten eingeben.');return false;}
+    if(end&&!(end>Date.now())){q('.perr').textContent=t('Das Ende muss in der Zukunft liegen.');return false;}
+    out={q:f,opts,multi:q('.pm').checked,anon:q('.pa').checked,end};return true;}});
+  if(ok&&out)chSend({t:'poll',g:CH.g,c:CH.c,poll:out});
+}
 async function chClick(e){
   const pk=e.target.closest('[data-pk]'),pcm=pk&&pk.closest('.cm');
   document.querySelectorAll('.pick').forEach(x=>x.remove());
@@ -2658,6 +2867,7 @@ async function chClick(e){
   const cm=b.closest('.cm'),id=+cm.dataset.id,a=b.dataset.a;
   if(a=='re')chSend({t:'react',g:CH.g,c:CH.c,id,e:b.dataset.e});
   else if(a=='pick'){const p=document.createElement('div');p.className='pick';p.innerHTML=CH.rx.map(x=>'<button data-pk="'+x+'">'+x+'</button>').join('');cm.append(p);e.stopPropagation();}
+  else if(a=='pvote'||a=='pgo'||a=='pend'){const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id);if(m&&m.poll)chPollAct(m,a,+b.dataset.i);}
   else if(a=='vjoin'){const m=(CH.msgs[chK(CH.g,CH.c)]||[]).find(x=>x.id==id);if(m&&m.vid&&m.vid.mode=='rtc')rtcJoin(CH.g,CH.c,id);else chJoin(id);}
   else if(a=='del'){if(await uiAsk(t('Nachricht löschen?')))chSend({t:'del',g:CH.g,c:CH.c,id});}
   else if(a=='edit'){
@@ -2687,8 +2897,25 @@ async function rtcJoin(g,c,id){
   if(!rtcWs({t:'rtcjoin',g,c,id})){rtcEnd(t('Chat nicht verbunden'));return;}
   RTC.sent=true;RTC.timer=setTimeout(()=>{if(!RTC.joined)rtcEnd(t('Videochat nicht verfügbar.'));},10000);
 }
+// Bildschirm teilen: getDisplayMedia, das Bild ersetzt bei allen Teilnehmern die Kamera (replaceTrack, keine neue Verbindung)
+async function rtcSwap(tr){for(const pc of Object.values(RTC.pcs))for(const s of pc.getSenders())if(s.track&&s.track.kind=='video')try{await s.replaceTrack(tr);}catch(e){}}
+function rtcMirror(on){const v=document.querySelector('#rtcg [data-p=me] video');if(v)v.style.transform=on?'':'none';}
+async function rtcScreen(){
+  if(RTC.scr){rtcScreenStop();return;}
+  let st;try{st=await navigator.mediaDevices.getDisplayMedia({video:true});}catch(e){return;}   // abgebrochen oder nicht erlaubt
+  const tr=st.getVideoTracks()[0];if(!tr||!RTC.on){st.getTracks().forEach(x=>x.stop());return;}
+  RTC.scr=st;tr.onended=rtcScreenStop;
+  await rtcSwap(tr);rtcTile('me',me.name+' '+t('(du)'),st,true);rtcMirror(false);rtcUI();
+}
+function rtcScreenStop(){
+  if(!RTC.scr)return;const st=RTC.scr;RTC.scr=null;st.getTracks().forEach(x=>x.stop());
+  const cam=RTC.local&&RTC.local.getVideoTracks()[0];if(cam)rtcSwap(cam);
+  if(RTC.local)rtcTile('me',me.name+' '+t('(du)'),RTC.local,true);
+  rtcMirror(true);rtcUI();
+}
 function rtcEnd(msg){
   if(!RTC.on)return;
+  if(RTC.scr){RTC.scr.getTracks().forEach(x=>x.stop());RTC.scr=null;}
   if(RTC.sent)rtcWs({t:'rtcleave'});
   clearTimeout(RTC.timer);
   Object.values(RTC.pcs).forEach(p=>{try{p.close();}catch(e){}});
@@ -2715,7 +2942,7 @@ function rtcDrop(pid){
 function rtcPeer(pid,offer){
   let pc=RTC.pcs[pid];if(pc)return pc;
   pc=new RTCPeerConnection(RTC.cfg);RTC.pcs[pid]=pc;RTC.q[pid]=[];
-  RTC.local.getTracks().forEach(tr=>pc.addTrack(tr,RTC.local));
+  RTC.local.getTracks().forEach(tr=>pc.addTrack(RTC.scr&&tr.kind=='video'?RTC.scr.getVideoTracks()[0]:tr,RTC.local));   // läuft eine Bildschirmfreigabe, sehen auch Neue sie
   pc.onicecandidate=e=>{if(e.candidate)rtcWs({t:'rtcsig',to:pid,data:{c:e.candidate}});};
   pc.ontrack=e=>rtcTile(pid,RTC.names[pid]||'?',e.streams[0]||new MediaStream([e.track]));
   pc.onconnectionstatechange=()=>rtcState(pid,pc.connectionState);
@@ -2752,10 +2979,11 @@ function rtcUI(){
   if(!RTC.on){if(o)o.remove();return;}
   if(!o){
     o=document.createElement('div');o.id='rtc';
-    o.innerHTML='<div class="rhead"><b id="rtct"></b><span class="muted" id="rtcn"></span></div><div id="rtcg"></div><div class="rbar"><button id="rtcm"></button><button id="rtcv"></button><button id="rtch" class="rhang"></button></div>';
+    o.innerHTML='<div class="rhead"><b id="rtct"></b><span class="muted" id="rtcn"></span></div><div id="rtcg"></div><div class="rbar"><button id="rtcm"></button><button id="rtcv"></button><button id="rtcs"></button><button id="rtch" class="rhang"></button></div>';
     document.body.append(o);
     $('#rtcm').onclick=()=>{RTC.muted=!RTC.muted;if(RTC.local)RTC.local.getAudioTracks().forEach(x=>x.enabled=!RTC.muted);rtcUI();};
     $('#rtcv').onclick=()=>{RTC.camoff=!RTC.camoff;if(RTC.local)RTC.local.getVideoTracks().forEach(x=>x.enabled=!RTC.camoff);rtcUI();};
+    $('#rtcs').onclick=rtcScreen;
     $('#rtch').onclick=()=>rtcEnd();
   }
   const n=$('#rtcg').querySelectorAll('.rtile').length;
@@ -2764,6 +2992,7 @@ function rtcUI(){
   const m=$('#rtcm'),v=$('#rtcv');
   m.textContent=(RTC.muted?'🔇 ':'🎤 ')+t(RTC.muted?'Mikrofon an':'Mikrofon aus');m.classList.toggle('on',RTC.muted);
   v.textContent='📷 '+(RTC.audioOnly?t('Nur Ton'):t(RTC.camoff?'Kamera an':'Kamera aus'));v.disabled=RTC.audioOnly||!RTC.local;v.classList.toggle('on',RTC.camoff);
+  const sc=$('#rtcs');sc.textContent='🖥 '+t(RTC.scr?'Teilen beenden':'Bildschirm teilen');sc.disabled=RTC.audioOnly||!RTC.local||!(navigator.mediaDevices&&navigator.mediaDevices.getDisplayMedia);sc.classList.toggle('on',!!RTC.scr);
   $('#rtch').textContent='📞 '+t('Auflegen');
 }
 S.chat={
@@ -3278,11 +3507,15 @@ S.set={
      '<div class="panel"><b>'+t('Dateien')+'</b>'+
      '<div class="row"><input id="sq" type="number" min="0" style="width:90px" value="'+(c.quotaMB||0)+'"> '+t('Kontingent je Benutzer und Gruppenordner (MB, 0 = unbegrenzt)')+'</div>'+
      '<div class="row"><input id="strash" type="number" min="0" max="3650" style="width:90px" value="'+(c.trashDays??30)+'"> '+t('Papierkorb: Tage bis zum endgültigen Löschen (0 = kein Papierkorb)')+'</div>'+
+     '<div class="row"><input id="spubmax" type="number" min="0" max="3650" style="width:90px" value="'+(c.pubMaxDays||0)+'"> '+t('Maximale Gültigkeit öffentlicher Links (Tage, 0 = unbegrenzt erlaubt)')+'</div>'+
      '<div class="row"><button id="susage" type="button">'+t('Belegung anzeigen')+'</button></div><div id="usagebox"></div></div>'+
      '<div class="panel"><b>'+t('Datenschutz und Aufbewahrung')+'</b>'+
      '<div class="row"><input id="sclosed" type="number" min="0" max="36500" style="width:90px" value="'+(c.closedDays||0)+'"> '+t('Abgeschlossene Aufgaben: Tage bis zum automatischen Löschen (0 = nie)')+'</div>'+
      '<div class="row">'+t('Datenschutzhinweis (zusätzlicher Text)')+'<br><textarea id="spriv" rows="3" maxlength="2000" style="width:100%;box-sizing:border-box">'+esc(c.privacy||'')+'</textarea></div>'+
      '<div class="muted">'+t('Wird an den Hinweis vor der ersten Nutzung von KI-Assistent und externem Videochat angehängt (z.B. Ansprechperson für Datenschutz).')+'</div></div>'+
+     '<div class="panel"><b>'+t('Zwei-Faktor-Anmeldung')+'</b>'+
+     '<div class="row"><label><input type="checkbox" id="senf2fa"'+(c.enforce2fa?' checked':'')+'> '+t('Zwei-Faktor für Admin-Konten verlangen')+'</label></div>'+
+     '<div class="muted">'+t('Admins mit lokalem Konto ohne Zwei-Faktor kommen nach der Anmeldung nur auf die Konto-Seite, bis sie ihn eingerichtet haben. Verzeichniskonten (LDAP/AD) sind ausgenommen.')+'</div></div>'+
      '<div class="panel"><b>'+t('Netzwerk')+'</b>'+
      '<div class="row"><input id="sb" style="width:380px" placeholder="https://team.example.org:9004" value="'+v('public')+'"> '+t('Öffentliche Adresse (z.B. DynDNS) für Links in Benachrichtigungen')+'</div>'+
      '<div class="row"><label><input type="checkbox" id="sv"'+(c.private?' checked':'')+'> '+t('Webhooks (externe Chat-Adressen) in privaten Netzen erlauben')+'</label></div></div>'+
@@ -3309,6 +3542,9 @@ S.set={
       if(!await api('POST','/api/settings/quota',{mb:qm}))return false;
       const td=Math.round(+$('#strash').value);if(!(td>=0&&td<=3650)){alert(t('Papierkorb: Zahl der Tage (0 = kein Papierkorb).'));return false;}
       if(!await api('POST','/api/settings/trash',{days:td}))return false;
+      const pdm=Math.round(+$('#spubmax').value||0);if(!(pdm>=0&&pdm<=3650)){alert(t('Öffentliche Links: Zahl der Tage (0 = unbegrenzt erlaubt).'));return false;}
+      if($('#senf2fa').checked&&!c.enforce2fa&&!await uiAsk(t('Admin-Konten (auch das Sysadmin-Konto) ohne Zwei-Faktor kommen danach nur noch auf die Konto-Seite, bis sie ihn eingerichtet haben. Einschalten?')))return false;
+      if(!await api('POST','/api/settings/pub2fa',{pubDays:pdm,enforce:$('#senf2fa').checked}))return false;
       const cdd=Math.round(+$('#sclosed').value||0);if(!(cdd>=0&&cdd<=36500)){alert(t('Abgeschlossene Aufgaben: Zahl der Tage (0 = nie löschen).'));return false;}
       if(cdd>0&&cdd<7){alert(t('Aufbewahrung: 0 (aus) oder mindestens 7 Tage.'));return false;}
       if(!await api('POST','/api/settings/closedtasks',{days:cdd}))return false;
@@ -3467,6 +3703,12 @@ async function aiStart(){
       '<button id="pgo">'+t('Speichern')+'</button></div>';
     $('#pgo').onclick=async()=>{if($('#pn').value!=$('#pn2').value){alert(t('Die Passwörter sind nicht gleich.'));return;}
       if(await api('POST','/api/me/password',{old:'',new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
+    return;
+  }
+  if(me.need2fa){   // Admin-Konto ohne Zwei-Faktor bei gesetzter Pflicht: nur die Konto-Seite, bis es eingerichtet ist
+    document.querySelectorAll('#nav button').forEach(b=>b.style.display='none');$('#left').style.display='none';
+    S.users.home();
+    $('#main').insertAdjacentHTML('afterbegin','<div class="panel" style="border-color:#c5221f">'+t('Für Admin-Konten ist die Zwei-Faktor-Anmeldung vorgeschrieben. Bitte richte sie jetzt ein; bis dahin ist nur diese Seite erreichbar.')+'</div>');
     return;
   }
   allUsers=(await J('GET','/api/users'))||[];

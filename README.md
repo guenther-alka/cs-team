@@ -13,17 +13,25 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 **Manual (PDF):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
 · Detailed German notes: [README.de.md](README.de.md)
 
+## Goal
+
+cs-team aims at roughly 80% of the most used Microsoft Teams / Office 365 functions for a school or a small organisation - deliberately without
+a built-in mail server, video-conferencing infrastructure, telephony and full docx/xlsx compatibility - at far less complexity than Teams, O365 or
+Nextcloud (target: under 10%, a qualitative estimate): one file, copy and run, file based, no database, in-house and GDPR friendly, easy to extend and translate.
+KISS wins whenever goals conflict. Honest AI assessment (handbook chapter 15, version 0.60, estimates): about 60-70% of the daily-used functions are covered;
+the biggest gaps are global search, 1:1 messages and threads, mention notifications and push, guests/SSO and comments in documents.
+
 ## Features
 
 | Menu | What it does |
 |------|--------------|
-| User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export |
+| User / Groups / Organizations | users, roles (global admin, group admin, user), groups that enable areas, CSV import/export, two-factor login (TOTP) with recovery codes and app passwords for WebDAV/CalDAV (local accounts; admins can be required to use it) |
 | Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, group, organization and global calendars, each with its own release (not released / entitled read / entitled write), plus internet subscriptions (read-only) and resources (no double booking); recurring events with time zones, edit "only this / this and following / all events of the series", mouse control (click a day for a new event, Shift+click for a multi-day range, drag & drop, Ctrl+X/C/V), reminders (VALARM), attendees with e-mail invitation (iMIP), .ics import/export per calendar, subscription status |
-| Calc / Text | multi-user live editing (per cell / per paragraph), formulas, undo/redo, number formats, hour grid in the calendar, more functions (SUMIF, VLOOKUP, TEXT ...), sort, freeze, column width, alignment, import/export csv, xlsx, txt, rtf, docx |
-| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder, trash (restore, 30 days by default), WebDAV file locks (LOCK/UNLOCK) |
+| Calc / Text | multi-user live editing (per cell / per paragraph), formulas, undo/redo, number formats, hour grid in the calendar, more functions (SUMIF, VLOOKUP, TEXT ...), sort, freeze, column width, alignment, import/export csv, xlsx, txt, rtf, docx (content only: xlsx first sheet, dates as text, docx tables as tab-separated rows; no formatting, images, charts, macros) |
+| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder, trash (restore, 30 days by default), public links with expiry (7 days by default, global cap), file versions from ZFS snapshots (browse, download, restore), WebDAV file locks (LOCK/UNLOCK) |
 | Tasks | ticket system light: requester, assignee, milestones, history, repetition, notifications |
-| Chat / Message | group chat with channels (attachments, reactions, @mentions); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat |
-| Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable) |
+| Chat / Message | group chat with channels (attachments, reactions, @mentions, polls - named or anonymous, multiple choice, end time); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat |
+| Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable, screen sharing) |
 | AI assistant | optional widget (Anthropic, OpenAI-compatible, Ollama): answers questions about your tasks, appointments, files and chat with your own rights, reads chosen files (text, DOCX, XLSX, PDF, images) and proposes new documents; nothing is written without your confirmation |
 | Settings | mail server (SMTP), public address (DynDNS), webhooks, video chat servers, AI provider, file quota - effective immediately |
 

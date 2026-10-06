@@ -290,7 +290,7 @@ func (s *Svc) rtcStart(ctx context.Context, me, g, cn string) (int64, error) {
 	if last != nil && last.Vid.Exp > now.UnixMilli() && (now.Sub(time.UnixMicro(last.ID)) < dedupeAdhoc || s.rtcActive(g, cn, last.ID)) {
 		return last.ID, nil // zweiter Klick bzw. Anruf läuft schon: dort beitreten
 	}
-	m, err := s.post(ctx, me, g, cn, "📹 Videochat (WebRTC)", nil, &Vid{Slot: RTCSlot, Name: "WebRTC", Mode: "rtc", Exp: now.Add(AdhocTTL).UnixMilli()})
+	m, err := s.post(ctx, me, g, cn, "📹 Videochat (WebRTC)", nil, &Vid{Slot: RTCSlot, Name: "WebRTC", Mode: "rtc", Exp: now.Add(AdhocTTL).UnixMilli()}, nil)
 	if err != nil {
 		return 0, err
 	}

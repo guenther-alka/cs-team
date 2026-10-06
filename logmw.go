@@ -62,7 +62,7 @@ func logMW(next http.Handler) http.Handler {
 func audited(r *http.Request) bool {
 	p := r.URL.Path
 	return strings.HasPrefix(p, "/api/users") || strings.HasPrefix(p, "/api/groups") || strings.HasPrefix(p, "/api/settings") ||
-		p == "/api/me/password" || strings.HasPrefix(p, "/api/year") || strings.HasPrefix(p, "/api/routine")
+		p == "/api/me/password" || strings.HasPrefix(p, "/api/me/2fa") || strings.HasPrefix(p, "/api/me/apppass") || strings.HasPrefix(p, "/api/filesshare") || strings.HasPrefix(p, "/api/filesrestore") || strings.HasPrefix(p, "/api/year") || strings.HasPrefix(p, "/api/routine")
 }
 
 func logUser(r *http.Request) string {

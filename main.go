@@ -109,7 +109,7 @@ func loadConf() {
 	}
 }
 
-const version = "0.59.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.60.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -270,6 +270,8 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	a.WarmDir(context.Background()) // Verzeichnisverbindung im Hintergrund offen halten (erster Aufbau ist nach Leerlauf träge)
 	fsvc.Quota = cfg.Quota          // Dateikontingent aus den Einstellungen
 	fsvc.TrashDays = cfg.TrashDays
+	fsvc.PubMax = cfg.PubMaxDays // öffentliche Links: längste Gültigkeit (globale Einstellung, 0 = unbegrenzt erlaubt)
+	auth.Enforce2FA = cfg.Enforce2FA // Zwei-Faktor-Pflicht für globale Admins (globale Einstellung)
 	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}

@@ -78,6 +78,9 @@ type Account struct {
 	DirSeen  string   `json:"dirSeen,omitempty"`   // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
 	DirGroups []string `json:"dirGroups,omitempty"` // Verzeichnisgruppen des Kontos (beim Login gelesen; 0.55)
 	Ack       map[string]string `json:"ack,omitempty"` // bestätigte Datenschutzhinweise: "ai" | "video" -> Hash der Adresse zum Zeitpunkt der Bestätigung (ack.go)
+	TOTP      string    `json:"totp,omitempty"`     // Zwei-Faktor-Anmeldung (0.60): geheimer Schlüssel (Base32), leer = aus; twofa.go
+	Recovery  []string  `json:"recovery,omitempty"`  // Hashes der noch gültigen Wiederherstellungscodes
+	AppPw     []AppPass `json:"appPw,omitempty"`     // App-Passwörter (nur Dateien und Kalender, ohne Code)
 	Member    []string `json:"-"`                   // berechnete Mitgliedschaften aus Group.Dir/Group.Sub (nur im Speicher)
 }
 
@@ -114,6 +117,10 @@ type Auth struct {
 	id     Identity       // Anmelde-Einstellung, wenn keine Quelle (Einstellungen) gesetzt ist
 	idSrc  IdentitySource // Quelle der Anmelde-Einstellung (chat.Settings, Tests)
 	dir    DirChecker     // feste Verzeichnisprüfung (Tests); sonst aus der Einstellung
+	sess   map[[32]byte]sessEnt // 2FA-Sitzungen und App-Passwörter im Speicher (twofa.go)
+	tmu    sync.Mutex           // serialisiert die Prüfung des zweiten Faktors (Wiederholungsschutz)
+	step   map[string]int64     // zuletzt benutzter TOTP-Schritt je Benutzer, unter tmu
+	pend   map[string]pendEnt   // laufende 2FA-Einrichtung je Benutzer, unter tmu
 	warm   chan struct{}  // beendet das Warmhalten der Verzeichnisverbindung (WarmDir), nil = läuft nicht
 }
 
@@ -121,7 +128,8 @@ var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht d
 
 func New(st store.Store) *Auth {
 	d, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.DefaultCost)
-	a := &Auth{st: st, fails: map[string]*fail{}, dummy: d, cache: map[[32]byte]cacheEnt{}}
+	a := &Auth{st: st, fails: map[string]*fail{}, dummy: d, cache: map[[32]byte]cacheEnt{},
+		sess: map[[32]byte]sessEnt{}, step: map[string]int64{}, pend: map[string]pendEnt{}}
 	rand.Read(a.salt[:])
 	std = a
 	return a
@@ -347,6 +355,7 @@ func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) error
 			return err
 		}
 		u.Hash, u.Disabled, u.Must = h, false, true
+		u = clear2FA(u) // Kommandozeile = Notfallzugang (auch für das Sysadmin-Konto): ein verlorener zweiter Faktor wird mit entfernt
 		u.Admin = u.Admin || admin
 		m[name] = u
 		return nil
@@ -585,13 +594,13 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		id, err := parseLogin(name, idc)
 		key, ipKey, userKey := id.Key+"|"+cip, "ip|"+cip, "user|"+id.Key
 		var u Account
-		var good bool
+		var good, scope bool
 		lockKey, lockUser, lockIP := a.locked(key), a.locked(userKey), a.locked(ipKey)
 		if lockKey || lockUser || lockIP {
 			// Nur die Adress-Sperre lässt Nutzer durch, die von dieser Adresse gerade gültig angemeldet sind (Kurzzeit-Cache,
 			// kein bcrypt, keine Verzeichnisabfrage): so sperrt ein Angriff aus dem Schul-NAT/Proxy nicht alle bestehenden Sitzungen.
 			if err == nil && lockIP && !lockKey && !lockUser {
-				u, good = a.cachedGood(r.Context(), id.Key, pass)
+				u, good = a.cachedGood(r.Context(), id.Key, pass, cip, r.URL.Path)
 			}
 			if !good {
 				w.Header().Set("Retry-After", "300")
@@ -603,11 +612,15 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			switch {
 			case err != nil: // unbekannter Namensraum oder ungültiger Name: wie falsche Zugangsdaten behandeln
 			case id.Local: // lokale cs-team-Konten: in jedem Modus möglich (Notfallzugang, 0.55)
-				u, good = a.verifyCached(r.Context(), id.Key, pass)
+				u, good, scope = a.loginLocal(r.Context(), id.Key, pass, cip, r.URL.Path) // mit 2FA: Passwort + Code oder App-Passwort (twofa.go)
 			default: // Verzeichnisbenutzer: name@realm
 				u, err = a.verifyDirCached(r.Context(), id, pass)
 				good = err == nil
 			}
+		}
+		if scope { // gültiges App-Passwort an einer Stelle, für die es nicht gilt: kein Fehlversuch
+			http.Error(w, "app password not allowed here", http.StatusForbidden)
+			return
 		}
 		if !good {
 			logLimited("auth: login failed user=%q ip=%s (%s %s)", safeName(name), cip, r.Method, safeName(r.URL.Path))
@@ -636,6 +649,11 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		if u.Must && ForceChange && r.URL.Path != "/api/me" && r.URL.Path != "/api/me/password" && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html")) {
 			w.Header().Set("X-Must-Change", "1")
 			http.Error(w, "password change required", http.StatusForbidden)
+			return
+		}
+		if need2FA(u, id.Local) && r.URL.Path != "/api/me" && !strings.HasPrefix(r.URL.Path, "/api/me/") && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html")) {
+			w.Header().Set("X-2FA-Required", "1") // Admin ohne 2FA bei gesetzter Pflicht: nur Konto-Seite, bis sie eingerichtet ist
+			http.Error(w, "two-factor setup required", http.StatusForbidden)
 			return
 		}
 		ctx := context.WithValue(r.Context(), ctxKey{}, id.Key)

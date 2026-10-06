@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"cs-team/auth"
 )
@@ -43,17 +45,18 @@ type row struct {
 	Pub   string   `json:"pub,omitempty"` // öffentlicher Link (nur für den Owner sichtbar)
 	RW    bool     `json:"rw"`
 	View  bool     `json:"view"` // im Browser anzeigbar
+	Exp   int64    `json:"exp,omitempty"` // Ablauf des öffentlichen Links (unix s; fehlt = unbegrenzt)
 }
 
 func toRow(m Meta, user string) row {
 	_, w := m.Level(user)
-	r := row{m.Name, m.Owner, m.Size, m.Type, m.Mod, nil, nil, "", w, InlineOK(m.Type)}
+	r := row{m.Name, m.Owner, m.Size, m.Type, m.Mod, nil, nil, "", w, InlineOK(m.Type), 0}
 	if _, isG := GroupOf(m.Owner); m.Owner == user || (isG && w) {
 		if !isG {
 			r.Read, r.Write = m.Read, m.Write
 		}
-		if m.Token != "" {
-			r.Pub = "/pub/" + m.Token
+		if m.Token != "" && (m.Exp == 0 || m.Exp > time.Now().Unix()) { // abgelaufen: nicht mehr als Link anzeigen (der Eigentümer kann ihn erneuern)
+			r.Pub, r.Exp = "/pub/"+m.Token, m.Exp
 		}
 	}
 	return r
@@ -67,6 +70,8 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("GET /api/files/{owner}/{name...}", f(s.download))
 	mux.Handle("DELETE /api/files/{owner}/{name...}", f(s.remove)) // ?dir=1 löscht einen Ordner samt Inhalt
 	mux.Handle("POST /api/filesshare/{owner}/{name...}", f(s.share))
+	mux.Handle("GET /api/filesversions/{owner}/{name...}", f(s.versions))      // Liste; mit ?snap= die Version herunterladen
+	mux.Handle("POST /api/filesrestore/{owner}/{name...}", f(s.restoreVersion)) // ?snap= stellt die Version wieder her
 	mux.Handle("POST /api/filesdir", f(s.mkdir))                          // ?owner=&name=<ordnerpfad>
 	mux.Handle("POST /api/filesmove", f(s.move))                          // ?owner=&from=&to=[&dir=1][&copy=1]
 	mux.Handle("GET /api/trash", f(s.trashList))                          // Papierkorb: eigene und Gruppenordner, die ich verwalte
@@ -95,7 +100,8 @@ func (s *Svc) list(w http.ResponseWriter, r *http.Request) {
 		Used    int64             `json:"used"`            // belegt (eigener Bereich, einschließlich Papierkorb)
 		Trash   int64             `json:"trash,omitempty"` // davon im Papierkorb
 		Days    int               `json:"trashDays"`       // Aufbewahrung in Tagen (0 = kein Papierkorb)
-	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20, 0, 0, 0, s.trashDays()}
+		PubMax  int               `json:"pubMax"`          // längste Gültigkeit öffentlicher Links in Tagen (0 = unbegrenzt erlaubt)
+	}{[]row{}, []row{}, auth.FolderGroups(me), s.Max >> 20, 0, 0, 0, s.trashDays(), s.pubMax()}
 	if s.Quota != nil {
 		out.Quota = s.Quota()
 	}
@@ -250,6 +256,37 @@ func (s *Svc) download(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, m, rc)
 }
 
+// versions: ohne snap die Liste der früheren Stände (JSON), mit snap die Datei von damals (Typ/Disposition wie beim Herunterladen).
+func (s *Svc) versions(w http.ResponseWriter, r *http.Request) {
+	me, owner, name := auth.User(r.Context()), r.PathValue("owner"), r.PathValue("name")
+	if snap := r.URL.Query().Get("snap"); snap != "" {
+		m, rc, err := s.OpenVersion(r.Context(), me, owner, name, snap)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		serve(w, r, m, rc)
+		return
+	}
+	l, err := s.Versions(r.Context(), me, owner, name)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	json.NewEncoder(w).Encode(l)
+}
+
+func (s *Svc) restoreVersion(w http.ResponseWriter, r *http.Request) {
+	me, owner, name, snap := auth.User(r.Context()), r.PathValue("owner"), r.PathValue("name"), r.URL.Query().Get("snap")
+	m, err := s.RestoreVersion(r.Context(), me, owner, name, snap)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	log.Printf("audit: file restored file=%q/%q snap=%q by=%q", owner, name, snap, me)
+	json.NewEncoder(w).Encode(toRow(*m, me))
+}
+
 func (s *Svc) public(w http.ResponseWriter, r *http.Request) {
 	m, rc, err := s.Public(r.Context(), r.PathValue("token"))
 	if err != nil {
@@ -311,13 +348,14 @@ func (s *Svc) share(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Read, Write []string
 		Public      bool
+		Days        *int // Gültigkeit des öffentlichen Links in Tagen (0 = unbegrenzt); fehlt = unverändert
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&in) != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
 	me := auth.User(r.Context())
-	m, err := s.Share(r.Context(), me, r.PathValue("owner"), r.PathValue("name"), in.Read, in.Write, in.Public)
+	m, err := s.Share(r.Context(), me, r.PathValue("owner"), r.PathValue("name"), in.Read, in.Write, in.Public, in.Days)
 	if err != nil {
 		fail(w, err)
 		return

@@ -1,5 +1,89 @@
 cs-team changelog (newest first)
 
+2026-10-06  0.60.0 Audit bestanden (Handbuch Kapitel 14, Nachtrag 0.60; keine HOCH-Punkte offen). Handbuch de/en aktualisiert (neue Kapitel 13.5/13.6 und 15 Ziel von cs-team, 2FA, Umfragen, Versionen, Office-Formate), Teil 1: A) oeffentliche Datei-Links mit Ablauf, B) Zwei-Faktor-Anmeldung (TOTP) mit App-Passwoertern:
+                   A. Oeffentliche Links (/pub/{token}) laufen jetzt ab. Beim Erzeugen waehlt der Benutzer "Gueltig fuer: 1 Tag / 7 Tage / 30 Tage / unbegrenzt"
+                   (Vorgabe 7 Tage; POST /api/filesshare/{owner}/{name} mit neuem Feld days, 0 = unbegrenzt, fehlt = unveraendert). Der Ablauf (unix s) steht in den
+                   Metadaten der Datei (Meta.Exp), der Token-Schluessel filestok/<token> bleibt unveraendert. Abgelaufene Links liefern 404 wie unbekannte Token
+                   (der Ablauf wird nicht verraten); ein Link ohne Ablauf (alle bisherigen) gilt weiter und wird als "unbegrenzt" angezeigt. Die Frist laesst sich
+                   im Teilen-Dialog jederzeit aendern oder verlaengern (derselbe Link, Frist beginnt neu), der Haken widerruft. Der stuendliche Lauf des Papierkorbs
+                   (RunTrash) loescht zusaetzlich abgelaufene Links samt Token (PurgeLinks); abgelaufene Links erscheinen in der Liste nicht mehr als Link.
+                   Neue globale Einstellung "Maximale Gueltigkeit oeffentlicher Links (Tage, 0 = unbegrenzt erlaubt)" (POST /api/settings/pub2fa, Feld pubDays,
+                   0..3650): ist sie gesetzt, gibt es kein "unbegrenzt" und nichts darueber (Wunsch wird auf die Obergrenze gekuerzt, auch ohne Angabe); bereits
+                   bestehende Links ohne Ablauf bleiben unberuehrt. Audit: die Pfade /api/filesshare werden von logMW als audit-Zeile protokolliert, dazu je Aenderung
+                   eine Zeile "audit: public link created|changed|revoked file=.. by=.. expires=YYYY-MM-DD" (nie der Token).
+                   B. Zwei-Faktor-Anmeldung (nur lokale Konten; Verzeichniskonten LDAP/AD sind ausgenommen). TOTP nach RFC 6238 (SHA1, 6 Stellen, 30 s, +-1 Schritt,
+                   Vergleich in konstanter Zeit, Wiederholungsschutz: je Benutzer wird der zuletzt benutzte Schritt gemerkt) nur mit der Standardbibliothek
+                   (crypto/hmac, crypto/sha1, encoding/base32), neue Datei auth/twofa.go. Entwurf wegen HTTP Basic Auth auf jeder Anfrage (Begruendung: kein Cookie,
+                   keine Sitzungsverwaltung, WebDAV/CalDAV/API bleiben unveraendert nutzbar; das ist der einfachste Weg, der zum bestehenden Anmeldeverfahren passt):
+                   - Anmeldung mit "Passwort" direkt gefolgt vom 6-stelligen Code im Passwortfeld (z.B. geheim123456) oder mit einem Wiederherstellungscode
+                   (geheim123ABCD-EFGH-IJKL). Nach der ersten erfolgreichen Pruefung merkt sich der Server nur im Speicher (wie cachedGood) den Hash der Zugangsdaten
+                   je Benutzer und Adresse 12 Stunden (Konstante sessTTL); derselbe Authorization-Kopf des Browsers gilt dann ohne neuen Code. Der Eintrag traegt
+                   einen Hash aus Passwort-Hash und Schluessel und wird bei jeder Anfrage mit dem Konto verglichen: Passwortaenderung, 2FA ausschalten/zuruecksetzen,
+                   Benutzer sperren/loeschen und Neustart beenden die Sitzung. Parallele Anfragen eines Browsers werden serialisiert (sonst wuerde der Wiederholungs-
+                   schutz die zweite Anfrage ablehnen). Ein falscher Code sieht aus wie ein falsches Passwort (401 mit gleichem Text, gleicher Fehlzaehler/Sperre
+                   Benutzer+Adresse, Adresse, Benutzer; genau ein bcrypt je Versuch, Passwort ohne Code genuegt nie und verraet nichts).
+                   - Einrichten im Konto (POST /api/me/2fa/setup, .../activate mit Passwort + erstem Code): zeigt Schluessel (Base32, gruppiert), otpauth-Adresse und
+                   QR-Code; der QR-Code entsteht im Browser mit einem eigenen kleinen Encoder in web/index.html (Byte-Modus, Fehlerkorrektur M, Version 1-10, SVG,
+                   keine Bibliothek, keine externe Anfrage; gegen 213 Laengen mit OpenCV als Leser geprueft). Bei der Aktivierung entstehen 8 Wiederherstellungscodes
+                   (einmalig angezeigt, nur als SHA-256-Hash gespeichert, je Code einmal einloesbar). Ausschalten (POST /api/me/2fa/disable) braucht Passwort + Code;
+                   die Zaehler sind dieselben wie bei Anmeldungen (429 bei Sperre). GET /api/me/2fa zeigt Stand und App-Passwoerter.
+                   - App-Passwoerter fuer WebDAV/CalDAV und andere Programme ohne Code-Eingabe (POST /api/me/apppass mit Passwort, DELETE /api/me/apppass/{id}):
+                   24 Zeichen, nur einmal angezeigt, bcrypt-gehasht, benannt, widerrufbar, hoechstens 10 je Konto, Liste mit Name/angelegt/zuletzt benutzt (stuendlich
+                   nachgefuehrt). Sie gelten nur fuer /webdav/, /dav/, /.well-known/caldav und /api/files* (auth.appPathOK), nie fuer /api/users, /api/groups,
+                   /api/settings, /api/me*; auf anderen Pfaden zaehlen sie als Fehlversuch. Die ersten 6 Zeichen sind der Suchschluessel (so faellt hoechstens ein
+                   bcrypt an). App-Passwoerter gibt es nur bei eingeschalteter 2FA und verschwinden beim Ausschalten/Zuruecksetzen.
+                   - Admin-Pflicht: globale Einstellung "Zwei-Faktor fuer Admin-Konten verlangen" (POST /api/settings/pub2fa, Feld enforce). Lokale Admin-Konten ohne
+                   2FA erreichen danach nur /api/me*, /lang/ und die Startseite (403 mit Kopf X-2FA-Required, analog zur Aenderungspflicht des Startpassworts); die
+                   Oberflaeche zeigt nur die Konto-Seite mit Hinweis. Ausschalten ist dann fuer Admins gesperrt.
+                   - Zuruecksetzen: globale Admins koennen die 2FA eines anderen Kontos zuruecksetzen (POST /api/users/{name}/2fa/reset, Knopf in der Benutzer-
+                   ansicht, Audit-Zeile; nicht fuer das eigene Konto und nicht fuer das Sysadmin-Konto). Die Kommandozeile (cs-team adduser/sysadmin NAME mit
+                   Passwort) entfernt die 2FA des Kontos mit (Notfallzugang). Neue Audit-Pfade: /api/me/2fa, /api/me/apppass, /api/filesshare.
+                   Neue Felder im Konto (users.json): totp, recovery, appPw. 48 neue Texte in allen 13 Sprachdateien (maschinell uebersetzt).
+                   Tests: files/expiry_test.go (abgelaufen, unbegrenzt, verlaengern, Bereinigung, Obergrenze), auth/twofa_test.go (RFC-6238-Vektoren, Fenster und
+                   Wiederholung, Anmeldung mit Code, parallele Anfragen, falscher Code gleich falschem Passwort und Sperre, Wiederherstellungscode einmalig,
+                   App-Passwort nur fuer Dateien/Kalender, Widerruf, Cache-Ende bei Passwortaenderung/Sperre, Pflicht fuer Admins, Zuruecksetzen), chat/settings60_test.go,
+                   audit60_test.go. Teil 2 von 0.60.0 folgt.
+
+                   Nachbesserung Teil 2 nach unabhaengiger Pruefung (Claude claude-sonnet-5-5):
+                   H1 Anonyme Umfragen: der Server sendet fuer anonyme Umfragen nie Namen (kein done) und solange sie offen sind auch keine Zaehler (cnt); jeder Empfaenger erhaelt nur das eigene
+                      Feld me (hat abgestimmt ja/nein) und die Teilnehmerzahl n; Zaehler erst nach Beenden/Ende (Chat, Verlauf, Update-Rahmen gleich, Aufbereitung je Empfaenger in Poll.wire).
+                      Auf der Platte bleiben Zaehler und Teilnehmerliste, sie verlassen den Server nie. Oberflaeche: Hinweis 'Ergebnis erst nach Ende der Umfrage'. Benannte Umfragen unveraendert.
+                      Export/Anonymisieren angepasst; Test poll60_test.go (zwei Stimmen, offene Rahmen und Verlauf ohne Zaehler/Namen, nach Beenden Zaehler da).
+                   M1 auth/twofa.go: Aktivieren legt keine Sitzung mehr mit dem reinen Passwort an; Oberflaeche: 'Bitte jetzt mit Passwort + Code neu anmelden' und Abmelden.
+                   M2 Sitzungen tragen den Kontonamen; dropSessions verwirft nur Sitzungen dieses Kontos (Einschalten/Ausschalten/Zuruecksetzen); App-Passwort widerrufen verwirft keine.
+                   M3 Gueltiges App-Passwort auf Pfad ausserhalb des Geltungsbereichs: 403 'app password not allowed here', ohne Fehlversuch-Zaehler; ungueltige Angaben zaehlen weiter.
+                   M4 Dateiversionen (Liste/Download) nur fuer Eigentuemer oder mit Schreibrecht (Gruppenordner rw oder Gruppen-Admin); nur-lesende Freigabe 403, ohne Zugriff 404; Knopf 'Versionen' dort ausgeblendet.
+                   Klein: (a) Konto-Hinweis, dass ein benutzter Code nicht erneut gilt; (b) Warnung beim Einschalten von 'Zwei-Faktor fuer Admin-Konten verlangen'; (c) Umbenennen/Verschieben behaelt den
+                      oeffentlichen Link (files.go moveLink, movelink_test.go); (d) Kommentar: nur-lesende Chat-Mitglieder duerfen abstimmen, aber keine Umfrage anlegen. 4 neue UI-Texte in allen 13 Katalogen.
+                      Tests: auth/twofa_test.go, poll60_test.go, versions60_test.go angepasst, files/movelink_test.go neu; go vet und runtests.ps1 gruen.
+                   Teil 2 (Claude claude-sonnet-5-5): C) Umfragen im Chat, D) Dateiversionen aus ZFS-Snapshots, E) Office-Import und Bildschirmfreigabe:
+                   C. Umfragen: eine Umfrage ist eine normale Chat-Nachricht mit dem neuen Feld poll (chat/poll.go) - gleicher Speicher (chat/<gruppe>/<kanal>.json), gleicher
+                   Verlauf, WebSocket-Weg, Aufbewahrung und Anonymisierung; keine neue Ablage. Neue WebSocket-Nachrichten poll (anlegen), vote (abstimmen), pollclose (beenden);
+                   Knopf "Umfrage" neben dem Eingabefeld. Anlegen: wer im Kanal schreiben darf (Chat-Modus der Gruppe), Frage <= 200, 2-10 verschiedene Antworten <= 100 Zeichen,
+                   Mehrfachauswahl, anonym, optionales Ende (hoechstens 366 Tage voraus), gleiches Tempolimit wie Nachrichten. Abstimmen: jedes Mitglied mit Leserecht im Chat der
+                   Gruppe (auch im Nur-Admin-Chat), solange die Umfrage offen ist (nicht beendet, Ende nicht erreicht); Nichtmitglieder erhalten "chat not available". Benannt:
+                   Stimme aenderbar oder zuruecknehmbar, die Wahl ist fuer alle Leser des Kanals sichtbar (Namen je Antwort). Anonym: der Server speichert nur Zaehler je Antwort und
+                   je Person die Marke "hat abgestimmt" (alphabetisch, ohne Wahl); es gibt kein votes-Feld, weder auf der Platte noch im Netz, auch Admins sehen keine Zuordnung;
+                   deshalb sind anonyme Stimmen nicht aenderbar (Hinweis in der Oberflaeche). Rest-Risiko: wer Zugriff auf den Speicher hat und vor/nach einer Stimme vergleicht,
+                   sieht, welcher Zaehler stieg. Beenden: Ersteller oder Gruppen-Admin (Logzeile "audit: poll closed by group admin" bei Beenden durch einen Admin); Umfragen werden
+                   nicht bearbeitet, mit der Nachricht entfaellt auch die Umfrage. Datenauskunft (chat.json): neues Feld votes - benannte Umfragen mit der eigenen Wahl, anonyme nur
+                   "participated": true. Benutzer loeschen mit Anonymisierung: Name in Stimmen bzw. Teilnehmerliste ersetzt, Zaehler und Teilnehmerzahl bleiben. Aufbewahrung: Umfragen
+                   fallen wie Nachrichten nach Ablauf der Frist weg. Aenderungen an einer Umfrage geschehen an einer Kopie (kein Datenwettlauf beim Senden).
+                   D. Dateiversionen aus ZFS-Snapshots (files/versions.go), nur lesend, ohne zfs-Befehl: GET /api/filesversions/{owner}/{name} liefert
+                   {"supported":..,"versions":[{snap,size,mod}]} (neueste zuerst, hoechstens 50; aufeinanderfolgende Snapshots mit gleicher Groesse+Zeit zaehlen einmal; ein Stand wie
+                   die aktuelle Datei entfaellt; angesehen werden nur die 300 neuesten Snapshots), mit ?snap=<name> das Herunterladen dieser Version (gleiche Header wie der normale
+                   Download), POST /api/filesrestore/{owner}/{name}?snap=<name> stellt wieder her: der bisherige Stand kommt als Kopie in den Papierkorb (wenn eingeschaltet), Freigaben
+                   und oeffentlicher Link der Datei bleiben, Kontingent/Sperren/Groessenlimit wie beim Hochladen. Mountpunkt: naechster uebergeordneter Ordner der Speicherwurzel
+                   (CS_DIR/.csteam) mit Unterordner .zfs, oder CS_SNAP_ROOT; S3/RAM-Speicher oder Ordner ohne Snapshots: supported:false. Sicherheit: Rechte wie beim Lesen der Datei
+                   (Eigentuemer, Freigabe, Gruppenordner; sonst 404), Wiederherstellen wie Schreiben (403), Snapshot-Name ein einzelnes Pfadsegment (kein / \ .. Steuerzeichen), im
+                   Snapshot werden Symlinks nie verfolgt (Lstat je Teilstueck), nur normale Dateien. Auch fuer geloeschte Dateien (nur Eigentuemer bzw. Gruppenordner-Mitglied). Audit:
+                   Zeile "audit: file restored file=.. snap=.. by=..", dazu /api/filesrestore in audited() (audit-failed/-denied). store.FS bekommt Root() und Path(). Oberflaeche:
+                   Knopf "Versionen" im Dateidialog mit eigenem Dialog (neuer Helfer uiBox): Datum, Groesse, Herunterladen, Wiederherstellen; ohne Snapshots Hinweis auf das Handbuch.
+                   E. Office-Import (conv): xlsx-Daten und Uhrzeiten (eingebaute und eigene Datumsformate aus styles.xml) kommen als Text JJJJ-MM-TT [hh:mm] statt als Zahl,
+                   Wahrheitswerte als TRUE/FALSE; docx-Tabellenzeilen werden ein Absatz (Zellen mit Tab), mc:Fallback (doppelter Text in Textfeldern) wird uebersprungen. Videochat
+                   (eigenes WebRTC): Knopf "Bildschirm teilen" (getDisplayMedia + replaceTrack, auch fuer spaeter Beitretende).
+                   28 neue Texte in allen 13 Sprachdateien. Neue Tests: chat/poll_test.go, poll60_test.go, versions60_test.go, conv/office60_test.go.
+                   Sicherungen: C:\opt\old\cs-team\2026.10.06_v060b.
 2026-10-06  0.59.0 Audit-Nachbesserung: Anmelde-Erfolgszeile nur einmal nach Fehlversuchen des gleichen Kontos; Gruppenkalender fuer unbekannte Gruppe wird mit 404 abgelehnt; Handbuch Kapitel 14 Audit Result 0.59 (keine Punkte der Kategorie hoch offen). Datenschutz-Nachbesserung nach der DSGVO-Pruefung von 0.58 (Punkte 1-4):
                    1. Benutzer loeschen mit Option "anonymisieren" (Standard an: Feld anonymize im POST /api/users/{name}/delete, Haken im Dialog, auf Wunsch aus):
                    der Name des Kontos wird in Chat-Nachrichten (Autor, Reaktionen, Kanalersteller, Versandprotokoll), Aufgaben (Auftraggeber, Bearbeiter,

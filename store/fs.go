@@ -34,6 +34,11 @@ func NewFS(root string) (*FS, error) {
 	return &FS{root: root}, nil
 }
 
+// Root und Path: Ordner des Speichers und Pfad eines Schlüssels darin (Dateiversionen aus ZFS-Snapshots lesen dieselben Pfade).
+func (s *FS) Root() string { return s.root }
+
+func (s *FS) Path(key string) (string, error) { return s.path(key) }
+
 func safeByte(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
 		c == '.' || c == '-' || c == '_' || c == '@' || c == '+' || c == ',' || c == '=' || c == ' ' || c >= 0x80

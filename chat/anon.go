@@ -43,7 +43,7 @@ func (s *Svc) AnonCount(ctx context.Context, user string) int {
 		c := s.ch(ctx, k[0], k[1])
 		c.mu.Lock()
 		for i := range c.msgs {
-			if c.msgs[i].By == user || reacted(&c.msgs[i], user) {
+			if c.msgs[i].By == user || reacted(&c.msgs[i], user) || (c.msgs[i].Poll != nil && c.msgs[i].Poll.voted(user)) {
 				n++
 			}
 		}
@@ -101,6 +101,12 @@ func (s *Svc) Anon(ctx context.Context, user, repl string) (int, error) {
 					}
 				}
 				m.Re[e] = out
+			}
+			if m.Poll != nil && m.Poll.voted(user) { // Umfragen: Name in Stimmen bzw. Teilnehmerliste ersetzen, Zaehler bleiben
+				np := m.Poll.clone()
+				if np.rename(user, repl) {
+					m.Poll, hit = np, true
+				}
 			}
 			if hit {
 				ch++

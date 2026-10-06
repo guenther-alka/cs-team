@@ -153,7 +153,8 @@ func openZip(b []byte) (*zip.Reader, error) {
 	return zr, nil
 }
 
-// FromDOCX liest den reinen Text der Absätze aus word/document.xml (ohne Tabellen-/Formatlogik).
+// FromDOCX liest den reinen Text der Absätze aus word/document.xml. Eine Tabellenzeile wird ein Absatz (Zellen durch Tab getrennt),
+// Alternativinhalt (mc:Fallback, doppelt vorhandener Text in Textfeldern) wird übersprungen. Keine Formate.
 func FromDOCX(b []byte) ([]string, error) {
 	zr, err := openZip(b)
 	if err != nil {
@@ -167,6 +168,8 @@ func FromDOCX(b []byte) ([]string, error) {
 	var out []string
 	var cur strings.Builder
 	inP, inT := false, false
+	tbl := 0                   // Schachtelungstiefe der Tabellen; nur die äußerste wird zu Zeilen
+	var row, cell []string     // Zellen der Zeile, Absätze der Zelle
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
@@ -178,6 +181,10 @@ func FromDOCX(b []byte) ([]string, error) {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			switch t.Name.Local {
+			case "Fallback":
+				dec.Skip()
+			case "tbl":
+				tbl++
 			case "p":
 				inP = true
 				cur.Reset()
@@ -194,12 +201,32 @@ func FromDOCX(b []byte) ([]string, error) {
 				inT = false
 			case "p":
 				if inP {
-					out = append(out, cur.String())
 					inP = false
+					if tbl > 0 {
+						if s := strings.TrimSpace(cur.String()); s != "" {
+							cell = append(cell, s)
+						}
+						break
+					}
+					out = append(out, cur.String())
 					if len(out) > MaxParas {
 						return nil, ErrFormat
 					}
 				}
+			case "tc":
+				if tbl == 1 {
+					row, cell = append(row, strings.Join(cell, " ")), nil
+				}
+			case "tr":
+				if tbl == 1 {
+					out = append(out, strings.Join(row, "\t"))
+					row = nil
+					if len(out) > MaxParas {
+						return nil, ErrFormat
+					}
+				}
+			case "tbl":
+				tbl--
 			}
 		case xml.CharData:
 			if inT {

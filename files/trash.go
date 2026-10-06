@@ -257,12 +257,38 @@ func (s *Svc) PurgeTrash(ctx context.Context) int {
 	return n
 }
 
+// PurgeLinks (0.60): abgelaufene öffentliche Links löschen (Token und Eintrag in den Metadaten). Liefert die Anzahl.
+func (s *Svc) PurgeLinks(ctx context.Context) int {
+	now := time.Now().Unix()
+	all, err := s.all(ctx)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for i := range all {
+		m := all[i]
+		if isTrash(&m) || m.Token == "" || m.Exp == 0 || m.Exp > now {
+			continue
+		}
+		s.St.Delete(ctx, tokKey(m.Token))
+		m.Token, m.Exp = "", 0
+		if s.saveMeta(ctx, &m) == nil {
+			n++
+		}
+	}
+	if n > 0 {
+		s.invalidate()
+	}
+	return n
+}
+
 // RunTrash löscht abgelaufene Einträge beim Start und danach stündlich, bis ctx endet.
 func (s *Svc) RunTrash(ctx context.Context) {
 	tk := time.NewTicker(time.Hour)
 	defer tk.Stop()
 	for {
 		s.PurgeTrash(ctx)
+		s.PurgeLinks(ctx)
 		select {
 		case <-tk.C:
 		case <-ctx.Done():

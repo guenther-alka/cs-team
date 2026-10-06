@@ -1,15 +1,18 @@
 package conv
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"encoding/xml"
 	"io"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var cellRe = regexp.MustCompile(`^([A-Z]{1,2})([0-9]{1,5})$`) // höchstens ZZ (702 Spalten)
@@ -237,7 +240,93 @@ func sharedStrings(b []byte) []string {
 	return out
 }
 
-// FromXLSX liest das erste Blatt: Werte, Text und Formeln (als "=..."). Keine Formate.
+// dateStyles: je Zellformat (Position in cellXfs von xl/styles.xml) ob es ein Datum/eine Uhrzeit ist. Excel speichert Daten als
+// Zahl (Tage seit 1900); ohne diese Auswertung kaeme "45000" statt "2023-03-15" an (0.60.0).
+func dateStyles(zr *zip.Reader) []bool {
+	b, err := readPart(zr, "xl/styles.xml")
+	if err != nil {
+		return nil
+	}
+	custom := map[string]bool{}
+	var out []bool
+	inXfs := false
+	dec := xml.NewDecoder(bytes.NewReader(b))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "numFmt":
+				id, code := "", ""
+				for _, a := range t.Attr {
+					switch a.Name.Local {
+					case "numFmtId":
+						id = a.Value
+					case "formatCode":
+						code = a.Value
+					}
+				}
+				custom[id] = isDateFormat(code)
+			case "cellXfs":
+				inXfs = true
+			case "xf":
+				if !inXfs {
+					break
+				}
+				d := false
+				for _, a := range t.Attr {
+					if a.Name.Local == "numFmtId" {
+						n, _ := strconv.Atoi(a.Value)
+						d = custom[a.Value] || (n >= 14 && n <= 22) || (n >= 45 && n <= 47)
+					}
+				}
+				out = append(out, d)
+			}
+		case xml.EndElement:
+			if t.Name.Local == "cellXfs" {
+				inXfs = false
+			}
+		}
+	}
+	return out
+}
+
+var fmtSkip = regexp.MustCompile(`"[^"]*"|\\.|\[[^\]]*\]`)
+
+// isDateFormat: Formatcode mit Tag/Monat/Jahr/Stunde/Sekunde ausserhalb von Text in Anfuehrungszeichen und [Klammern].
+func isDateFormat(code string) bool {
+	return strings.ContainsAny(strings.ToLower(fmtSkip.ReplaceAllString(code, "")), "ymdhs")
+}
+
+// xlDate wandelt eine Excel-Tageszahl in "2006-01-02", "2006-01-02 15:04[:05]" bzw. "15:04:05" (nur Uhrzeit); unplausible Werte bleiben.
+func xlDate(val string) string {
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil || f < 0 || f >= 2958466 {
+		return val
+	}
+	days := math.Floor(f)
+	secs := int(math.Round((f - days) * 86400))
+	base := time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC) // ab 1.3.1900; davor fehlt der Schalttag, den Excel faelschlich kennt
+	if days < 60 {
+		base = base.AddDate(0, 0, 1)
+	}
+	t := base.AddDate(0, 0, int(days)).Add(time.Duration(secs) * time.Second)
+	switch {
+	case days == 0:
+		return t.Format("15:04:05")
+	case secs == 0:
+		return t.Format("2006-01-02")
+	case secs%60 == 0:
+		return t.Format("2006-01-02 15:04")
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
+
+// FromXLSX liest das erste Blatt: Werte, Text und Formeln (als "=..."), Daten als Text "JJJJ-MM-TT", Wahrheitswerte als TRUE/FALSE.
+// Keine Formate.
 func FromXLSX(b []byte) (map[string]string, error) {
 	zr, err := openZip(b)
 	if err != nil {
@@ -247,6 +336,7 @@ func FromXLSX(b []byte) (map[string]string, error) {
 	if s, err := readPart(zr, "xl/sharedStrings.xml"); err == nil {
 		sst = sharedStrings(s)
 	}
+	dates := dateStyles(zr)
 	sheet := ""
 	for _, f := range zr.File {
 		if strings.HasPrefix(f.Name, "xl/worksheets/sheet") && strings.HasSuffix(f.Name, ".xml") && (sheet == "" || f.Name < sheet) {
@@ -263,6 +353,7 @@ func FromXLSX(b []byte) (map[string]string, error) {
 	dec := xml.NewDecoder(bytes.NewReader(raw))
 	out := map[string]string{}
 	var ref, typ, val, formula string
+	sty := -1
 	var text strings.Builder
 	inC, inV, inF, inT, inIS := false, false, false, false, false
 	for {
@@ -278,10 +369,12 @@ func FromXLSX(b []byte) (map[string]string, error) {
 			switch t.Name.Local {
 			case "c":
 				inC = true
-				ref, typ, val, formula = "", "", "", ""
+				ref, typ, val, formula, sty = "", "", "", "", -1
 				text.Reset()
 				for _, a := range t.Attr {
 					switch a.Name.Local {
+					case "s":
+						sty, _ = strconv.Atoi(a.Value)
 					case "r":
 						ref = a.Value
 					case "t":
@@ -322,6 +415,16 @@ func FromXLSX(b []byte) (map[string]string, error) {
 					}
 				case "inlineStr":
 					v = text.String()
+				case "", "n":
+					if sty >= 0 && sty < len(dates) && dates[sty] && val != "" {
+						v = xlDate(val)
+					}
+				case "b":
+					if val == "1" {
+						v = "TRUE"
+					} else if val == "0" {
+						v = "FALSE"
+					}
 				}
 				if formula != "" {
 					v = "=" + formula

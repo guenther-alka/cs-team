@@ -55,6 +55,7 @@ type Msg struct {
 	Re  map[string][]string `json:"re,omitempty"`
 	Del bool                `json:"del,omitempty"`
 	Vid *Vid                `json:"vid,omitempty"` // Einladung zu einem Videochat (siehe video.go)
+	Poll *Poll              `json:"poll,omitempty"` // Umfrage (siehe poll.go)
 }
 
 type channel struct {
@@ -219,6 +220,31 @@ func (s *Svc) limited(user string) bool {
 // broadcast an alle verbundenen Mitglieder der Gruppe.
 func (s *Svc) broadcast(g string, v any) {
 	b, _ := json.Marshal(v)
+	s.broadcastF(g, func(string) []byte { return b })
+}
+
+// wireMsg: Nachricht, wie user sie sehen darf (anonyme Umfragen zugeschnitten, siehe Poll.wire).
+func wireMsg(m Msg, user string, now time.Time) Msg {
+	if m.Poll != nil && m.Poll.Anon {
+		m.Poll = m.Poll.wire(user, now)
+	}
+	return m
+}
+
+// broadcastMsg sendet eine neue/geaenderte Nachricht (typ msg/upd); bei anonymen Umfragen wird je Empfaenger zugeschnitten.
+func (s *Svc) broadcastMsg(g, typ, cn string, m Msg) {
+	if m.Poll == nil || !m.Poll.Anon {
+		s.broadcast(g, map[string]any{"t": typ, "g": g, "c": cn, "m": m})
+		return
+	}
+	s.broadcastF(g, func(user string) []byte {
+		b, _ := json.Marshal(map[string]any{"t": typ, "g": g, "c": cn, "m": wireMsg(m, user, time.Now())})
+		return b
+	})
+}
+
+// broadcastF an alle verbundenen Mitglieder der Gruppe; enc liefert die Meldung je Benutzer.
+func (s *Svc) broadcastF(g string, enc func(user string) []byte) {
 	s.mu.Lock()
 	var cl []*client
 	for c := range s.conns {
@@ -229,6 +255,7 @@ func (s *Svc) broadcast(g string, v any) {
 		if r, _ := access(c.user, g); !r {
 			continue
 		}
+		b := enc(c.user)
 		select {
 		case c.out <- b:
 		case <-c.done:
@@ -247,10 +274,10 @@ func clean(t string) string { return strings.TrimSpace(strings.ReplaceAll(t, "\r
 
 // Post legt eine Nachricht an (auch für "Nachricht senden -> Gruppen-Chat": Kanal allgemein).
 func (s *Svc) Post(ctx context.Context, user, g, cn, text string, att *Att) (*Msg, error) {
-	return s.post(ctx, user, g, cn, text, att, nil)
+	return s.post(ctx, user, g, cn, text, att, nil, nil)
 }
 
-func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid *Vid) (*Msg, error) {
+func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid *Vid, poll *Poll) (*Msg, error) {
 	text = clean(text)
 	if _, w := access(user, g); !w {
 		if r, _ := access(user, g); r {
@@ -274,7 +301,7 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 		id = c.last + 1
 	}
 	c.last = id
-	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid}
+	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid, Poll: poll}
 	c.msgs = append(c.msgs, m)
 	if err := s.save(ctx, c); err != nil {
 		c.msgs = c.msgs[:len(c.msgs)-1]
@@ -283,7 +310,7 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 		return nil, err
 	}
 	c.mu.Unlock()
-	s.broadcast(g, map[string]any{"t": "msg", "g": g, "c": cn, "m": m})
+	s.broadcastMsg(g, "msg", cn, m)
 	return &m, nil
 }
 
@@ -333,7 +360,7 @@ func (s *Svc) change(ctx context.Context, user, g, cn string, id int64, needW bo
 		return err
 	}
 	c.mu.Unlock()
-	s.broadcast(g, map[string]any{"t": "upd", "g": g, "c": cn, "m": m})
+	s.broadcastMsg(g, "upd", cn, m)
 	return nil
 }
 
@@ -347,6 +374,8 @@ type inMsg struct {
 	Name string          `json:"name"`
 	To   string          `json:"to"`   // Videochat: Teilnehmerkennung
 	Data json.RawMessage `json:"data"` // Videochat: Signal (SDP / ICE)
+	Poll *pollIn         `json:"poll"` // neue Umfrage
+	Sel  []int           `json:"sel"`  // Stimme: gewaehlte Optionen
 }
 
 func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
@@ -360,7 +389,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 			return errors.New("bad text")
 		}
 		return s.change(ctx, user, m.G, m.C, m.ID, true, func(x *Msg) bool {
-			if x.By != user || x.Vid != nil {
+			if x.By != user || x.Vid != nil || x.Poll != nil {
 				return false
 			}
 			x.T, x.Ed = text, true
@@ -373,7 +402,7 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 				return false
 			}
 			att = x.Att
-			x.T, x.Att, x.Re, x.Vid, x.Del = "", nil, nil, nil, true
+			x.T, x.Att, x.Re, x.Vid, x.Poll, x.Del = "", nil, nil, nil, nil, true
 			return true
 		})
 		if err == nil && att != nil {
@@ -404,6 +433,40 @@ func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 			}
 			x.Re[m.E] = append(l, user)
 			return true
+		})
+	case "poll": // neue Umfrage: Recht wie eine Nachricht (Schreibrecht im Kanal), Tempolimit der Nachrichten
+		p, err := newPoll(m.Poll, time.Now())
+		if err != nil {
+			return err
+		}
+		_, err = s.post(ctx, user, m.G, m.C, p.Q, nil, nil, p)
+		return err
+	case "vote": // abstimmen: jedes Mitglied mit Leserecht im Chat der Gruppe
+		if r, _ := access(user, m.G); !r {
+			return ErrNoChat
+		}
+		if s.limited(user) {
+			return ErrRate
+		}
+		var verr error
+		err := s.change(ctx, user, m.G, m.C, m.ID, false, func(x *Msg) bool {
+			if x.Poll == nil {
+				return false
+			}
+			np := x.Poll.clone()
+			if verr = np.vote(user, append([]int(nil), m.Sel...), time.Now()); verr != nil {
+				return false
+			}
+			x.Poll = np
+			return true
+		})
+		if verr != nil {
+			return verr
+		}
+		return err
+	case "pollclose":
+		return s.change(ctx, user, m.G, m.C, m.ID, false, func(x *Msg) bool {
+			return pollClose(x, user, auth.IsGroupAdmin(user, m.G))
 		})
 	case "mkchan":
 		return s.MakeChannel(ctx, user, m.G, m.Name)
@@ -539,6 +602,10 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		}
 		page := append([]Msg{}, c.msgs[start:end]...)
 		c.mu.Unlock()
+		now, me := time.Now(), auth.User(r.Context())
+		for i := range page { // anonyme Umfragen: weder Namen noch Zaehler einer offenen Umfrage (Poll.wire)
+			page[i] = wireMsg(page[i], me, now)
+		}
 		json.NewEncoder(w).Encode(map[string]any{"msgs": page, "more": start > 0})
 	}))
 	mux.Handle("POST /api/chat/{g}/{c}/upload", h(func(w http.ResponseWriter, r *http.Request) {

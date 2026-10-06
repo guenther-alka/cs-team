@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"path/filepath"
 	"sort"
@@ -52,6 +53,7 @@ type Meta struct {
 	Read  []string   `json:"read,omitempty"`
 	Write []string   `json:"write,omitempty"`
 	Token string     `json:"token,omitempty"`
+	Exp   int64      `json:"exp,omitempty"` // Ablauf des öffentlichen Links (unix s, 0 = unbegrenzt; 0.60)
 	Trash *TrashInfo `json:"trash,omitempty"` // gesetzt: Eintrag im Papierkorb (siehe trash.go)
 }
 
@@ -90,6 +92,8 @@ type Svc struct {
 	Quota func() int64
 	// TrashDays: Aufbewahrung gelöschter Dateien in Tagen; nil oder 0 = kein Papierkorb (sofort löschen)
 	TrashDays func() int
+	// PubMax: längste Gültigkeit öffentlicher Links in Tagen (globale Einstellung); nil oder 0 = unbegrenzt erlaubt (0.60)
+	PubMax func() int
 
 	locks  lockTable // WebDAV-Sperren (davlock.go)
 	cmu    sync.Mutex
@@ -583,6 +587,9 @@ func (s *Svc) MoveTo(ctx context.Context, actor, owner, from, to string, dir, mo
 			return err
 		}
 		if move {
+			if m.Token != "" {
+				s.moveLink(ctx, owner, m.Name, dst)
+			}
 			if err := s.removeFrom(ctx, actor, owner, m.Name); err != nil {
 				return err
 			}
@@ -591,8 +598,28 @@ func (s *Svc) MoveTo(ctx context.Context, actor, owner, from, to string, dir, mo
 	return nil
 }
 
+// moveLink: der öffentliche Link einer umbenannten/verschobenen Datei bleibt gültig (Token zeigt auf den neuen Namen).
+func (s *Svc) moveLink(ctx context.Context, owner, from, to string) {
+	o, e1 := s.Meta(ctx, owner, from)
+	n, e2 := s.Meta(ctx, owner, to)
+	if e1 != nil || e2 != nil || o.Token == "" {
+		return
+	}
+	if n.Token != "" {
+		s.St.Delete(ctx, tokKey(n.Token)) // überschriebenes Ziel hatte einen eigenen Link
+	}
+	if _, err := s.St.Put(ctx, tokKey(o.Token), []byte(owner+"/"+to), ""); err != nil {
+		return
+	}
+	n.Token, n.Exp, o.Token, o.Exp = o.Token, o.Exp, "", 0
+	s.saveMeta(ctx, n)
+	s.saveMeta(ctx, o)
+}
+
 // Share: nur der Owner. public=true erzeugt einen Token (falls keiner da), false widerruft ihn.
-func (s *Svc) Share(ctx context.Context, actor, owner, name string, read, write []string, public bool) (*Meta, error) {
+// days (0.60): Gültigkeit des öffentlichen Links in Tagen (0 = unbegrenzt, begrenzt durch PubMax); nil lässt einen vorhandenen
+// Link unverändert, ein neuer Link ohne Angabe bekommt die Standardgültigkeit unbegrenzt bzw. PubMax.
+func (s *Svc) Share(ctx context.Context, actor, owner, name string, read, write []string, public bool, days *int) (*Meta, error) {
 	m, err := s.Meta(ctx, owner, name)
 	if err != nil {
 		return nil, err
@@ -612,11 +639,58 @@ func (s *Svc) Share(ctx context.Context, actor, owner, name string, read, write 
 		if _, err := s.St.Put(ctx, tokKey(m.Token), []byte(owner+"/"+name), ""); err != nil {
 			return nil, err
 		}
+		m.Exp = s.expiry(days)
+		logLink("created", actor, m)
+	case public && days != nil: // Gültigkeit ändern / verlängern: der Link bleibt, die Frist beginnt neu
+		m.Exp = s.expiry(days)
+		logLink("changed", actor, m)
 	case !public && m.Token != "":
 		s.St.Delete(ctx, tokKey(m.Token))
-		m.Token = ""
+		m.Token, m.Exp = "", 0
+		logLink("revoked", actor, m)
 	}
 	return m, s.saveMeta(ctx, m)
+}
+
+// logLink: Protokollzeile für öffentliche Links (nie der Token selbst).
+func logLink(what, actor string, m *Meta) {
+	exp := "unlimited"
+	if m.Exp > 0 {
+		exp = time.Unix(m.Exp, 0).UTC().Format("2006-01-02")
+	}
+	if what == "revoked" {
+		exp = "-"
+	}
+	log.Printf("audit: public link %s file=%q/%q by=%q expires=%s", what, m.Owner, m.Name, actor, exp)
+}
+
+// expiry: Ablaufzeitpunkt (unix s) für eine Gültigkeit in Tagen; 0 = unbegrenzt. PubMax begrenzt: ist eine Obergrenze gesetzt,
+// gibt es kein "unbegrenzt" und nichts darüber.
+func (s *Svc) expiry(days *int) int64 {
+	d := 0
+	if days != nil {
+		d = *days
+	}
+	if d < 0 {
+		d = 0
+	}
+	if d > 3650 {
+		d = 3650
+	}
+	if mx := s.pubMax(); mx > 0 && (d == 0 || d > mx) {
+		d = mx
+	}
+	if d == 0 {
+		return 0
+	}
+	return time.Now().Add(time.Duration(d) * 24 * time.Hour).Unix()
+}
+
+func (s *Svc) pubMax() int {
+	if s.PubMax == nil {
+		return 0
+	}
+	return s.PubMax()
 }
 
 // canManage: Löschen/Freigeben: Besitzer; im Gruppenordner jeder mit Schreibrecht.
@@ -656,6 +730,9 @@ func (s *Svc) Public(ctx context.Context, tok string) (*Meta, io.ReadCloser, err
 	}
 	m, err := s.Meta(ctx, owner, name)
 	if err != nil || m.Token != tok {
+		return nil, nil, ErrNotFound
+	}
+	if m.Exp > 0 && time.Now().Unix() >= m.Exp { // abgelaufen: wie ein unbekannter Token (der Ablauf wird nicht verraten)
 		return nil, nil, ErrNotFound
 	}
 	rc, err := s.St.GetStream(ctx, dataKey(owner, name))

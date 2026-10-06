@@ -4,12 +4,18 @@ Kleine und in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): K
 Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
 
 Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
-ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Maussteuerung (Klick auf Tag = neuer Termin, Umschalt+Klick = Mehrtagesbereich, Ziehen, Strg+X/C/V), Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link, Gruppenordnern
-und Kontingent; Aufgaben; Chat; Videochat (extern oder eingebaut); Nachricht per E-Mail/Webhook/Chat; KI-Assistent; dreizehn Sprachen.
+ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Maussteuerung (Klick auf Tag = neuer Termin, Umschalt+Klick = Mehrtagesbereich, Ziehen, Strg+X/C/V), Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link (mit Ablauf), Gruppenordnern,
+Kontingent und Versionen aus ZFS-Snapshots; Aufgaben; Chat mit Umfragen; Videochat (extern oder eingebaut, mit Bildschirm teilen); Zwei-Faktor-Anmeldung (TOTP) mit App-Passwörtern; Nachricht per E-Mail/Webhook/Chat; KI-Assistent; dreizehn Sprachen.
 Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
 Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
 
 Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
+
+Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 für Schule und Kleinbetrieb - bewusst ohne eigenen Mailserver,
+Videokonferenz-Infrastruktur, Telefonie und volle docx/xlsx-Kompatibilität - bei deutlich weniger Komplexität als Teams, O365 oder Nextcloud
+(Ziel unter 10 %, qualitative Einschätzung): eine Datei, Copy and run, dateibasiert, keine Datenbank, im eigenen Haus und DSGVO-freundlich, leicht erweiter- und übersetzbar.
+KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch Kapitel 15, Version 0.60, Schätzungen): etwa 60 bis 70 % der täglich genutzten Funktionen sind abgedeckt;
+die größten Lücken sind globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung und Push, Gäste/SSO und Kommentare in Dokumenten.
 
 ## Start
 

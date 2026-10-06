@@ -254,7 +254,7 @@ func (s *Svc) videoRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			if o.Mode == "adhoc" {
 				v.Exp = now.Add(AdhocTTL).UnixMilli()
 			}
-			m, err := s.post(r.Context(), me, g, cn, "📹 Videochat: "+o.Name, nil, v)
+			m, err := s.post(r.Context(), me, g, cn, "📹 Videochat: "+o.Name, nil, v, nil)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return

@@ -50,6 +50,8 @@ type stored struct {
 	RTC       RTCCfg     `json:"rtc"`                 // eingebauter Videochat (WebRTC)
 	QuotaMB   *int64     `json:"quotaMB,omitempty"`   // Kontingent je Benutzer / Gruppenordner (MB, 0 = unbegrenzt)
 	TrashDays *int       `json:"trashDays,omitempty"` // Papierkorb: Tage (0 = aus)
+	PubDays   *int       `json:"pubDays,omitempty"`   // längste Gültigkeit öffentlicher Datei-Links: Tage (0 = unbegrenzt erlaubt; 0.60)
+	Enf2FA    *bool      `json:"enf2fa,omitempty"`    // Zwei-Faktor-Anmeldung für Admin-Konten verlangen (0.60)
 	ClosedDays *int      `json:"closedDays,omitempty"` // Aufbewahrung abgeschlossener Aufgaben: Tage (0 = unbegrenzt)
 	Privacy   string     `json:"privacy,omitempty"`   // zusätzlicher Datenschutzhinweis (an die Hinweise zu KI und Videochat angehängt)
 
@@ -130,6 +132,44 @@ func (s *Settings) setTrashDays(d int) error {
 	defer s.mu.Unlock()
 	n := s.cur
 	n.TrashDays = &d
+	b, _ := json.Marshal(n)
+	if _, err := s.St.Put(context.Background(), settingsKey, b, ""); err != nil {
+		return err
+	}
+	s.cur = n
+	return nil
+}
+
+// PubMaxDays (0.60): längste Gültigkeit öffentlicher Datei-Links in Tagen (0 = unbegrenzt erlaubt, Vorgabe).
+func (s *Settings) PubMaxDays() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.cur.PubDays != nil {
+		return *s.cur.PubDays
+	}
+	return 0
+}
+
+// Enforce2FA (0.60): müssen globale Admins mit lokalem Konto die Zwei-Faktor-Anmeldung einrichten (Vorgabe: nein)?
+func (s *Settings) Enforce2FA() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cur.Enf2FA != nil && *s.cur.Enf2FA
+}
+
+func (s *Settings) setPub2FA(days *int, enforce *bool) error {
+	if days != nil && (*days < 0 || *days > 3650) {
+		return errors.New("public links: 0..3650 days")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.cur
+	if days != nil {
+		n.PubDays = days
+	}
+	if enforce != nil {
+		n.Enf2FA = enforce
+	}
 	b, _ := json.Marshal(n)
 	if _, err := s.St.Put(context.Background(), settingsKey, b, ""); err != nil {
 		return err
@@ -452,6 +492,8 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			"quotaMB":   s.QuotaMB(),
 			"trashDays": s.TrashDays(),
 			"closedDays": s.ClosedDays(),
+			"pubMaxDays": s.PubMaxDays(),
+			"enforce2fa": s.Enforce2FA(),
 			"privacy":   own.Privacy,
 			"rtc":       map[string]any{"on": rtc.On, "stun": rtc.Stun, "turn": rtc.Turn, "secretSet": rtc.Secret != "", "defStun": DefaultSTUN},
 			"identity": map[string]any{
@@ -481,6 +523,19 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			return
 		}
 		if err := s.setTrashDays(in.Days); err != nil {
+			http.Error(w, err.Error(), 400)
+		}
+	}))
+	mux.Handle("POST /api/settings/pub2fa", admin(func(w http.ResponseWriter, r *http.Request) { // 0.60: Obergrenze öffentlicher Links, 2FA-Pflicht für Admins
+		var in struct {
+			PubDays *int
+			Enforce *bool
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
+		if err := s.setPub2FA(in.PubDays, in.Enforce); err != nil {
 			http.Error(w, err.Error(), 400)
 		}
 	}))

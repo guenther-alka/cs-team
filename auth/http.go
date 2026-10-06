@@ -65,7 +65,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
 			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(),
-			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote()})
+			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote(),
+			"twofa": u.TOTP != "", "need2fa": need2FA(u, isLocalKey(User(r.Context()), u))})
 	})))
 
 	// eigene Oberflächensprache speichern ("" = automatisch)
@@ -138,6 +139,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			Chat     string   `json:"chat,omitempty"`
 			ChatSet  bool     `json:"chatSet,omitempty"` // Webhook-Adresse vorhanden (die Adresse selbst nur für den Besitzer und globale Admins, S-09)
 			Sys      bool     `json:"sys,omitempty"`     // Sysadmin-Konto (geschützt)
+			TOTP     bool     `json:"totp,omitempty"`    // Zwei-Faktor-Anmeldung eingerichtet (nur Admin und Besitzer, 0.60)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -145,9 +147,9 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != ""})
 			case n == me:
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != ""})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != ""})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
 				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != ""})
 			}
@@ -240,6 +242,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	a.exportRoutes(mux)
 	a.dataExportRoutes(mux, adm)
 	a.ackRoutes(mux)
+	a.twofaRoutes(mux, adm)
 	mux.Handle("POST /api/users/{name}/flags", adm(func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Admin, Disabled *bool }
 		if !body(w, r, &in) {
