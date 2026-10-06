@@ -1,5 +1,23 @@
 cs-team changelog (newest first)
 
+2026-10-06  0.61.0 Universeller Export/Import fuer Benutzer und Gruppen (JSON, Handbuch Kapitel 15/16 neu, Nummerierung ab Kapitel 17 verschoben):
+                   GET /api/users/exportjson (global admin: alles; Gruppen-Admin: nur eigene Gruppen) liefert alle Felder jedes Benutzers (Sprache, Kontakt,
+                   DSGVO-Bestaetigungen, Gruppen, Status) und, nur fuer den globalen Admin, alle Gruppen mit allen Rechten/Einstellungen, als eine JSON-Datei.
+                   Zwei eigene Schalter fuer sensible Daten, beide Standard aus: &pw=1 nimmt den Passwort-Hash mit (nur wo cs-team ihn selbst haelt), &secrets=1
+                   nimmt zusaetzlich TOTP-Schluessel, Wiederherstellungscodes und App-Passwoerter mit. &users=a,b / &groups=g1,g2 exportieren selektiv.
+                   POST /api/users/importjson (nur globaler Admin) mit &create=1 (unbekannte Gruppen anlegen), &update=1 (vorhandene ueberschreiben) und
+                   neu &genpw=1: fehlt in der Quelle ein Passwort-Hash (typisch bei einem Export von einem Windows-Host oder aus AD/LDAP, die beide keinen Hash
+                   liefern), erzeugt der Import ein Zufalls-Startpasswort statt den Benutzer abzulehnen; die vergebenen Passwoerter kommen nur in der HTTP-Antwort
+                   zurueck (Feld genpw je Benutzername), nie in users.json im Klartext und nie ins Protokoll. Der Schutz des sysadmin-Kontos (Passwort nur durch
+                   sysadmin selbst aenderbar) gilt unveraendert. Neue Dateien auth/bulk.go, auth/bulkhttp.go, Tests auth/bulk_test.go (Rundreise mit Passwort-Hash,
+                   genpw, Admin-Pruefung). Das bestehende einfache CSV-Export/Import (ohne Passwort, nur Name/Gruppen/Kontakt) bleibt unveraendert bestehen.
+                   Handbuch de/en: neues Kapitel 15 "Datensicherung, Wiederherstellung und Migration" (vollstaendige Datenordner-Sicherung, CSV-Export/Import,
+                   der neue JSON-Export/Import, Migrationstabelle Linux/macOS/FreeBSD/illumos/Windows/AD-LDAP) und neues Kapitel 16 "Guenstige KISS-Loesungen"
+                   (Windows 11 Pro vs. Windows Server Essentials vs. Windows Server Standard+CALs, OmniOS/illumos mit ACL/SID/SMB-Gruppen und ZFS-Snapshots als
+                   Vorgaengerversionen, FreeBSD/Linux/macOS ohne SID und ohne verschachtelte SMB-Gruppen, S3-Cloud-Option, Hinweise fuer Schulnetze, eigener
+                   KI-Anbieter im Haus mit Apple Mac mini/Studio 48-196 GB RAM); das bisherige Kapitel "15. Ziel von cs-team" ist jetzt Kapitel 17.
+
+
 2026-10-06  0.60.0 Audit bestanden (Handbuch Kapitel 14, Nachtrag 0.60; keine HOCH-Punkte offen). Handbuch de/en aktualisiert (neue Kapitel 13.5/13.6 und 15 Ziel von cs-team, 2FA, Umfragen, Versionen, Office-Formate), Teil 1: A) oeffentliche Datei-Links mit Ablauf, B) Zwei-Faktor-Anmeldung (TOTP) mit App-Passwoertern:
                    A. Oeffentliche Links (/pub/{token}) laufen jetzt ab. Beim Erzeugen waehlt der Benutzer "Gueltig fuer: 1 Tag / 7 Tage / 30 Tage / unbegrenzt"
                    (Vorgabe 7 Tage; POST /api/filesshare/{owner}/{name} mit neuem Feld days, 0 = unbegrenzt, fehlt = unveraendert). Der Ablauf (unix s) steht in den

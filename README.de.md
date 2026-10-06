@@ -14,7 +14,7 @@ Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/web
 Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 für Schule und Kleinbetrieb - bewusst ohne eigenen Mailserver,
 Videokonferenz-Infrastruktur, Telefonie und volle docx/xlsx-Kompatibilität - bei deutlich weniger Komplexität als Teams, O365 oder Nextcloud
 (Ziel unter 10 %, qualitative Einschätzung): eine Datei, Copy and run, dateibasiert, keine Datenbank, im eigenen Haus und DSGVO-freundlich, leicht erweiter- und übersetzbar.
-KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch Kapitel 15, Version 0.60, Schätzungen): etwa 60 bis 70 % der täglich genutzten Funktionen sind abgedeckt;
+KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch Kapitel 17, Version 0.61, Schätzungen): etwa 60 bis 70 % der täglich genutzten Funktionen sind abgedeckt;
 die größten Lücken sind globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung und Push, Gäste/SSO und Kommentare in Dokumenten.
 
 ## Start
@@ -120,6 +120,7 @@ Dokument gehört dem Benutzer).
   = `""` (keiner bzw. entfernen - nur solange er leer ist), `off`, `ro`, `rw`. `GET /api/groups` nennt je Gruppe `cal`,
   `POST /api/groups/<gruppe>` setzt ihn (`GET/PUT /api/cal/<id>`, Kalender-Menue *Bearbeiten*, koennen dasselbe).
 - CSV: `POST /api/users/import` (`name;passwort;gruppe1,gruppe2`), `GET /api/users/export`, `GET /api/groups/export`.
+- JSON (ab 0.61, Sicherung und Migration): `GET /api/users/exportjson` (globaler Admin: alle Benutzer und Gruppen mit allen Feldern; Gruppen-Admin: nur eigene Gruppen; selektiv mit `&users=a,b` / `&groups=g1,g2`; `&pw=1` nimmt den Passwort-Hash mit, `&secrets=1` zusaetzlich TOTP-Schluessel, Wiederherstellungscodes und App-Passwoerter - beides Standard aus), `POST /api/users/importjson` (nur globaler Admin; `&create=1` legt unbekannte Gruppen an, `&update=1` ueberschreibt vorhandene, `&genpw=1` erzeugt Startpasswoerter, wenn die Quelle keinen Hash liefert, z.B. Windows oder AD/LDAP; die Passwoerter stehen nur in der HTTP-Antwort). Siehe Handbuch Kapitel 15.
 - Speicher: `S3_*` (RustFS/S3-Bucket) oder `CS_DIR=/pfad` (Ordner/ZFS-Dataset, Daten in `/pfad/.csteam`, ein Prozess je Ordner).
   Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
 

@@ -240,6 +240,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	a.purgeRoutes(mux, adm)
 	a.contactRoutes(mux, usr)
 	a.exportRoutes(mux)
+	a.bulkRoutes(mux)
 	a.dataExportRoutes(mux, adm)
 	a.ackRoutes(mux)
 	a.twofaRoutes(mux, adm)
