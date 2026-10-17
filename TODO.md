@@ -176,3 +176,18 @@ KONZEPTE ZU DEN GROSSEN THEMEN (Review 2026-10-06; nur Konzept, nichts umgesetzt
  D. WEITERE PUNKTE AUS DEM REVIEW (klein, noch offen): HTTP ohne TLS nur mit Warnung (Option: nicht-loopback ohne TLS/Proxy nur mit CS_ALLOW_HTTP=1);
     Audit-Log fuer Rechteaenderungen/Passwort-Resets (nur Chat hat eines); Touch-Ersatz fuer Doppelklick im Kalender; Handbuch/README fuer
     CS_IDENTITY_* und CS_MAX_FAILS_IP; bcrypt-Kosten 12 erst zusammen mit Rehash-beim-Login und angeglichener Dummy-Pruefung.
+
+ STAND 2026-10-17 (Audit AUDIT-0.62.0-test16.md): A-1 (Go 1.27.2, x/net 0.61.0, govulncheck 0), A-3 (Cache-Control no-store), A-5 (news JSON) erledigt in test17/test18;
+    A-4 und A-6 nach Codepruefung geschlossen. OFFEN: A-2 = Punkt C oben.
+ C. NAECHSTER SCHRITT (morgen): Variante 2 umsetzen. Bestandsaufnahme: es gibt KEINE Inline-Event-Attribute (0 on*=-Attribute im Tag-Kontext, 0 javascript:-URLs);
+    die rund 220 "onclick=" sind Property-Zuweisungen (el.onclick = ...) und mit CSP erlaubt. Das einzige <script> (rund 357 kB) kann nach web/app.js:
+    1. node-Skript: <script>...</script> aus web/index.html nach web/app.js, im HTML <script src="app.js"></script> (am gleichen Platz, ohne defer).
+    2. main.go secHeaders: script-src 'self' (ohne unsafe-inline). style-src bleibt 'self' 'unsafe-inline' (178 style=-Attribute, spaeter eigener Schritt).
+    3. auth/auth.go Zeile ~654 und ~659: GET /app.js (und /index.html) auch bei Passwortwechsel-/2FA-Pflicht erlauben, sonst laedt die Seite dort nicht.
+    4. webui_test.go: TestWebUISyntax prueft web/app.js mit node --check und verlangt, dass index.html keinen Inline-Skriptblock mehr hat;
+       TestWebUITranslationsAndAuthFields liest index.html + app.js zusammen (t()-Schluessel, idPanel, sid*-Felder).
+    5. Eigene Hilfsskripte (addlang*.js, Sprachkatalog) lesen index.html: auf app.js umstellen. Tools in C:\opt\tmp-lang pruefen.
+    6. Browser-Test (Testinstanz CS_MEM=1 Port 9105 + C:\opt\tmp\cs-team\authproxy.js fuer den Auth-Header): Seite laedt, Konsole ohne CSP-Fehler,
+       Chat/Text/Calc/Kalender oeffnen, Pflicht-Passwortwechsel-Seite, CSP-Header pruefen. Danach test19, push, Sync, ausrollen.
+ E. WEITERE OFFENE PUNKTE: Browser-Test Gast-Login (Einschraenkungen), JSON-Antworten der API ohne application/json (text/plain, harmlos wegen nosniff),
+    Binaries FreeBSD/illumos/Linux in csweb-gui\_my\tools\cs-team sind vom 06.10. (neu bauen), Release 0.62.0 mit Tag, Handbuch de/en + PDFs (Linux), OIDC/SSO.
