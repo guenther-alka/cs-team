@@ -88,6 +88,8 @@ type Account struct {
 	AppPw     []AppPass `json:"appPw,omitempty"`     // App-Passwörter (nur Dateien und Kalender, ohne Code)
 	Link      *OIDCLink `json:"oidc,omitempty"`    // feste Verknüpfung mit der Kennung beim OIDC-Anbieter (Aussteller + sub); dann gibt es kein Passwort (oidc.go)
 	Seen      string    `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, hoechstens stuendlich nachgetragen; seen.go)
+	Reset     string    `json:"reset,omitempty"`    // Passwort vergessen: Abdruck des Links (pwreset.go)
+	ResetExp  string    `json:"resetExp,omitempty"` // ... gueltig bis (RFC 3339)
 	InitExp   string    `json:"initExp,omitempty"` // Initialpasswort (Must + Passwort): gültig bis (RFC 3339), leer = unbegrenzt (initpw.go)
 	Member    []string `json:"-"`                   // berechnete Mitgliedschaften aus Group.Dir/Group.Sub (nur im Speicher)
 }
@@ -418,6 +420,7 @@ func (a *Auth) setPass(ctx context.Context, name, pass string, must bool) error 
 		u.Hash, u.Must = h, must
 		u.Link = nil     // Passwort oder OIDC, nie beides (oidc.go)
 		u.InitExp = "" // ein eigenes Passwort hat keine Frist (initpw.go setzt sie danach neu)
+		u.Reset, u.ResetExp = "", "" // offene Link-Mails (Passwort vergessen) verfallen
 		m[name] = u
 		return nil
 	})
@@ -619,6 +622,9 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			return
 		}
 		name, pass, ok := r.BasicAuth()
+		if ok && LoginForm && browserReq(r) && r.Context().Value(ctxLoginBasic{}) == nil {
+			ok = false // Formular-Anmeldung: ein Browser meldet sich nur mit dem Cookie an; vom frueheren Dialog gemerkte Basic-Daten gelten nicht (sonst bleibt Abmelden wirkungslos)
+		}
 		if !ok {
 			if wk, wu, good := a.webUser(r); good { // Anmeldeformular: Sitzungs-Cookie (session.go)
 				if !sameOriginStrict(r) {

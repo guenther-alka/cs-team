@@ -91,9 +91,11 @@ type oidcEnv struct {
 func newOIDCEnv(t *testing.T) *oidcEnv {
 	ctx := context.Background()
 	oldF, oldC, oldH, oldB, oldP := ForceChange, LoginForm, oidcAllowHTTP, oidcCfg.base, oidcCfg.provs
+	oldG := oidcCfg.gui
 	ForceChange, LoginForm, oidcAllowHTTP = false, true, true
 	t.Cleanup(func() {
 		ForceChange, LoginForm, oidcAllowHTTP, oidcCfg.base, oidcCfg.provs = oldF, oldC, oldH, oldB, oldP
+		oidcCfg.gui = oldG
 	})
 	e := &oidcEnv{a: New(store.NewMem()), idp: newIdP(t)}
 	ConfigureOIDC("http://localhost:9999", []*OIDCProvider{
@@ -307,7 +309,7 @@ func TestOIDCLinkAndLogin(t *testing.T) {
 	if w = webReq(e.mux, "GET", "/oidc/link/other", "", tok, nil); w.Code != 403 {
 		t.Fatalf("zweites Verknuepfen: %d", w.Code)
 	}
-	// Admin nie per OIDC
+	// der Sysadmin nie per OIDC (globale Admins schon)
 	rtok := e.login(t, "root")
 	if w = webReq(e.mux, "GET", "/oidc/link/fake", "", rtok, nil); w.Code != 403 {
 		t.Fatalf("Admin verknuepft: %d", w.Code)
@@ -476,16 +478,20 @@ func TestOIDCReconfigureAndSessions(t *testing.T) {
 	}
 	w, _ = e.run(t, "sub-carl", runOpt{})
 	e.refused(t, w, "gesperrt")
-	// wird ein OIDC-Konto spaeter zum Admin, enden seine OIDC-Sitzungen und die Anmeldung ist verwehrt
+	// wird ein OIDC-Konto spaeter zum globalen Admin, bleibt Sitzung und Anmeldung bestehen (nur der Sysadmin ist ausgenommen)
 	dis = false
 	e.a.SetFlags(ctx, "carl", nil, &dis)
 	w, _ = e.run(t, "sub-carl", runOpt{})
 	otok = e.okLogin(t, w)
 	adm := true
 	e.a.SetFlags(ctx, "carl", &adm, nil)
-	if w := webReq(e.mux, "GET", "/api/me", "", otok, nil); w.Code != 401 {
+	if w := webReq(e.mux, "GET", "/api/me", "", otok, nil); w.Code != 200 {
 		t.Fatalf("OIDC-Sitzung eines neuen Admins: %d", w.Code)
 	}
 	w, _ = e.run(t, "sub-carl", runOpt{})
-	e.refused(t, w, "neuer Admin")
+	otok = e.okLogin(t, w)
+	// und ein verknuepfter Admin hat keine 2FA-Pflicht (er hat kein lokales Zwei-Faktor)
+	if w := webReq(e.mux, "GET", "/api/users", "", otok, nil); w.Code != 200 {
+		t.Fatalf("Admin per OIDC: %d", w.Code)
+	}
 }

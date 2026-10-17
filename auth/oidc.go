@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -32,7 +33,7 @@ import (
 
 var (
 	ErrNoOIDCProv = errors.New("unknown OIDC provider")
-	ErrOIDCAdmin  = errors.New("global admins and the sysadmin sign in locally (password + two-factor), not with OIDC")
+	ErrOIDCAdmin  = errors.New("the sysadmin and directory accounts sign in locally, not with OIDC")
 )
 
 // OIDCLink: feste Verknuepfung eines Kontos mit der Kennung beim Anbieter (Aussteller + sub).
@@ -59,7 +60,8 @@ type oidcDisc struct{ Issuer, AuthURL, TokenURL, JWKSURL string }
 
 var oidcCfg struct {
 	base  string
-	provs []*OIDCProvider
+	provs []*OIDCProvider // aus den Startparametern
+	gui   []*OIDCProvider // aus den Einstellungen (oidcgui.go), hinter oidcGuiMu
 }
 
 var (
@@ -83,7 +85,7 @@ func ConfigureOIDC(base string, provs []*OIDCProvider) {
 }
 
 func oidcProv(id string) *OIDCProvider {
-	for _, p := range oidcCfg.provs {
+	for _, p := range oidcProvList() {
 		if p.ID == id {
 			return p
 		}
@@ -435,7 +437,7 @@ func (p *OIDCProvider) exchange(ctx context.Context, code, verifier string) (str
 	if err != nil {
 		return "", err
 	}
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {oidcCfg.base + "/oidc/callback"},
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {oidcBase() + "/oidc/callback"},
 		"client_id": {p.ClientID}, "client_secret": {p.Secret}, "code_verifier": {verifier}}
 	req, _ := http.NewRequestWithContext(ctx, "POST", d.TokenURL, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -484,7 +486,7 @@ func (a *Auth) oidcAccount(ctx context.Context, p *OIDCProvider, c oidcClaims) (
 		return "", Account{}, errNotLinked
 	case u.Disabled:
 		return "", Account{}, errors.New("account disabled")
-	case u.Admin || u.Sys || u.Source == "dir":
+	case u.Sys || u.Source == "dir":
 		return "", Account{}, ErrOIDCAdmin
 	}
 	return key, u, nil
@@ -495,14 +497,14 @@ var errNotLinked = errors.New("identity not linked to an account")
 // bindOIDC: das angemeldete Konto key mit der Kennung verknuepfen (Passwort XOR Anbieter): das Passwort entfaellt,
 // ebenso Initialpasswort, Zwei-Faktor und App-Passwoerter. Eine Kennung gehoert hoechstens einem Konto.
 func (a *Auth) bindOIDC(ctx context.Context, key string, p *OIDCProvider, c oidcClaims) error {
-	return a.mutate(ctx, func(m map[string]Account) error {
+	err := a.mutate(ctx, func(m map[string]Account) error {
 		x, ok := m[key]
 		switch {
 		case !ok:
 			return ErrNoUser
 		case x.Disabled:
 			return errors.New("account disabled")
-		case x.Admin || x.Sys || x.Source == "dir":
+		case x.Sys || x.Source == "dir":
 			return ErrOIDCAdmin
 		case x.Link != nil:
 			return errors.New("account already linked")
@@ -515,9 +517,14 @@ func (a *Auth) bindOIDC(ctx context.Context, key string, p *OIDCProvider, c oidc
 		x = clear2FA(x)
 		x.Hash, x.Must, x.InitExp = "", false, ""
 		x.Link = &OIDCLink{Prov: p.ID, Iss: p.Issuer, Sub: c.Sub, At: time.Now().UTC().Format(time.RFC3339)}
+		x.Reset, x.ResetExp = "", ""
 		m[key] = x
 		return nil
 	})
+	if err == nil {
+		log.Printf("auth: account %q linked to provider %s", safeName(key), p.ID)
+	}
+	return err
 }
 
 // UnlinkOIDC: Verknuepfung loesen (z.B. beim Zuruecksetzen). Das Konto hat danach kein Passwort mehr, bis ein
@@ -573,12 +580,12 @@ func oidcBegin(w http.ResponseWriter, r *http.Request, p *OIDCProvider, link str
 	oidcStates[st] = oidcState{prov: p.ID, nonce: nonce, verifier: ver, link: link, exp: now.Add(10 * time.Minute)}
 	oidcMu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: oidcCookie, Value: st, Path: "/oidc", MaxAge: 600, HttpOnly: true,
-		Secure: strings.HasPrefix(oidcCfg.base, "https://"), SameSite: http.SameSiteLaxMode})
+		Secure: strings.HasPrefix(oidcBase(), "https://"), SameSite: http.SameSiteLaxMode})
 	u, _ := url.Parse(d.AuthURL)
 	q := u.Query()
 	q.Set("response_type", "code")
 	q.Set("client_id", p.ClientID)
-	q.Set("redirect_uri", oidcCfg.base+"/oidc/callback")
+	q.Set("redirect_uri", oidcBase()+"/oidc/callback")
 	q.Set("scope", p.Scope)
 	q.Set("state", st)
 	q.Set("nonce", nonce)
@@ -590,17 +597,19 @@ func oidcBegin(w http.ResponseWriter, r *http.Request, p *OIDCProvider, link str
 }
 
 func (a *Auth) oidcRoutes(mux *http.ServeMux) {
+	a.oidcGuiRoutes(mux) // Einstellungen: Google und Microsoft (oidcgui.go)
 	mux.HandleFunc("GET /api/login/info", func(w http.ResponseWriter, r *http.Request) {
 		type pr struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		}
 		out := struct {
-			Form bool `json:"form"`
-			OIDC []pr `json:"oidc"`
-		}{Form: LoginForm, OIDC: []pr{}}
+			Form   bool `json:"form"`
+			Forgot bool `json:"forgot"` // "Passwort vergessen" ist moeglich (Mailversand und Adresse eingerichtet)
+			OIDC   []pr `json:"oidc"`
+		}{Form: LoginForm, Forgot: resetEnabled(), OIDC: []pr{}}
 		if LoginForm {
-			for _, p := range oidcCfg.provs {
+			for _, p := range oidcProvList() {
 				out.OIDC = append(out.OIDC, pr{p.ID, p.Name})
 			}
 		}
@@ -627,7 +636,7 @@ func (a *Auth) oidcRoutes(mux *http.ServeMux) {
 			return
 		}
 		key, u, ok := a.webUser(r)
-		if !ok || u.Disabled || u.Admin || u.Sys || u.Source == "dir" || u.Link != nil || !sameOriginStrict(r) || (r.Header.Get("Sec-Fetch-Site") != "" && r.Header.Get("Sec-Fetch-Site") != "same-origin") {
+		if !ok || u.Disabled || u.Sys || u.Source == "dir" || u.Link != nil || !sameOriginStrict(r) || (r.Header.Get("Sec-Fetch-Site") != "" && r.Header.Get("Sec-Fetch-Site") != "same-origin") {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

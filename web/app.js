@@ -369,7 +369,7 @@ S.users={
     if($('#pgo'))$('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
     $('#mexp').onclick=()=>{location.href='/api/me/export';};
-    if(!me.oidc&&me.loginForm&&!me.admin&&me.source!='dir')oidcProvs().then(oi=>{const l=$('#lnk');if(l&&oi.oidc&&oi.oidc.length)l.innerHTML='<div class="panel"><b>'+esc(t('Mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>';});
+    if(!me.oidc&&me.loginForm&&!me.sys&&me.source!='dir')oidcProvs().then(oi=>{const l=$('#lnk');if(l&&oi.oidc&&oi.oidc.length)l.innerHTML='<div class="panel"><b>'+esc(t('Mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>';});
     if(!me.oidc)tfaInit();
   },
   add(){
@@ -408,7 +408,7 @@ S.users={
     if(u.sys)h+='<div class="row"><b>'+t('Sysadmin-Konto')+'</b> <span class="muted">'+t('lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).')+'</span></div>';
     if((!u.admin||me.admin)&&(!u.sys||u.name==me.name))h+='<div class="row"><button id="fp">'+t('Passwort setzen')+'</button></div>';
     if(me.admin&&u.totp&&u.name!=me.name)h+='<div class="row">'+t('Zwei-Faktor-Anmeldung: eingeschaltet')+' <button id="f2r" type="button">'+t('Zwei-Faktor zurücksetzen')+'</button></div><div class="muted">'+t('Bei verlorenem Gerät: danach meldet sich der Benutzer wieder nur mit dem Passwort an und richtet Zwei-Faktor neu ein.')+'</div>';
-    if((me.admin||isGA())&&u.pw&&u.pw!='dir'&&!u.admin&&!u.sys&&!u.guest&&u.name!=me.name)h+='<div class="row"><button id="urc">'+t('Neu konfigurieren')+'</button> <span class="muted">'+t('Wie beim ersten Login: neues Initialpasswort, Verknüpfung mit einem Anbieter, Zwei-Faktor und App-Passwörter werden gelöscht.')+'</span></div>';
+    if((me.admin||isGA())&&u.pw&&u.pw!='dir'&&(!u.admin||(u.pw=='oidc'&&me.sys))&&!u.sys&&!u.guest&&u.name!=me.name)h+='<div class="row"><button id="urc">'+t('Neu konfigurieren')+'</button> <span class="muted">'+t('Wie beim ersten Login: neues Initialpasswort, Verknüpfung mit einem Anbieter, Zwei-Faktor und App-Passwörter werden gelöscht.')+'</span></div>';
     if(me.admin)h+='<div class="row"><button id="uxp">'+t('Daten exportieren')+'</button></div>';
     if(u.name==me.name)h+='<div class="panel" id="tfa"></div>';
     h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
@@ -3444,6 +3444,24 @@ function rtcPanel(r){
    '<div class="row"><textarea id="rtcstun" rows="2" style="width:380px" placeholder="stun:stun.example.org:3478">'+esc(stun)+'</textarea> '+t('STUN-Server (einer pro Zeile). Vorbelegt ist ein öffentlicher Server; er sieht nur die IP-Adressen der Teilnehmer, nicht Bild oder Ton. Leer = nur Verbindungen im selben Netz.')+'</div>'+
    '<div class="row"><textarea id="rtcturn" rows="2" style="width:380px" placeholder="turn:turn.example.org:3478">'+esc((r.turn||[]).join('\n'))+'</textarea> '+t('TURN-Server (optional, für strenge Firewalls; coturn mit use-auth-secret, cs-team vergibt zeitlich begrenzte Zugangsdaten)')+'</div>'+
    '<div class="row"><input id="rtcsec" type="password" autocomplete="new-password" style="width:380px" placeholder="'+(r.secretSet?t('Geheimnis gesetzt – leer lassen = unverändert'):t('TURN-Geheimnis (static-auth-secret)'))+'"></div></div>';}
+/* OIDC-Anbieter (Google, Microsoft): Client-ID und Secret; aktiv, sobald ausgefuellt (GET/POST /api/settings/oidc). Das Secret kommt nie zurueck. */
+function oidcPanel(o){
+  if(o.form===undefined)return '';
+  const st=on=>' <small class="muted">'+t(on?'aktiv':'nicht ausgefüllt')+'</small>';
+  const sec=set=>t('Secret')+(set?' ✓':'');
+  return '<div class="panel"><b>'+t('Anmeldung mit Anbieter (OIDC)')+'</b> <small class="muted">'+t('Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.')+'</small>'+
+   (o.form?'':'<div class="row">'+t('Das Anmeldeformular ist aus (CS_LOGIN_FORM=0): OIDC ist nicht möglich.')+'</div>')+
+   '<div class="row">'+(o.redirect?t('Rücksprungadresse (beim Anbieter eintragen): ')+'<code>'+esc(o.redirect)+'</code>':'<b>'+t('Es fehlt eine öffentliche Adresse mit https:// (Netzwerk, oben). Ohne sie bleibt OIDC aus.')+'</b>')+'</div>'+
+   '<div class="row"><b>Google</b>'+st(o.googleOn)+'<br><input id="soi_gid" style="width:330px" autocomplete="off" placeholder="'+esc(t('Google Client-ID'))+'" value="'+esc(o.googleId||'')+'"> '+
+    '<input id="soi_gsec" type="password" autocomplete="new-password" style="width:260px" placeholder="'+esc(t('Google Client-Secret (leer = unverändert)'))+(o.googleSet?' ✓':'')+'"> '+
+    '<button id="soigclr" type="button">'+t('Entfernen')+'</button></div>'+
+   '<div class="row"><b>Microsoft</b>'+st(o.msOn)+'<br><input id="soi_mt" style="width:260px" autocomplete="off" placeholder="'+esc(t('Microsoft Mandanten-ID'))+'" value="'+esc(o.msTenant||'')+'"> '+
+    '<input id="soi_mid" style="width:330px" autocomplete="off" placeholder="'+esc(t('Microsoft Client-ID'))+'" value="'+esc(o.msId||'')+'"> '+
+    '<input id="soi_msec" type="password" autocomplete="new-password" style="width:260px" placeholder="'+esc(t('Microsoft Client-Secret (leer = unverändert)'))+(o.msSet?' ✓':'')+'"> '+
+    '<button id="soimclr" type="button">'+t('Entfernen')+'</button></div>'+
+   ((o.env||[]).length?'<div class="row muted">'+t('Aus den Startparametern: {0}',esc(o.env.join(', ')))+'</div>':'')+
+   '<div class="row"><button id="soisave" type="button">'+t('OIDC speichern')+'</button></div></div>';
+}
 /* Anmeldung (Namensraum + Verzeichnis). Die gespeicherten Werte stehen in settings.identity, die wirklich
    wirksamen (auch die aus den Startparametern CS_IDENTITY_*) unter identity.effective. */
 function idPanel(i){
@@ -3452,8 +3470,7 @@ function idPanel(i){
     ((e.admit||[]).length?' ('+t('Aufnahme: ')+esc(e.admit.join(', '))+')':'');
   const warn=e.unencrypted?t('Achtung: {0} überträgt Passwörter ohne TLS. Bitte ldaps:// oder StartTLS verwenden.',esc(e.url||'')):'';
   return '<div class="panel"><b>'+t('Anmeldung (Konten und Verzeichnis)')+'</b> <small class="muted">'+t('Ohne Verzeichnis melden sich Benutzer mit ihrem cs-team-Namen an. Mit Verzeichnis zusätzlich mit name@Namensraum (Active Directory, LDAP, OpenLDAP, Samba). Änderungen gelten sofort.')+'</small>'+
-   '<div class="row">'+t('Anmeldung erlauben: ')+modeSel('sidmo',i.mode||'',[['','Vorgabe der Startparameter'],['local','nur lokale Konten'],['mixed','Verzeichnis und lokale Konten']],false)+'</div>'+
-   '<div class="row muted">'+t('Lokale cs-team-Konten sind immer anmeldbar (Notfallzugang), auch wenn ein Verzeichnis eingerichtet ist.')+'</div>'+
+   '<div class="row muted">'+t('Namen ohne @ (peter.pan) sind lokale Konten: Passwort oder OIDC, das entscheidet der Benutzer. Namen mit @ (peter.pan@schule.de) melden sich am Verzeichnis an; ist keins eingerichtet, werden sie abgelehnt.')+'</div>'+
    '<div class="row"><input id="sidre" style="width:170px" placeholder="'+t('Namensraum (schule.de)')+'" value="'+esc(i.realm||'')+'"> '+
     '<input id="siddef" style="width:230px" placeholder="'+t('Anzeige-Namensraum (wie angemeldet wird)')+'" value="'+esc(i.defaultRealm||'')+'"> '+
     '<small class="muted">'+t('Angemeldet wird mit name@Namensraum. Ohne eigene Suchbasis wird der Namensraum aus DC=… gebildet.')+'</small></div>'+
@@ -3560,13 +3577,13 @@ function aiProvBind(p){
 S.set={
   items:[{k:'cfg',label:'Einstellungen'}],cfg:{},
   canAdd:()=>false,
-  async load(){this.items=[{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};this.ais=(await J('GET','/api/ai/search-settings'))||{};AIP=((await J('GET','/api/ai/providers'))||{}).presets||[];},
+  async load(){this.items=[{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};this.ais=(await J('GET','/api/ai/search-settings'))||{};this.oidc=(await J('GET','/api/settings/oidc'))||{};AIP=((await J('GET','/api/ai/providers'))||{}).presets||[];},
   home(){this.select('cfg');},
   select(){
     sel='cfg';setList(this.items);upd();$('#main').className='';
     const c=this.cfg,a=this.ai||{},v=x=>esc(c[x]||'');
     const tls=[['','Standard (nach Port)'],['starttls','STARTTLS (587)'],['ssl','SSL (465)'],['none','ohne (25)']];
-    $('#main').innerHTML='<h3>'+t('Einstellungen')+'</h3><div class="muted">'+t('Diese Einstellungen gelten für cs-team selbst und wirken sofort ohne Neustart. Die Startparameter des Dienstes (Port, Speicher, HTTPS, Admin) stehen nicht hier.')+'</div>'+
+    $('#main').innerHTML='<h3>'+t('Einstellungen')+' <small class="muted">cs-team v'+esc(me.version||'')+'</small></h3><div class="muted">'+t('Diese Einstellungen gelten für cs-team selbst und wirken sofort ohne Neustart. Die Startparameter des Dienstes (Port, Speicher, HTTPS, Admin) stehen nicht hier.')+'</div>'+
      '<div class="panel"><b>'+t('Mail (SMTP)')+'</b> <small class="muted">'+t('für Nachricht und Aufgaben')+'</small>'+(c.envHost?'<div class="muted row">'+t('Der Dienst wurde mit Mail-Vorgaben gestartet; hier gespeicherte Werte haben Vorrang.')+'</div>':'')+
      '<div class="row"><input id="sh" style="width:240px" placeholder="'+t('SMTP-Server')+'" value="'+v('host')+'"> <input id="sp" style="width:70px" placeholder="587" value="'+v('port')+'"> '+
        modeSel('st',c.tls||'',tls,false)+'</div>'+
@@ -3606,9 +3623,13 @@ S.set={
       '<input id="aswk" type="password" autocomplete="new-password" style="width:250px" placeholder="'+esc(t('Brave API-Schlüssel (leer = unverändert)'))+((this.ais||{}).keySet?' ✓':'')+'"> '+
       '<button id="aswt" type="button">'+t('Suchdienst testen')+'</button></div>'+
       '<div class="muted">'+t('Ergänzt die Quellensuche der KI-Recherche um das offene Web (Nachrichten, Behörden-, Firmen- und Schulseiten). Die Suchbegriffe gehen an den Dienst (Brave: api.search.brave.com; SearXNG: eure Instanz, auch im lokalen Netz; dort muss das JSON-Format erlaubt sein), Benutzerdaten nie.')+'</div></div>'+
-      idPanel(c.identity||{})+
+      idPanel(c.identity||{})+oidcPanel(this.oidc||{})+
      '<div class="row"><button id="ssave">'+t('Speichern')+'</button> <button id="stest">'+t('Speichern + Testmail an mich')+'</button> <button id="aitest">'+t('Speichern + KI testen')+'</button></div>';
     aiProvBind('');aiProvBind('2');[0,1,2].forEach(vdBind);
+    if($('#soisave')){   // OIDC-Anbieter: eigener Speichern-Knopf
+      const oidcSave=async(extra)=>{const b=Object.assign({googleId:$('#soi_gid').value.trim(),googleSecret:$('#soi_gsec').value,msTenant:$('#soi_mt').value.trim(),msId:$('#soi_mid').value.trim(),msSecret:$('#soi_msec').value},extra||{});
+        if(await api('POST','/api/settings/oidc',b)){this.oidc=(await J('GET','/api/settings/oidc'))||{};this.select();alert(t('Gespeichert'));}};
+      $('#soisave').onclick=()=>oidcSave();$('#soigclr').onclick=()=>oidcSave({clearGoogle:true});$('#soimclr').onclick=()=>oidcSave({clearMS:true});}
     const aswSync=()=>{const p=$('#aswp').value;$('#aswu').style.display=p=='searxng'?'':'none';$('#aswk').style.display=p=='brave'?'':'none';$('#aswt').style.display=p?'':'none';};$('#aswp').onchange=aswSync;aswSync();
     $('#susage').onclick=async()=>{
       const r=await J('GET','/api/filesusage'),bx=$('#usagebox');if(!r)return;
@@ -3642,7 +3663,7 @@ S.set={
       if(!await api('POST','/api/settings/rtc',rb))return false;
       const cd=Math.round(+$('#sidcache').value||0);
       if(!(cd>=0&&cd<=365)){alert(t('Zwischenspeicher: Zahl der Tage (0 = aus, höchstens 365).'));return false;}
-      const idb={mode:$('#sidmo').value,realm:$('#sidre').value.trim(),defaultRealm:$('#siddef').value.trim(),localGroup:$('#sidgrp').value.trim(),
+      const idb={realm:$('#sidre').value.trim(),defaultRealm:$('#siddef').value.trim(),localGroup:$('#sidgrp').value.trim(),
         url:$('#sidurl').value.trim(),base:$('#sidbase').value.trim(),bindDn:$('#sidbdn').value.trim(),admit:$('#sidadm').value.split(',').map(x=>x.trim()).filter(Boolean),
         startTls:$('#sidttls').checked,cacheDays:cd};
       // allowLocal wird nicht mehr gesendet: lokale Konten sind in jedem Modus erlaubt (0.55)
@@ -3789,6 +3810,18 @@ async function showLogin(){
   await initLang('');
   document.querySelectorAll('#nav button').forEach(b=>b.style.display='none');$('#left').style.display='none';
   ['#gs','#who','#logout'].forEach(q=>{const e=$(q);if(e)e.style.display='none';});
+  const rm=/^#reset=([a-z0-9._@-]+)~([A-Za-z0-9_-]+)$/.exec(location.hash);   // Link aus der Mail "Passwort vergessen"
+  if(rm){
+    $('#main').innerHTML='<h3>'+esc(t('Passwort zurücksetzen'))+'</h3><div class="panel" style="max-width:420px"><div class="row">'+esc(rm[1])+'</div>'+
+      '<div class="muted row">'+esc(t('Mit Weiter vergeben Sie ein neues Passwort oder verknüpfen Ihr Konto mit einem Anbieter.'))+'</div>'+
+      '<div class="row"><button id="rgo">'+esc(t('Weiter'))+'</button> <a href="/" id="rback">'+esc(t('Zur Anmeldung'))+'</a></div><div id="rge" class="muted" role="alert"></div></div>';
+    $('#rback').onclick=e=>{e.preventDefault();history.replaceState(null,'','/');location.reload();};
+    $('#rgo').onclick=async()=>{
+      const r=await fetch('/api/pwreset',{method:'POST',body:JSON.stringify({name:rm[1],token:rm[2]})}).catch(()=>null);
+      if(r&&r.ok){history.replaceState(null,'','/');location.reload();return;}
+      $('#rge').textContent=!r?t('Server nicht erreichbar'):r.status==429?t('Zu viele Versuche, bitte später erneut versuchen.'):t('Der Link ist ungültig oder abgelaufen. Bitte auf der Anmeldeseite einen neuen anfordern.');};
+    return;
+  }
   $('#main').innerHTML='<h3>'+esc(t('Anmelden'))+'</h3><div class="panel" style="max-width:420px">'+
     '<div class="row"><input id="lgn" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="'+esc(t('Anmeldename'))+'"></div>'+
     '<div class="row"><input id="lgp" type="password" autocomplete="current-password" placeholder="'+esc(t('Passwort'))+'"></div>'+
@@ -3801,6 +3834,14 @@ async function showLogin(){
     $('#lgp').value='';$('#lgc').value='';};
   $('#lgo').onclick=go;['#lgn','#lgp','#lgc'].forEach(q=>{$(q).onkeydown=e=>{if(e.key=='Enter')go();};});$('#lgn').focus();
   await oidcProvs();
+  if(OI.forgot){   // Passwort vergessen: Link per E-Mail
+    $('#lgo').parentNode.insertAdjacentHTML('beforeend',' <a href="#" id="lgf">'+esc(t('Passwort vergessen?'))+'</a>');
+    $('#lgf').onclick=e=>{e.preventDefault();
+      $('#lge').innerHTML='<div class="row"><input id="lfn" autocapitalize="none" spellcheck="false" placeholder="'+esc(t('Anmeldename oder E-Mail-Adresse'))+'"> <button id="lfo">'+esc(t('Link per E-Mail senden'))+'</button></div><div id="lfm" class="muted" role="status"></div>';
+      const send=async()=>{const r=await fetch('/api/pwforgot',{method:'POST',body:JSON.stringify({name:$('#lfn').value.trim()})}).catch(()=>null);
+        $('#lfm').textContent=!r?t('Server nicht erreichbar'):r.status==429?t('Zu viele Versuche, bitte später erneut versuchen.'):r.ok?t('Bei einem bestehenden lokalen Konto haben wir Ihnen einen Link zum Zurücksetzen des Passworts per E-Mail geschickt. Er gilt eine Stunde.'):t('Anmeldung fehlgeschlagen');};
+      $('#lfo').onclick=send;$('#lfn').onkeydown=ev=>{if(ev.key=='Enter')send();};$('#lfn').focus();};
+  }
   if(OI.oidc&&OI.oidc.length)$('#lgo').parentNode.insertAdjacentHTML('afterend','<div class="muted row">'+esc(t('oder anmelden mit'))+'</div><div class="row">'+provBtns('start')+'</div>');
   if(/[?&]login=failed/.test(location.search)){$('#lge').textContent=t('Anmeldung über den Anbieter nicht möglich. Ist das Konto verknüpft? Sonst bitte mit Anmeldename und Passwort anmelden.');history.replaceState(null,'','/');}
 }
@@ -3824,7 +3865,7 @@ async function showLogin(){
       '<div class="muted row">'+t('Das Startpasswort gilt nur für den ersten Login.')+'</div>'+
       '<div class="row"><input id="pn" type="password" autocomplete="new-password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
       '<div class="row"><input id="pn2" type="password" autocomplete="new-password" placeholder="'+t('neues Passwort wiederholen')+'"></div>'+
-      '<button id="pgo">'+t('Speichern')+'</button></div>'+(me.loginForm&&!me.admin&&OI&&OI.oidc&&OI.oidc.length?'<div class="panel" style="max-width:420px"><b>'+esc(t('Oder mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>':'');
+      '<button id="pgo">'+t('Speichern')+'</button></div>'+(me.loginForm&&!me.sys&&OI&&OI.oidc&&OI.oidc.length?'<div class="panel" style="max-width:420px"><b>'+esc(t('Oder mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>':'');
     $('#pgo').onclick=async()=>{if($('#pn').value!=$('#pn2').value){alert(t('Die Passwörter sind nicht gleich.'));return;}
       if(await api('POST','/api/me/password',{old:'',new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     return;

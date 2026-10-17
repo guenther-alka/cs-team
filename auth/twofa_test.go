@@ -216,7 +216,7 @@ func TestTwoFactor(t *testing.T) {
 	c, b, _ = call("GET", "/webdav/x", "anna", ap.Password, "203.0.113.50", "")
 	must(200, c, "App-Passwort danach weiter gültig (nicht gesperrt)", b)
 	for i := 0; i < 6; i++ {
-		call("GET", "/api/users", "anna", "x"+ap.Password[1:], "203.0.113.51", "")
+		call("GET", "/api/users", "anna", "~"+ap.Password[1:], "203.0.113.51", "")
 	}
 	c, b, _ = call("GET", "/webdav/x", "anna", ap.Password, "203.0.113.51", "")
 	must(429, c, "ungültige App-Passwörter zählen weiter", b)

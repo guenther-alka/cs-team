@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -115,6 +116,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			if err := a.SetPassword(r.Context(), me, in.New); err != nil {
 				fail_(w, err)
 			} else {
+				log.Printf("auth: new password set (first login or reset) user=%q ip=%s", safeName(me), a.ip(r))
 				a.renewWeb(w, r, me)
 			}
 			return
@@ -282,6 +284,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	}))
 
 	a.loginRoutes(mux)
+	a.resetRoutes(mux)
 	a.oidcRoutes(mux)
 	a.initRoutes(mux, usr)
 	a.groupRoutes(mux, adm)

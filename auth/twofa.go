@@ -170,7 +170,7 @@ func appPathOK(p string) bool {
 
 // need2FA: muss dieses Konto die Einrichtung nachholen (Einstellung "für Admin-Konten verlangen")?
 func need2FA(u Account, local bool) bool {
-	return local && Enforce2FA != nil && Enforce2FA() && u.Admin && u.TOTP == "" && u.Source != "dir"
+	return local && Enforce2FA != nil && Enforce2FA() && u.Admin && u.Link == nil && u.TOTP == "" && u.Source != "dir"
 }
 
 // ---------- Sitzungen im Speicher ----------

@@ -316,7 +316,7 @@ func (s *Settings) setAuth(in authIn) error {
 	if in.StartTLS != nil && *in.StartTLS && strings.HasPrefix(in.URL, "ldaps://") {
 		return errors.New("starttls: not needed with ldaps://")
 	}
-	if in.Mode == "dir" || in.Mode == "mixed" { // Verzeichnisanmeldung braucht Adresse und Namensraum
+	if in.Mode == "dir" || in.Mode == "mixed" || in.URL != "" { // Verzeichnisanmeldung braucht Adresse und Namensraum (Modus wird nicht mehr gesendet)
 		url, realm, base := or(in.URL, eff.URL), or(in.Realm, eff.Realm), or(in.Base, eff.Base)
 		if url == "" || (realm == "" && base == "") {
 			return errors.New("directory login: address (ldap://...) and realm (or base) are needed")

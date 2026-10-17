@@ -73,6 +73,11 @@ func pwState(u Account) string {
 // eligible: Konten, fuer die Initialpasswoerter gelten.
 func eligible(u Account) bool { return !u.Admin && !u.Sys && !u.Guest && u.Source != "dir" }
 
+// eligibleRe: Konten, die "Neu konfigurieren" erhalten: wie eligible, dazu mit OIDC verknuepfte globale Admins, aber nur durch den Sysadmin.
+func eligibleRe(sys bool, u Account) bool {
+	return eligible(u) || (sys && u.Admin && u.Link != nil && !u.Sys && !u.Guest && u.Source != "dir")
+}
+
 func genInitPw() string {
 	out := make([]byte, 0, 10)
 	buf := make([]byte, 32)
@@ -315,12 +320,13 @@ type genRes struct {
 // Rechte pruefen die Aufrufer; hier gilt zusaetzlich: nur eligible-Konten, nie local/oidc.
 func (a *Auth) generate(ctx context.Context, names []string, renew, force, send bool) ([]genRes, error) {
 	var res []genRes
+	sys := a.isSys(ctx)
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		res = res[:0]
 		for _, n := range names {
 			u, ok := m[n]
 			switch {
-			case !ok || !eligible(u):
+			case !ok || !eligibleRe(sys, u):
 				res = append(res, genRes{Name: n, Note: "not eligible"})
 				continue
 			}
@@ -372,7 +378,7 @@ func (a *Auth) generate(ctx context.Context, names []string, renew, force, send 
 
 func initMail(name, pw string) string {
 	until := time.Now().Add(InitDays * 24 * time.Hour).Format("02.01.2006")
-	site := oidcCfg.base
+	site := oidcBase()
 	if site != "" {
 		site = "\nAdresse: " + site
 	}
@@ -469,7 +475,7 @@ func (a *Auth) initRoutes(mux *http.ServeMux, usr func(http.HandlerFunc) http.Ha
 			fail_(w, ErrNoUser)
 			return
 		}
-		if !eligible(u) || !a.manages(r.Context(), name) || (!IsAdmin(r.Context()) && len(a.adminOf(name)) > 0) {
+		if !eligibleRe(a.isSys(r.Context()), u) || !a.manages(r.Context(), name) || (!IsAdmin(r.Context()) && len(a.adminOf(name)) > 0) {
 			fail_(w, ErrNotEligible)
 			return
 		}

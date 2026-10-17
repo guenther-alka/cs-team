@@ -114,12 +114,10 @@ func (id Identity) ValidRealm(realm string) bool {
 // ModeName: Kurzbezeichnung für Protokoll und Oberfläche. "dir" und "mixed" sind dasselbe: lokale Konten bleiben
 // immer möglich (0.55), beide gespeicherten Werte bleiben gültig.
 func (id Identity) ModeName() string {
-	switch strings.ToLower(strings.TrimSpace(id.Mode)) {
-	case "dir", "mixed":
+	if id.DirOK() { // 0.62: kein Modus mehr - ist ein Verzeichnis eingerichtet, gilt es zusaetzlich (Namen mit @)
 		return "directory + local"
-	default:
-		return "local accounts"
 	}
+	return "local accounts"
 }
 
 // AdmitGroupNames: bereinigte Liste der berechtigenden Verzeichnisgruppen (leer = alle).

@@ -6,6 +6,7 @@ package auth
 // die Basic-Abfrage. Die Pruefung der Zugangsdaten selbst (Sperren, 2FA, Verzeichnis) macht unveraendert Wrap.
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -56,6 +57,9 @@ func sameOriginStrict(r *http.Request) bool {
 	}
 	return false
 }
+
+// ctxLoginBasic: markiert die interne Anfrage von POST /api/login, deren Basic-Daten ausnahmsweise gelten.
+type ctxLoginBasic struct{}
 
 // browserReq: Anfrage eines Browsers (sendet Sec-Fetch-Mode). WebDAV-/CalDAV-Clients und curl tun das nicht.
 func browserReq(r *http.Request) bool { return r.Header.Get("Sec-Fetch-Mode") != "" }
@@ -123,7 +127,7 @@ func (a *Auth) webUser(r *http.Request) (string, Account, bool) {
 		return "", Account{}, false
 	}
 	u, have := a.get(r.Context(), e.user)
-	if !have || u.Disabled || e.h != webHash(u) || (e.oidc && (u.Admin || u.Link == nil)) {
+	if !have || u.Disabled || e.h != webHash(u) || (e.oidc && (u.Sys || u.Link == nil)) {
 		a.mu.Lock()
 		delete(a.web, k)
 		a.mu.Unlock()
@@ -213,6 +217,7 @@ func (a *Auth) loginRoutes(mux *http.ServeMux) {
 		r2.URL.Path = "/api/me"
 		r2.Header.Del("Authorization")
 		r2.SetBasicAuth(in.Name, pw)
+		r2 = r2.WithContext(context.WithValue(r2.Context(), ctxLoginBasic{}, true))
 		a.Wrap(http.HandlerFunc(func(w2 http.ResponseWriter, r2 *http.Request) {
 			me := User(r2.Context())
 			u, _ := a.get(r2.Context(), me)

@@ -46,7 +46,7 @@ UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left), uk, pl, el, ja
 
 ## Privacy / GDPR
 
-cs-team keeps all data on your own server (folder/ZFS dataset or S3); no tracking, no external fonts or scripts; a session cookie is set only with the optional login form (`CS_LOGIN_FORM=1`).
+cs-team keeps all data on your own server (folder/ZFS dataset or S3); no tracking, no external fonts or scripts; a session cookie is set only by the login form (default; `CS_LOGIN_FORM=0` turns it off).
 - **Access / portability (Art. 15, 20):** "Export my data (ZIP)" on the account page (account without password hash, own files, calendars, tasks, chat); admins can export for a user.
 - **Erasure (Art. 17):** user deletion with preview, snapshot and the option to replace the name in chat, tasks and events with "gelöschter Benutzer" (anonymize, on by default).
 - **Retention:** per group "Chat retention (days)", global "Closed tasks: days until automatic deletion", trash days; each run is logged (`retention: ...`).
@@ -67,7 +67,7 @@ Or with an S3 bucket (RustFS): `S3_ENDPOINT=127.0.0.1:9000 S3_KEY=... S3_SECRET=
 Demo without storage: `CS_MEM=1 ./cs-team`. Set or reset a user: `./cs-team adduser anna secret [admin]`.
 Version: `./cs-team version`.
 
-Basic Auth is used by default (optional login form: `CS_LOGIN_FORM=1`) - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind an HTTPS proxy
+A login form with session cookie is the default (`CS_LOGIN_FORM=0` = browser Basic Auth) - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind an HTTPS proxy
 (`CS_TRUST_PROXY=1`). Only one process per data folder.
 
 | Variable | Meaning | Default |
@@ -79,7 +79,7 @@ Basic Auth is used by default (optional login form: `CS_LOGIN_FORM=1`) - run it 
 | `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
 | `CS_MAX_FAILS_IP` | failed sign-ins per address before it is locked (signed-in users exempt) | `60` |
 | `CS_IDENTITY_*` | directory/LDAP sign-in defaults (`MODE`, `REALM`, `URL`, `BASE`, `BIND_DN`, `BIND_PW`, `STARTTLS`, `ADMIT_GROUPS`, `LOCAL_GROUP`, `ALLOW_LOCAL`, `CACHE_DAYS`); UI settings override | local |
-| `CS_LOGIN_FORM` | `1` = login form with session cookie instead of the browser login window (WebDAV/CalDAV stay on Basic / app password); required for OIDC | `0` |
+| `CS_LOGIN_FORM` | `0` = browser login window (Basic) instead of the login form with session cookie; the form is the default and required for OIDC (WebDAV/CalDAV stay on Basic / app password) | form |
 | `CS_OIDC` / `CS_OIDC_BASE` | OIDC providers, e.g. `google,ms,keycloak`; BASE = public **https** address of this server (return address `BASE/oidc/callback`) | - |
 | `CS_OIDC_<ID>_CLIENT_ID` / `_CLIENT_SECRET` / `_ISSUER` / `_NAME` / `_SCOPE` | the application registered at the provider; Microsoft only with a fixed tenant id in `CS_OIDC_MS_TENANT` | - |
 | `CS_MAX_UPLOAD_MB` / `CS_CHAT_MAX_MB` | upload limits | 100 / 10 |
@@ -93,9 +93,9 @@ The built-in video chat needs HTTPS or localhost (browser rule for camera and mi
 
 ## Sign-in and roles
 
-- **Login:** by default HTTP Basic. With `CS_LOGIN_FORM=1` cs-team shows a login form and keeps a session cookie; WebDAV/CalDAV stay on Basic or app passwords. Account types: **local**, **directory** (LDAP/AD, `name@realm`) and **OIDC**; local names such as `anna@school.org` are allowed, the directory realm stays reserved.
+- **Login:** by default a login form with a session cookie (`CS_LOGIN_FORM=0` = browser Basic Auth); WebDAV/CalDAV stay on Basic or app passwords. Every user chooses a local password or OIDC. Account types: **local**, **directory** (LDAP/AD, `name@realm`) and **OIDC**; local names such as `anna@school.org` are allowed, the directory realm stays reserved. **The login type follows the account name** (no `@` = local with password or OIDC, `name@realm` = directory; refused while none is configured). **Forgot password** on the login page: link by mail (1 h, single use, in the account language, default English) for active local accounts with a mail address, excluding admins, guests, directory and 2FA accounts; then a new password or OIDC, logged. **OIDC for Google and Microsoft** can be entered under Settings (public https address required, secret write-only, overrides `CS_OIDC_*`).
 - **Initial passwords:** the admin imports a user list into a group (`name[, mail[, password]]`, header `org: my.school.org` appends the domain), generates initial passwords (valid 30 days, displayed once, only the hash is stored, forced change at first login) and may deliver them by e-mail. *Reconfigure* issues a new one and removes the OIDC link, two-factor and app passwords.
-- **OIDC:** the user logs in with the initial password once and links the account to a provider himself (authorization code + PKCE, own id_token check, identity = issuer + `sub`, never the mail address). Afterwards only OIDC applies (password *or* OIDC). Admins, the sysadmin and directory accounts never use OIDC.
+- **OIDC:** the user logs in with the initial password once and links the account to a provider himself (authorization code + PKCE, own id_token check, identity = issuer + `sub`, never the mail address). Afterwards only OIDC applies (password *or* OIDC). The sysadmin and directory accounts never use OIDC (emergency access stays local); global admins may link, and only the sysadmin resets a linked admin.
 - **Roles:** the *sysadmin* (`CS_ADMIN_USER`, or `cs-team sysadmin NAME`) is the startup admin and always global admin; only he creates and edits further global admins. Global admins manage everything else including group admins and only view other admins. System groups `globaladmins` and `groupadmins` cannot be deleted or renamed. Two-factor stays optional (mandatory for admins by a setting).
 - **Message:** admins of a group may send by group chat, e-mail and external chat address, members (if the group allows it) only to the group chat.
 
