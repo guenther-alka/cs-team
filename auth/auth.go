@@ -73,6 +73,9 @@ type Account struct {
 	Lang     string   `json:"lang,omitempty"`   // Oberflächensprache (leer = Browser/Serverstandard)
 	Mail     string   `json:"mail,omitempty"`   // externe E-Mail-Adresse (für Nachrichten)
 	Chat     string   `json:"chat,omitempty"`   // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
+	NotifyOff []string `json:"notifyOff,omitempty"` // abgewaehlte Meldungsarten (task | mention | news), Standard: alle an (notify.go)
+	Guest    bool     `json:"guest,omitempty"`   // Gast-Konto (guest.go): nur ausdruecklich genannte Gruppen, ohne Verwaltungsrechte, mit Ablauf
+	Expires  string   `json:"expires,omitempty"` // Gast: letzter gueltiger Tag (JJJJ-MM-TT)
 	Realm    string   `json:"realm,omitempty"`
 	Source   string   `json:"source,omitempty"`    // "dir" = Spiegelkonto eines Verzeichnisbenutzers
 	DirSeen  string   `json:"dirSeen,omitempty"`   // letzte erfolgreiche Verzeichnisprüfung (Zwischenspeicher, Phase 3)
@@ -188,7 +191,9 @@ func (a *Auth) refresh(ctx context.Context) {
 		fail()
 		return
 	}
-	m = resolveMembers(m, g) // Mitgliedschaften aus Verzeichnis-/Untergruppen-Einträgen berechnen (0.55)
+	m = resolveMembers(m, g)
+	expireGuests(m) // Gaeste: keine abgeleiteten Mitgliedschaften, abgelaufene gelten als gesperrt (guest.go)
+	// Mitgliedschaften aus Verzeichnis-/Untergruppen-Einträgen berechnen (0.55)
 	a.mu.Lock()
 	if a.gen == gen { // währenddessen geändert: Ergebnis verwerfen, der nächste Aufruf lädt neu
 		a.users, a.groups, a.load = m, g, time.Now()

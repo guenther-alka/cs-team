@@ -90,6 +90,9 @@ func (s *Svc) readFile(r *http.Request, f fileRef, vision bool) (*fileText, *ima
 		return nil, nil, errors.New("file not found or no access: " + f.Name)
 	}
 	limit := int64(maxFileBytes)
+	if ext == ".pdf" { // PDFs sind oft groesser als reine Textdateien (Bilder, Schriften): bis 8 MB lesen, der Text wird trotzdem auf maxFileChars gekuerzt
+		limit = 8 << 20
+	}
 	if imgExt[ext] != "" {
 		limit = 4 << 20
 	}

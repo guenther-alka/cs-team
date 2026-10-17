@@ -47,6 +47,33 @@ func tasksMode(g Group) string {
 	return g.Tasks
 }
 
+// dmMode: 1:1-Nachrichten der Gruppe: "off" (Vorgabe), "admin" (nur Gruppen-Admin und Mitglied) oder "member" (Mitglieder untereinander).
+func dmMode(g Group) string {
+	if g.DM == ModeAdmin || g.DM == ModeMember {
+		return g.DM
+	}
+	return ModeOff
+}
+
+// SetGroupDM: mode "off" | "admin" | "member".
+func (a *Auth) SetGroupDM(ctx_ context.Context, group, mode string) error {
+	if !validMode(mode) {
+		return ErrBadMode
+	}
+	return a.mutateGroups(ctx_, func(m map[string]Group) error {
+		g, ok := m[group]
+		if !ok {
+			return ErrNoGroup
+		}
+		g.DM = ""
+		if mode != ModeOff {
+			g.DM = mode
+		}
+		m[group] = g
+		return nil
+	})
+}
+
 // aiMode: KI-Dokumente für Mitglieder: "member" oder "off" (Vorgabe).
 func aiMode(g Group) string {
 	if g.AI == ModeMember {
@@ -77,6 +104,9 @@ func (a *Auth) SetGroupAI(ctx_ context.Context, group, mode string) error {
 // AICreateOK: darf der Benutzer den KI-Assistenten Dokumente vorschlagen und anlegen lassen?
 // Globale Admins und Gruppen-Admins immer, Mitglieder nur, wenn eine ihrer Gruppen "KI für Mitglieder" eingeschaltet hat.
 func AICreateOK(ctx context.Context) bool {
+	if IsGuest(User(ctx)) { // Gaeste: kein KI-Assistent
+		return false
+	}
 	if IsAdmin(ctx) || len(AdminOf(ctx)) > 0 {
 		return true
 	}
@@ -210,6 +240,7 @@ type GInfo struct {
 	Msg    string
 	Chans  string // wer Kanäle anlegen darf: member | admin | off
 	Tasks  string // wer Aufgaben anlegen darf: member | admin | off
+	DM     string // 1:1-Nachrichten: off | admin | member
 	ChatDays int  // Aufbewahrung Chat in Tagen (0 = unbegrenzt)
 	Admins []string
 }
@@ -225,7 +256,7 @@ func GroupInfoOf(name string) (GInfo, bool) {
 	if !ok {
 		return GInfo{}, false
 	}
-	return GInfo{Name: name, Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, Admins: adminsOf(std, name, g)}, true
+	return GInfo{Name: name, Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), DM: dmMode(g), ChatDays: g.ChatDays, Admins: adminsOf(std, name, g)}, true
 }
 
 // AllGroupNames: Namen aller Gruppen (sortiert).
@@ -247,7 +278,14 @@ func AllGroupNames() []string {
 // adminsOf: Gruppen-Admins; bei der Standardgruppe die aktiven globalen Admins. (Aufrufer hält a.mu)
 func adminsOf(a *Auth, name string, g Group) []string {
 	if name != DefaultGroup {
-		return append([]string{}, g.Admins...)
+		out := []string{}
+		for _, x := range g.Admins {
+			if u, ok := a.users[x]; ok && u.Guest { // Gaeste sind nie Gruppen-Admin
+				continue
+			}
+			out = append(out, x)
+		}
+		return out
 	}
 	var out []string
 	for n, u := range a.users {

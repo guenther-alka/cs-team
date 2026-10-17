@@ -293,7 +293,39 @@ func (s *Svc) complete(ctx context.Context, c Config, system string, ms []msg) (
 	return out, err
 }
 
+var errEmpty = errors.New("empty answer")
+
+// thinkOffMark: Anbieter-Adressen, bei denen das Denken ("thinking") abgeschaltet wird. Denkmodelle (z. B. DeepSeek V4 Flash) rechnen das Nachdenken auf die
+// Ausgabegrenze an; ist sie aufgebraucht, antwortet die API mit Erfolg und leerem Text (content null, finish_reason length). cs-team braucht kein Denken.
+var thinkOffMark = "deepseek"
+
+func isThinkOff(c Config) bool { return c.Provider != "anthropic" && strings.Contains(hostOf(c), thinkOffMark) }
+
+// nonEmpty: ein leerer Antworttext ist ein Fehler (mit dem Grund des Anbieters), kein Erfolg.
+func nonEmpty(out, finish string) (string, error) {
+	if out == "" {
+		return "", fmt.Errorf("%w: %w (finish reason %q): the model used its whole output budget, raise the output limit or use a model without thinking", errProvider, errEmpty, finish)
+	}
+	return out, nil
+}
+
+// complete1: ein Aufruf mit zwei Wiederholungen: lehnt der Anbieter den Parameter "thinking" ab (HTTP 400), ohne ihn; kommt ein leerer Text, mit doppelter Ausgabegrenze.
 func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) (string, error) {
+	off := isThinkOff(c)
+	out, err := s.call(ctx, c, system, ms, off)
+	if err != nil && off && strings.Contains(err.Error(), "HTTP 400") {
+		off = false
+		out, err = s.call(ctx, c, system, ms, off)
+	}
+	if err != nil && errors.Is(err, errEmpty) && ctx.Err() == nil {
+		cc := c
+		cc.MaxTokens = min(max(c.MaxTokens, 1024)*2, 32000)
+		out, err = s.call(ctx, cc, system, ms, off)
+	}
+	return out, err
+}
+
+func (s *Svc) call(ctx context.Context, c Config, system string, ms []msg, noThink bool) (string, error) {
 	cl := chat.SafeClient(c.Private, 120*time.Second)
 	var body []byte
 	req, _ := http.NewRequestWithContext(ctx, "POST", c.endpoint(), nil)
@@ -329,7 +361,11 @@ func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) 
 		if strings.Contains(hostOf(c), "api.openai.com") {
 			lim = "max_completion_tokens"
 		}
-		body, _ = json.Marshal(map[string]any{"model": c.Model, lim: c.MaxTokens, "messages": arr})
+		req2 := map[string]any{"model": c.Model, lim: c.MaxTokens, "messages": arr}
+		if noThink {
+			req2["thinking"] = map[string]string{"type": "disabled"}
+		}
+		body, _ = json.Marshal(req2)
 		if c.Key != "" {
 			req.Header.Set("Authorization", "Bearer "+c.Key)
 		}
@@ -375,13 +411,14 @@ func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) 
 				sb.WriteString(p.Text)
 			}
 		}
-		return strings.TrimSpace(sb.String()), nil
+		return nonEmpty(strings.TrimSpace(sb.String()), "")
 	}
 	var r struct {
 		Choices []struct {
 			Message struct {
 				Content json.RawMessage `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if json.Unmarshal(raw, &r) != nil || len(r.Choices) == 0 {
@@ -389,7 +426,7 @@ func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) 
 	}
 	var str string
 	if json.Unmarshal(r.Choices[0].Message.Content, &str) == nil {
-		return strings.TrimSpace(str), nil
+		return nonEmpty(strings.TrimSpace(str), r.Choices[0].FinishReason)
 	}
 	var parts []struct{ Type, Text string }
 	json.Unmarshal(r.Choices[0].Message.Content, &parts)
@@ -397,7 +434,7 @@ func (s *Svc) complete1(ctx context.Context, c Config, system string, ms []msg) 
 	for _, p := range parts {
 		sb.WriteString(p.Text)
 	}
-	return strings.TrimSpace(sb.String()), nil
+	return nonEmpty(strings.TrimSpace(sb.String()), r.Choices[0].FinishReason)
 }
 
 func clip(s string, n int) string {
@@ -438,9 +475,11 @@ type chatIn struct {
 		Imgs []string `json:"images"` // nur in der letzten Nachricht erlaubt: data:image/...;base64,...
 	} `json:"messages"`
 	Topic string    `json:"topic"`
-	Lang  string    `json:"lang"`
+	Lang  string    `json:"lang"`  // Sprache der Antwort (Systemauftrag)
+	RLang string    `json:"rlang"` // Recherche: Sprache, in der recherchiert wird (Suchbegriffe, Wikipedia); leer = Lang
 	Files []fileRef `json:"files"` // ausdrücklich gewählte Dateien (max. 4 zusammen mit docs)
 	Docs  []string  `json:"docs"`  // ausdrücklich gewählte Calc-/Text-Dokumente (ID)
+	Web   bool      `json:"web"`   // Recherche: Websuche des Anbieters nutzen, wenn er sie kann (web.go); die Antwort nennt, ob gesucht wurde
 }
 
 func parseImage(d string) (image, error) {
@@ -471,7 +510,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	// Konfiguration fürs Widget (ohne Schlüssel, ohne Endpunkt)
 	mux.Handle("GET /api/ai/config", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := s.config()
-		out := map[string]any{"enabled": c.enabled(), "vision": c.Vision != "no", "files": c.Files != "no", "create": s.canCreate(r), "history": c.History, "topics": []string{}}
+		out := map[string]any{"enabled": c.enabled() && !auth.IsGuest(auth.User(r.Context())), "vision": c.Vision != "no", "files": c.Files != "no", "create": s.canCreate(r), "history": c.History, "topics": []string{}}
 		if c.enabled() {
 			out["topics"] = topicIDs(auth.IsAdmin(r.Context()))
 		}
@@ -539,8 +578,10 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	s.reviewRoutes(mux, admin, s.Chat)
 	s.createRoutes(mux, wrap)
 	mux.Handle("POST /api/ai/chat", wrap(http.HandlerFunc(s.chat)))
+	s.searchSettingsRoutes(mux, admin) // Suchdienst fuer die Recherche (Brave / SearXNG), nur Admin
+	mux.Handle("POST /api/ai/translate", wrap(http.HandlerFunc(s.translate))) // Recherche Stufe 2: Ergebnis uebersetzen (translate.go)
 	mux.Handle("GET /api/ai/sources", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if c := s.config(); !c.enabled() || c.Files == "no" {
+		if c := s.config(); !c.enabled() || c.Files == "no" || auth.IsGuest(auth.User(r.Context())) {
 			http.Error(w, "not available", http.StatusServiceUnavailable)
 			return
 		}
@@ -549,6 +590,10 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 }
 
 func (s *Svc) chat(w http.ResponseWriter, r *http.Request) {
+	if auth.IsGuest(auth.User(r.Context())) { // Gaeste: kein KI-Assistent
+		http.Error(w, "not available for guest accounts", http.StatusForbidden)
+		return
+	}
 	c := s.config()
 	if !c.enabled() {
 		http.Error(w, "AI assistant is off", http.StatusServiceUnavailable)
@@ -621,17 +666,31 @@ func (s *Svc) chat(w http.ResponseWriter, r *http.Request) {
 		}
 		last.Images = append(last.Images, fimgs...)
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 130*time.Second)
+	tmo := 130 * time.Second
+	if in.Web {
+		tmo = 190 * time.Second // Websuche mit mehreren Anfragen dauert laenger
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), tmo)
 	defer cancel()
 	t0 := time.Now()
-	out, err := s.complete(ctx, c, system, ms)
+	var out string
+	var wi *webInfo
+	if in.Web {
+		rl := in.RLang
+		if rl == "" {
+			rl = in.Lang
+		}
+		out, wi, err = s.research(ctx, c, system, ms, rl, in.Lang)
+	} else {
+		out, err = s.complete(ctx, c, system, ms)
+	}
 	// Protokoll: nur Metadaten, nie Fragen, Antworten oder Daten
 	log.Printf("ai: user=%s topic=%q msgs=%d images=%d files=%d ok=%v %dms", me, in.Topic, len(ms), len(ms[len(ms)-1].Images), len(in.Files)+len(in.Docs), err == nil, time.Since(t0).Milliseconds())
 	if err != nil {
 		http.Error(w, strings.TrimPrefix(err.Error(), errProvider.Error()+": "), http.StatusBadGateway)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"reply": out})
+	json.NewEncoder(w).Encode(map[string]any{"reply": out, "web": wi})
 }
 
 const rules = `You are the assistant built into cs-team, a small team server (calendar, tasks, files, chat, spreadsheets, text documents, groups and users).

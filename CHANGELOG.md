@@ -1,5 +1,137 @@
 cs-team changelog (newest first)
 
+2026-10-17  0.62.0-test17 (Windows-Testbuild, kein Tag) Sicherheitsaudit (AUDIT-0.62.0-test16.md) und Sicherheits-Update: Build mit Go 1.27.2 (behebt die von govulncheck gemeldeten Luecken der Standardbibliothek in net/http, crypto/tls,
+                   crypto/x509, net/url, net/mail u. a.), golang.org/x/net 0.61.0, x/crypto 0.58.0, x/sys 0.49.0, x/text 0.43.0. API-, DAV- und WebDAV-Antworten tragen jetzt "Cache-Control: no-store" (secHeaders). Live-Audit: keine kritische
+                   Luecke, Rechtetrennung (Gruppen, Gruppen-Admin, DAV, WebSocket-Origin, Papierkorb) in allen Tests dicht; offen siehe Bericht (CSP unsafe-inline, Sperre je Konto, Aushang-Content-Type).
+
+2026-10-17  0.62.0-test16 (Windows-Testbuild, kein Tag) Datenauskunft und Loeschen vollstaendig. Auskunft (ZIP): neu documents/ (eigene Calc-Dokumente als .xlsx, Text-Dokumente als .docx), chat-anhaenge/<gruppe>/<kanal>/ (die
+                   eigenen Anhaenge als Dateien, auch aus 1:1-Kanaelen), notices.json (selbst verfasste Aushaenge), account.json mit Meldungs-Einstellungen und Gast-Status; README der Auskunft nennt nur noch, was wirklich fehlt (Inhalte anderer,
+                   Gruppenordner, geteilte Dateien, Protokolle, Snapshots). Loeschen (Assistent): 1:1-Kanaele des Kontos samt Verlauf und Anhaengen werden entfernt, eigene Chat-Anhaenge in Gruppen geloescht (die Nachricht bleibt ohne Anhang),
+                   neue Frage "Nachrichten ganz loeschen statt anonymisieren" (hardDelete, Vorschau zeigt die Zahl; Antworten darauf bleiben als normale Nachrichten). FEHLER behoben: Aushaenge wurden beim Loeschen mit Anonymisieren nicht
+                   entfernt (Anonymisieren lief vor dem Entfernen und Purge fand den Namen nicht mehr); UserHook.Early laeuft jetzt vor dem Anonymisieren. chat/gdpr_del.go, news/gdpr.go, office/gdpr.go, doc.OwnedIDs, Test gdpr16_test.go.
+
+2026-10-17  0.62.0-test15 (Windows-Testbuild, kein Tag) (A) 1:1-Nachrichten und Antworten (Threads) im Chat. 1:1: je Gruppe vom Gruppen-Admin schaltbar (Gruppe > "1:1-Nachrichten": aus (Standard) | nur Gruppen-Admin mit
+                   Mitglied | Mitglieder untereinander; POST /api/groups/{g}/dm); ein 1:1-Kanal "dm-<12 Hex>" je Paar und Gruppe, nur die beiden lesen und schreiben (auch Gruppen-Admins und globale Admins nicht), er fehlt in der
+                   Kanalliste, der Suche, der Auswertung/KI-Pruefung und den WebSocket-Meldungen der anderen, ohne Videochat, nicht loeschbar; nach dem Abschalten bleibt der Verlauf lesbar, schreiben geht nicht mehr; Meldung an den anderen
+                   Teilnehmer (Art dm, Abwahl im Konto). Oberflaeche: Eintrag "+ 1:1" und "@ name" in der Kanalliste (GET/POST /api/chat/{g}/dm). Antworten: Knopf, Zitatzeile, "N Antworten", Thread-Ansicht; eine Ebene (Msg.rp), die
+                   Antwort meldet den Verfasser der Nachricht (Art mention). chat/dm.go, chat/notify.go, Tests dm_test.go. (B) Gast-Konten mit Ablauf: immer Mitglied der Gruppe "guests" (wird beim ersten Gast restriktiv angelegt: keine
+                   Bereiche, Chat aus; der Admin stellt dort ein, was Gaeste duerfen), dazu optional weitere Gruppen (Gruppen-Admins nur ihre eigenen, nie alluser); Pflicht-Ablaufdatum (heute bis 400 Tage, verlaengerbar durch globale
+                   Admins und Gruppen-Admins der Gruppen des Gastes, POST /api/users/{name}/expires); abgelaufen = gesperrt (im Speicher berechnet, nichts gespeichert); keine abgeleiteten Mitgliedschaften, nie Gruppen-Admin, kein Admin,
+                   kein KI-Assistent, keine Aushaenge an alle; Benutzer-Seite: Haken Gast + Datum, Anzeige und Frist aendern, Gast-Leiste oben. auth/guest.go, Tests auth/guest_test.go, guest_test.go. 19 neue Texte in web/lang.
+
+2026-10-17  0.62.0-test14 (Windows-Testbuild, kein Tag) (1) KI-Recherche: Suchdienst fuer das offene Web: Brave Search (API-Schluessel) oder SearXNG (eigene Instanz, auch im lokalen Netz), nur vom Admin eingerichtet
+                   (Einstellungen > Websuche fuer die KI-Recherche, Knopf "Suchdienst testen"; ai/searchweb.go, Datei ai-search.json, GET/POST /api/ai/search-settings und /test). Die cs-team-Quellensuche fragt dann zusaetzlich
+                   den Dienst ab (2 Suchbegriffe in der Landessprache, 1 englisch; bis 6 Web-Treffer neben Wikipedia und OpenAlex, insgesamt bis 18 Quellen); Treffer tragen Art und Rechner ("Web (Brave): www...") und Datum; der
+                   Quellenblock sagt dem Modell, dass Webtreffer nach ihrer Seite zu beurteilen sind; der Kopf nennt die Websuche. Ohne Einrichtung unveraendert (Wikipedia, OpenAlex; Nachrichten und Behoerden nicht durchsucht).
+                   (2) Hinweis "Neue Version {0} verfuegbar - Neu laden": die Seite fragt alle 2 Minuten /api/me und zeigt ein Banner, wenn der Server eine andere Version hat. (3) Benachrichtigungen aufs Handy ueber die vorhandene
+                   Schiene (Mailer.Notify: E-Mail und/oder Chat-Adresse, z. B. ntfy): zentrale Stelle notifyUser in main.go fuer Aufgaben (wie bisher), NEU Erwaehnung im Chat (@name; nur wer den Kanal lesen darf, hoechstens eine
+                   Meldung je Person und Kanal in 10 Minuten; chat/notify.go) und NEU Aushang mit Haken "Empfaenger benachrichtigen" (alle oder Gruppe ausser dem Autor, bis 500; news/news.go tell). Jeder waehlt im Konto unter
+                   "Benachrichtigen bei" Aufgaben / Erwaehnung im Chat / Aushaengen ab (POST /api/me/notify, Konto-Feld notifyOff, auth/notify.go). Web-Push (PWA) ist nicht gebaut: ntfy leistet das Handy-Push.
+                   Tests: ai/searchweb_test.go, notify_test.go. 15 neue Texte in web/lang.
+
+2026-10-17  0.62.0-test13 (Windows-Testbuild, kein Tag) Fehler behoben: bei Denkmodellen (DeepSeek V4 Flash denkt standardmaessig) rechnet der Anbieter das Nachdenken auf die Ausgabegrenze an; ist sie aufgebraucht,
+                   antwortet er mit Erfolg (HTTP 200) und leerem Text (content null, finish_reason length). cs-team hat das als Erfolg durchgereicht: die Uebersetzung (und jede lange Antwort) blieb leer, ohne Meldung und ohne
+                   Knopf "Original wiederherstellen". Jetzt: (1) bei Anbietern, deren Adresse "deepseek" enthaelt, wird das Denken abgeschaltet (thinking: disabled; lehnt der Anbieter den Parameter mit HTTP 400 ab, ein zweiter Versuch
+                   ohne); (2) ein leerer Antworttext ist ein Fehler mit Grund (finish reason), vorher ein zweiter Versuch mit doppelter Ausgabegrenze (bis 32000); (3) die Oberflaeche meldet, wenn die KI keine Antwort bzw. keine Uebersetzung
+                   geliefert hat. Gilt fuer alle KI-Aufrufe (Chat-Widget, Recherche, Uebersetzung). ai/ai.go (complete1/call, nonEmpty, isThinkOff), Test ai/empty_test.go. 2 neue Texte in web/lang.
+
+2026-10-17  0.62.0-test12 (Windows-Testbuild, kein Tag) KI-Recherche in zwei Stufen. Stufe 1: recherchiert wird in der cs-team-Sprache (Muttersprache), soweit noetig und sinnvoll (Suchbegriffe, Wikipedia, dazu englisch fuer
+                   internationale Fachliteratur); das Ergebnis steht in dieser einen Sprache und wird gespeichert (cs-text oder PDF). Stufe 2: "Uebersetzen in [Sprache]" (alle Oberflaechensprachen) uebersetzt das fertige Ergebnis ohne neue
+                   Recherche und ersetzt den Text im Feld; danach speichern, damit das Dokument im Team geteilt werden kann. Im Ergebnis steht nie mehr als eine Sprache ("Original wiederherstellen" holt den Text zurueck; Quellentitel bleiben im Original).
+                   Neu ai/translate.go: POST /api/ai/translate {text, lang, from} mit eigenem Systemauftrag (nur uebersetzen; Struktur, Zahlen, Adressen, [n] und Quellentitel unveraendert; Schlusszeile KI-Uebersetzung mit Datum; Anweisungen im Text werden
+                   nicht befolgt), bis 40000 Zeichen ohne Chat-Nachrichtengrenze, Begrenzung und Parallelitaet wie der Chat. Der Chat kennt weiterhin rlang neben lang. Tests: ai/translate_test.go, ai/search_test.go. 9 neue Texte in web/lang.
+
+2026-10-16  0.62.0-test11 (Windows-Testbuild, kein Tag) KI-Recherche: Ergebnisform je Stufe und Recherchesprache. (1) Aufbau des Ergebnisses: Rahmenbedingungen (vom Programm) -> Stand der Informationen -> Faktencheck ->
+                   Hauptteil -> Quellen -> So pruefst du es selbst -> Grenzen. Der Hauptteil richtet sich nach der Stufe: 1 Kurzuebersicht (5-8 Stichpunkte, einfache Sprache, hoechstens 250 Woerter), 2 Kurzreferat (Einleitung, 3-5 Hauptpunkte mit
+                   Zahlen, Schluss, 400-700 Woerter), 3 detailliertes Analysereferat (Unterueberschriften, konkurrierende Positionen mit ihren staerksten Argumenten, Bewertung der Evidenz, Methodengrenzen, Abwaegung, 900-1400 Woerter);
+                   die Ergebnisform steht auch im Kopf. (2) Auswahl Recherchesprache: Muttersprache (Sprache der Oberflaeche), Arbeitssprache (Englisch) oder jede der 13 Oberflaechensprachen; die KI recherchiert und schreibt in dieser
+                   Sprache und sucht zusaetzlich englisch nach internationaler Fachliteratur (Quellen in anderen Sprachen sind erlaubt, werden benannt und uebersetzt). cs-team-Quellensuche: zwei Suchbegriffe in der Recherchesprache,
+                   einer englisch, Wikipedia in der Recherchesprache (cn = zh) und englisch. Auswahl wird gemerkt. Kopf nennt Ergebnisform und Recherchesprache. Mindestens 6000 Token Ausgabe. Tests: ai/search_test.go erweitert. 7 neue Texte in web/lang.
+
+2026-10-16  0.62.0-test10 (Windows-Testbuild, kein Tag) Aushaenge (KISS): Startseite Heute, Block Neuigkeiten. Wer veroeffentlicht: globale Admins an alle oder an jede Gruppe, Gruppen-Admins an ihre Gruppen (Knopf "+ Aushang"
+                   nur fuer sie; Titel, Text, Ziel, "gueltig bis" mit Vorgabe 14 Tage, leer = ohne Ablauf/angepinnt). Wer liest: Aushaenge an alle jeder Angemeldete, Gruppen-Aushaenge deren Mitglieder und Verantwortliche. Loeschen:
+                   Autor, globale Admins, Gruppen-Admins der Gruppe (kein Bearbeiten). Neue Aushaenge anderer Autoren zeigen einen roten Punkt und einen Zaehler am Knopf Heute (der Browser merkt sich den Stand, alle 5 Minuten
+                   geprueft). Abgelaufene sind unsichtbar und werden nach 30 Tagen entfernt. Server: news/news.go (GET/POST /api/news, DELETE /api/news/{id}, Speicher news/<id>.json), Haken fuer Gruppe umbenennen, Benutzer
+                   loeschen (Aushaenge entfernen) und anonymisieren. Nicht enthalten: zusaetzlich als Nachricht senden (dafuer das Menue Nachricht), Datenauskunft. Tests: news_test.go. 7 neue Texte in web/lang.
+
+2026-10-16  0.62.0-test9 (Windows-Testbuild, kein Tag) KI-Recherche "so gut wie moeglich" mit jedem Anbieter und Modell, Rahmenbedingungen vorab. Drei Stufen: (1) Websuche des Anbieters (Anthropic web_search,
+                   OpenAI-Suchmodelle) wenn vorhanden; (2) NEU ai/search.go: eigene Quellensuche von cs-team, unabhaengig von Anbieter und Modell (DeepSeek, Ollama, jedes OpenAI-kompatible Modell): das Modell nennt bis zu 3 Suchbegriffe,
+                   cs-team fragt ohne Schluessel Wikipedia (Sprache des Benutzers und Englisch, mit Stand der Seite) und die wissenschaftliche Literatur ueber OpenAlex (Art, Zeitschrift, Autoren, Zitierungen, Zusammenfassung) ab,
+                   das Modell bekommt die Treffer als nummerierte Quellenliste mit Metadaten und zitiert mit [n]; die Quellenliste im Ergebnis sind die abgerufenen Treffer (zitierte zuerst), Reichweite: Enzyklopaedie und Fachliteratur,
+                   Nachrichten, Behoerden- und Firmenseiten werden nicht durchsucht (steht im Ergebnis); (3) nur Wissen der KI, mit Grund. Kopf des Ergebnisses "Rahmenbedingungen" (vom Programm): Niveau, Datum, Anbieter und
+                   Modell, Quellenbasis mit Methode, Zahl der Abfragen und Quellen und den Suchbegriffen, Grenzen. webInfo um method, queries und note je Quelle erweitert. Die Suchanfragen gehen vom Server an wikipedia.org und
+                   api.openalex.org (ohne Benutzerdaten, mit dem SafeClient). Tests: ai/search_test.go (vorgetaeuschte Dienste). 6 neue Texte in web/lang.
+
+2026-10-16  0.62.0-test8 (Windows-Testbuild, kein Tag) KI-Recherche: im Rueckfall ohne Websuche (z. B. OpenAI-kompatibel an DeepSeek, Ollama) bekommt die Antwort mindestens 4000 Token Ausgabe (vorher die
+                   Standardgrenze 1024, damit brach eine Recherche der Stufe 2/3 mitten im Text ab). ai/web.go research(), Test in ai/web_test.go.
+
+2026-10-16  0.62.0-test7 (Windows-Testbuild, kein Tag) KI-Recherche mit echter Websuche, drei Stufen und Einordnung. (1) ai/web.go: POST /api/ai/chat mit web:true nutzt die Websuche des KI-Anbieters, immer wenn der
+                   Anbieter sie kann (kein Schalter): Anthropic (Werkzeug web_search, bis 5 Suchen, Fortsetzung bei pause_turn) und OpenAI mit Such-Modell (Modellname enthaelt "search", Adresse api.openai.com). Antwort enthaelt
+                   web{used,searches,sources,provider,model,reason}: die Quellenliste (Adresse, Titel, Alter, zitiert) stammt aus den Suchergebnissen und Zitaten des Anbieters, nicht aus dem Text der KI (Adressen werden bereinigt,
+                   hoechstens 12). Ollama und andere Anbieter ohne Websuche, abgelehnte oder nicht freigeschaltete Suche und eine KI, die nicht sucht: Antwort aus dem Wissen der KI, ausdruecklich gekennzeichnet (used=false + Grund).
+                   (2) Drei Stufen (web/index.html AILEVEL): 1 einfache Sprache, kompakt (Schueler: kurze Saetze, Fachwoerter erklaeren, 250 Woerter, 3-4 Quellen), 2 fachlich, detailliert (Erwachsene: Zahlen und Daten, 400-700 Woerter,
+                   5-8 Quellen), 3 komplex, abwaegend, wissenschaftlich (konkurrierende Positionen mit ihren staerksten Argumenten, Qualitaet der Evidenz, Methodengrenzen, Primaerliteratur, 800-1200 Woerter, 8-12 Quellen).
+                   (3) Das Ergebnis beginnt mit einem vom Programm erzeugten Kopf (nicht von der KI): Frage, Stufe, Datum, Quellenbasis (Websuche mit Zahl der Suchen und Quellen oder Wissen der KI ohne Websuche mit Grund), KI-Anbieter
+                   und Modell, Grenzen. Danach die Antwort der KI mit "Stand der Informationen" (Datum der Recherche, neueste Quelle mit Datum, ohne Suche das Wissensdatum der KI), Einordnungszeile, Kurzantwort, Faktencheck mit einem Urteil,
+                   Quellen mit Typ, Seriositaet und Schwaeche, "So pruefst du es selbst", Grenzen; am Ende die vom Suchdienst gelieferten Quellen. Ergebnis bearbeitbar, speichern als cs-text oder PDF. Tests: ai/web_test.go (vorgetaeuschter Anbieter),
+                   web/lang: 19 neue Texte.
+
+2026-10-16  0.62.0-test6 (Windows-Testbuild, kein Tag) Menue Text, + add: dritte Option "KI-Recherche" (nur wenn die KI eingerichtet ist). Recherchefrage + Niveau (Klasse 5-7, 8-10, Oberstufe/Erwachsene,
+                   fachlich) werden in eine feste Vorgabe eingebettet (AIFN.research in web/index.html; die Frage steht in <<< >>> und gilt nur als Thema, nie als Anweisung): Kurzantwort, Faktencheck (genau ein Urteil:
+                   Stand der Wissenschaft / ueberwiegend gesichert, Details offen / in der Fachwelt umstritten / Datenlage duenn / nicht belegt oder widerlegt / Wertfrage, dazu Belege und Streitpunkte), Quellen mit Typ,
+                   Seriositaet (hoch/mittel/niedrig mit Begruendung) und typischer Schwaeche, "So pruefst du es selbst", Grenzen der Antwort. Harte Regeln: keine erfundenen Quellen, Zitate, Zahlen, URLs oder DOIs, bei
+                   Unsicherheit "nicht sicher", Belege und Deutung trennen. Das Ergebnis ist bearbeitbar und wird als cs-text oder PDF gespeichert, mit Titel "Recherche: <Frage>" und dem Hinweis, dass die Antwort mit KI
+                   erstellt wurde und selbst zu pruefen ist. Hinweis in der Oberflaeche: ohne Live-Internet des KI-Anbieters kommt die Antwort aus dem Wissen der KI. 12 neue Texte in web/lang.
+
+2026-10-16  0.62.0-test5 (Windows-Testbuild, kein Tag) Menue Text, + add: zwei weitere Optionen neben "Neuer Text", Ziel jeweils ein neues cs-text-Dokument (Mehrbenutzer) oder ein PDF in der Ablage.
+                   Zusammenfuegen (ohne KI): Quellen = Dateien .pdf .docx .txt .cstext (eigene und freigegebene) und Text-Dokumente, gewaehlt mit Haken, die Zahl zeigt die Reihenfolge (2 bis 20 Quellen);
+                   Ziel PDF: PDFs werden direkt verbunden (conv/pdfmerge.go: Seiten, Schriften, Bilder, Links; geerbte Seiteneigenschaften werden in jede Seite geschrieben; verloren gehen Lesezeichen,
+                   Formularfelder und Dokumentinfo; verschluesselte PDFs werden abgelehnt), Word/Text/cs-text vorher als PDF gesetzt; Ziel cs-text: eine Titelzeile (fett) je Quelle, PDFs als Text.
+                   Zusammenfassen (KI, nur wenn die KI eingerichtet ist): definierte KI-Funktionen auf der Auswahl (AIFN in web/index.html: Zusammenfassen, Stichpunkte, Aufgaben und Termine finden; weitere
+                   dort ergaenzen), gleicher Weg wie das KI-Widget (Hinweis vor der ersten Nutzung, Rechte des Fragenden, Grenzen: 4 Quellen, 40000 Zeichen je Datei); das Ergebnis ist ein bearbeitbarer Text,
+                   gespeichert als cs-text oder PDF ("# " Ueberschrift, "- " Aufzaehlung, "1. " Nummerierung, **fett** werden zu Formaten, conv/mdtext.go). PDFs bis 8 MB (vorher 2 MB) fuer die KI.
+                   Server: POST /api/docs/merge, POST /api/docs/fromtext (office/compose.go). 17 neue Texte in web/lang. Tests: conv/pdfmerge_test.go, mdtext_test.go, compose_test.go.
+
+2026-10-16  0.62.0-test4 (Windows-Testbuild, kein Tag) Ticketsystem, Startseite, Suche, PDF. (1) Aufgaben: Tafel (Spalten Offen / In Arbeit / Erledigt, Abgenommen im Filter "Abgeschlossen"; Karten ziehen aendert den
+                   Status, die Rechte prueft der Server; Umschalter Tafel/Liste), Labels (bis 8 je Aufgabe, 24 Zeichen, Filter links), Klassenaufgabe: "An alle Mitglieder verteilen" legt je Mitglied eine private Kopie an
+                   (nur Auftraggeber, Bearbeiter, Gruppen-Admins und Admins sehen sie; Abgabe = Erledigt melden mit Kommentar, Rueckgabe = Wieder oeffnen, Abnahme durch den Auftraggeber); die Klassenaufgabe zeigt
+                   "erledigt von gesamt" und die Kopien. Die Checkliste sind die vorhandenen Meilensteine (Text, Datum, abhaken), die Tafelkarte zeigt den Stand. tasks/class.go, tasks/tasks.go (Labels, Priv, Of, Kids). (2) Startseite
+                   "Heute" (neuer erster Bereich und Start nach der Anmeldung): Termine heute/morgen, faellige und ueberfaellige Aufgaben, Neuigkeiten (Aufgaben mit Aenderungen anderer, ungelesene Chat-Kanaele);
+                   reine Anzeige aus den vorhandenen Schnittstellen. (3) Globale Suche: Suchfeld oben (Ctrl+K) und GET /api/search?q= ueber Aufgaben, Termine, Dokumente (Name und Inhalt), Dateien (Name) und Chat;
+                   jeder Dienst prueft die Rechte selbst (hit/, */search.go), 2 bis 80 Zeichen, hoechstens 4 Suchen gleichzeitig. (4) PDF-Export: Text per GET /api/docs/{id}/export?format=pdf, Calc per POST mit den im
+                   Browser angezeigten Werten (Formeln berechnet); Helvetica/WinAnsi (Latin-1 und Euro; Kyrillisch, Arabisch, Chinesisch erscheinen als ?), Seitenumbruch, fett/kursiv/unterstrichen/durchgestrichen,
+                   Farbe, Groesse, Hintergrund, Listen, Einrueckung, Kommentare als [n] und Liste am Ende, Calc mit Spaltenbuchstaben/Zeilennummern, Querformat und Spaltengruppen bei breiten Tabellen (conv/pdfout.go).
+                   Import-Hinweis im Calc/Text-Dialog korrigiert (Formate werden uebernommen). 19 neue Texte in web/lang. Tests: tasks_class_test.go, search_test.go, hit/hit_test.go, conv/pdfout_test.go, pdf_export_test.go.
+
+2026-10-16  0.62.0-test3 (Windows-Testbuild, kein Tag) Word und Excel Export/Import mit Formaten. Neu: conv.Para{V,F,R} und conv.FCell{V,F} (conv/rich.go), die alten Funktionen
+                   (ToDOCX, FromDOCX, ToXLSX, FromXLSX, ToCSText, FromCSText, ToCSCalc, FromCSCalc) bleiben als Wrapper (nur Text/Werte), ai/files.go unveraendert.
+                   .docx (conv/docx_rich.go): fett, kursiv, unterstrichen, durchgestrichen, Textfarbe, Groesse, Hintergrund, Aufzaehlung/Nummerierung (word/numbering.xml, jede
+                   Nummerierung beginnt bei 1), Einrueckung und Kommentare als echte Word-Kommentare (word/comments.xml, Autor cs-team); Import liest dasselbe inkl. Word-Hervorhebung,
+                   Listenart (bullet/decimal) und Kommentartext (auf 200 Zeichen gekuerzt); Tabellen bleiben reiner Text. .xlsx (conv/xlsx_rich.go): styles.xml mit Schrift (fett, kursiv,
+                   unterstrichen, durchgestrichen, Farbe, Groesse), Fuellung, Zahlenformat (Nachkommastellen, Prozent, Waehrung als #,##0.00 "EUR-Zeichen"), Ausrichtung, Zeilenumbruch und
+                   Notizen (xl/comments1.xml + VML, Autor cs-team); Import liest Formate, reine Formatzellen und Notizen (auch Excel-Threaded-Kommentare als Text, Autorpraefix entfaellt).
+                   .cstext/.cscalc Version 2 mit Feld formats (ohne Formate bleibt es Version 1, alte Dateien lesbar). Import prueft Formate gegen dieselbe Whitelist wie der Editor
+                   (doc.ValidFmt/ValidRuns), Ungueltiges entfaellt, der Text bleibt. doc/items_rich.go: ParagraphItems, CellItems; office/office.go: richParas/richCells.
+                   Hinweis: ein durchgestrichener Wert gilt nur in cs-team als leer; in Excel zaehlt er in Summen weiter (Formeln werden nicht umgeschrieben).
+                   Tastenkuerzel: Text und Calc Strg+Umschalt+X und Alt+Umschalt+5 = durchgestrichen, Umschalt+F2 = Kommentar (Text) bzw. Notiz (Calc), Calc zusaetzlich Strg+5 (Excel,
+                   im Browser meist von der Tab-Umschaltung belegt); Strg+B/I/U wie bisher. Tests: conv/rich_test.go, office/rich_test.go.
+
+2026-10-16  0.62.0-test2 (Windows-Testbuild, kein Tag) Calc: durchgestrichen und Zellnotiz. Knopf S (Token t im Zellformat): die Zelle zeigt ihren Wert durchgestrichen, fuer alle
+                   Bezuege und Bereiche gilt sie als leer (null wie eine leere Zelle: SUM/AVERAGE/COUNT/COUNTA/MIN/MAX/MEDIAN ueberspringen sie, =A1+B1 rechnet 0), so lassen sich
+                   einzelne Werte in Summen kurz ausblenden. Zellnotiz wie Excel-Notiz: Sprechblasen-Knopf oder Shift+F2 an der aktiven Zelle (Dialog, leer lassen = entfernen),
+                   rote Ecke oben rechts, Mouseover zeigt den Text als title; Token m<url-kodierter Text> im Zellformat (max. 200 Zeichen), kopiert/verschoben mit der Zelle.
+                   doc/lww.go: reFmt um t und m[A-Za-z0-9%._~-]{1,600}, Formatlaenge 80 -> 700; web/index.html: refVal/struck in CTX, styleCell, cellComment, Knoepfe S/Sprechblase
+                   fuer Text und Calc. Nicht enthalten: XLSX/Word-Export und -Import von Formaten/Notizen (folgt mit dem Konverter-Umbau). Tests: ValidFmt erweitert.
+
+2026-10-16  0.62.0-test1 (Windows-Testbuild, kein Tag) Text: zwei weitere Zeichenformate. Durchgestrichen (Token t, Knopf S) und Kommentar (Token m<url-kodierter Text>,
+                   Knopf Sprechblase): der kommentierte Text wird fett, blau und unterstrichen gezeigt, Mouseover blendet den Kommentar als title ein; beim Anlegen
+                   (Markierung + Knopf) und per Doppelklick auf den Kommentar oeffnet sich ein Dialog (leer lassen = Kommentar entfernen; ohne Schreibrecht nur Anzeige).
+                   Kommentar max. 200 Zeichen, er liegt im Lauf r des Absatzes (Last-Writer-Wins wie jedes Zeichenformat, Absatzsperre schuetzt ihn mit).
+                   doc/lww.go: reCharFmt um t und m[A-Za-z0-9%._~-]{1,600}, Lauf max. 700 Zeichen, r max. 16000 Zeichen; doc/http.go: WebSocket-Lesegrenze +20 KB;
+                   web/index.html (Format-Leiste, fmtObj/fmtStr/fmtCss, textComment, Doppelklick), web/lang/en.json und _template.json (5 neue Texte).
+                   Nicht enthalten: Word-Export/-Import (ToDOCX/FromDOCX behandeln nur reinen Text, auch Fett/Kursiv fehlen dort), folgt in einem eigenen Schritt.
+                   Tests: TestValidRuns erweitert, go vet und go test ./... ok.
+
 2026-10-06  0.61.0 Universeller Export/Import fuer Benutzer und Gruppen (JSON, Handbuch Kapitel 15/16 neu, Nummerierung ab Kapitel 17 verschoben):
                    GET /api/users/exportjson (global admin: alles; Gruppen-Admin: nur eigene Gruppen) liefert alle Felder jedes Benutzers (Sprache, Kontakt,
                    DSGVO-Bestaetigungen, Gruppen, Status) und, nur fuer den globalen Admin, alle Gruppen mit allen Rechten/Einstellungen, als eine JSON-Datei.

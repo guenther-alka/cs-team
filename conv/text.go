@@ -2,13 +2,12 @@
 //
 // Text:  .txt  .rtf (nur Export)  .docx  .cstext (JSON, eigenes Format)
 // Calc:  .csv  .xlsx  .cscalc (JSON, eigenes Format)
-// Formatierung (Schrift, Fett, Zellformate) wird weder gelesen noch geschrieben - nur Text bzw. Werte/Formeln.
+// Formate (Zeichen-, Absatz-, Zellformate, Kommentare/Notizen) stehen in rich.go, docx_rich.go und xlsx_rich.go.
 package conv
 
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -116,17 +115,6 @@ func zipParts(parts [][2]string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func ToDOCX(p []string) ([]byte, error) {
-	var b strings.Builder
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" +
-		`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`)
-	for _, s := range p {
-		b.WriteString(`<w:p><w:r><w:t xml:space="preserve">` + xmlEsc(s) + `</w:t></w:r></w:p>`)
-	}
-	b.WriteString(`</w:body></w:document>`)
-	return zipParts([][2]string{{"[Content_Types].xml", ctypesDocx}, {"_rels/.rels", relsDocx}, {"word/document.xml", b.String()}})
-}
-
 func readPart(zr *zip.Reader, name string) ([]byte, error) {
 	for _, f := range zr.File {
 		if f.Name == name {
@@ -151,114 +139,4 @@ func openZip(b []byte) (*zip.Reader, error) {
 		return nil, ErrFormat
 	}
 	return zr, nil
-}
-
-// FromDOCX liest den reinen Text der Absätze aus word/document.xml. Eine Tabellenzeile wird ein Absatz (Zellen durch Tab getrennt),
-// Alternativinhalt (mc:Fallback, doppelt vorhandener Text in Textfeldern) wird übersprungen. Keine Formate.
-func FromDOCX(b []byte) ([]string, error) {
-	zr, err := openZip(b)
-	if err != nil {
-		return nil, err
-	}
-	doc, err := readPart(zr, "word/document.xml")
-	if err != nil {
-		return nil, err
-	}
-	dec := xml.NewDecoder(bytes.NewReader(doc))
-	var out []string
-	var cur strings.Builder
-	inP, inT := false, false
-	tbl := 0                   // Schachtelungstiefe der Tabellen; nur die äußerste wird zu Zeilen
-	var row, cell []string     // Zellen der Zeile, Absätze der Zelle
-	for {
-		tok, err := dec.Token()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, ErrFormat
-		}
-		switch t := tok.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "Fallback":
-				dec.Skip()
-			case "tbl":
-				tbl++
-			case "p":
-				inP = true
-				cur.Reset()
-			case "t":
-				inT = true
-			case "tab":
-				cur.WriteByte('\t')
-			case "br", "cr":
-				cur.WriteByte(' ')
-			}
-		case xml.EndElement:
-			switch t.Name.Local {
-			case "t":
-				inT = false
-			case "p":
-				if inP {
-					inP = false
-					if tbl > 0 {
-						if s := strings.TrimSpace(cur.String()); s != "" {
-							cell = append(cell, s)
-						}
-						break
-					}
-					out = append(out, cur.String())
-					if len(out) > MaxParas {
-						return nil, ErrFormat
-					}
-				}
-			case "tc":
-				if tbl == 1 {
-					row, cell = append(row, strings.Join(cell, " ")), nil
-				}
-			case "tr":
-				if tbl == 1 {
-					out = append(out, strings.Join(row, "\t"))
-					row = nil
-					if len(out) > MaxParas {
-						return nil, ErrFormat
-					}
-				}
-			case "tbl":
-				tbl--
-			}
-		case xml.CharData:
-			if inT {
-				cur.Write(t)
-			}
-		}
-	}
-	if len(out) == 0 {
-		out = []string{""}
-	}
-	return out, nil
-}
-
-// ---------- .cstext (JSON) ----------
-
-type cstext struct {
-	Format     string   `json:"format"`
-	Version    int      `json:"version"`
-	Paragraphs []string `json:"paragraphs"`
-}
-
-func ToCSText(p []string) ([]byte, error) {
-	return json.MarshalIndent(cstext{"cs-team/text", 1, p}, "", " ")
-}
-
-func FromCSText(b []byte) ([]string, error) {
-	var c cstext
-	if json.Unmarshal(b, &c) != nil || c.Format != "cs-team/text" || len(c.Paragraphs) > MaxParas {
-		return nil, ErrFormat
-	}
-	if len(c.Paragraphs) == 0 {
-		c.Paragraphs = []string{""}
-	}
-	return c.Paragraphs, nil
 }

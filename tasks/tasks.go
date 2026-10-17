@@ -65,6 +65,11 @@ type Task struct {
 	Repeat   string   `json:"repeat,omitempty"` // daily | weekly | monthly | yearly
 	Miles    []Mile   `json:"miles,omitempty"`
 	Link     []string `json:"link,omitempty"`
+	Labels   []string `json:"labels,omitempty"` // Etiketten (höchstens 8, je 24 Zeichen)
+	Class    bool     `json:"class,omitempty"`  // Klassenaufgabe: an alle Gruppenmitglieder verteilt (class.go); sichtbar nur für Auftraggeber und Verwalter
+	Priv     bool     `json:"priv,omitempty"`   // nicht für alle Gruppenmitglieder sichtbar (Klassenaufgabe und ihre Kopien)
+	Of       string   `json:"of,omitempty"`     // Kopie einer Klassenaufgabe (ID der Klassenaufgabe)
+	Kids     []string `json:"kids,omitempty"`   // Klassenaufgabe: IDs der Kopien (nur im Speicher, nie in der Ansicht)
 	Created  int64    `json:"created"`
 	Updated  int64    `json:"updated"` // ms
 	Next     string   `json:"next,omitempty"`
@@ -78,6 +83,8 @@ type View struct {
 	Task
 	Own  bool `json:"own"`
 	Take bool `json:"take"`
+	Kt   int  `json:"kt,omitempty"` // Klassenaufgabe (nur für Verwalter): Kopien gesamt
+	Kd   int  `json:"kd,omitempty"` // davon erledigt oder abgenommen
 }
 
 type client struct {
@@ -134,11 +141,11 @@ func (s *Svc) canSee(user string, t *Task) bool {
 		return true
 	}
 	if t.Group != "" {
-		if info, ok := auth.GroupInfoOf(t.Group); ok && info.Tasks != auth.ModeOff && auth.IsMember(user, t.Group) {
+		if info, ok := auth.GroupInfoOf(t.Group); ok && !t.Priv && info.Tasks != auth.ModeOff && auth.IsMember(user, t.Group) {
 			return true
 		}
 	}
-	return auth.IsAdminUser(user)
+	return auth.IsAdminUser(user) || (t.Priv && t.Group != "" && auth.IsGroupAdmin(user, t.Group))
 }
 
 func isOwner(user string, t *Task) bool {
@@ -189,7 +196,19 @@ func (s *Svc) view(user string, t *Task, full bool) View {
 			c.Last = &l
 		}
 	}
-	return View{Task: c, Own: isOwner(user, t), Take: t.Assignee == "" && t.Status == "open" && s.canSee(user, t)}
+	c.Kids = nil
+	v := View{Task: c, Own: isOwner(user, t), Take: t.Assignee == "" && t.Status == "open" && !t.Class && s.canSee(user, t)}
+	if t.Class && v.Own {
+		for _, id := range t.Kids {
+			if k := s.tasks[id]; k != nil {
+				v.Kt++
+				if k.Status == "done" || k.Status == "closed" {
+					v.Kd++
+				}
+			}
+		}
+	}
+	return v
 }
 
 // ---- Validierung ----
@@ -213,6 +232,7 @@ type meta struct {
 	Repeat   string   `json:"repeat"`
 	Miles    []Mile   `json:"miles"`
 	Link     []string `json:"link"`
+	Labels   []string `json:"labels"`
 }
 
 func (s *Svc) check(user string, m *meta, group string) error {
@@ -237,6 +257,27 @@ func (s *Svc) check(user string, m *meta, group string) error {
 			return ErrBad
 		}
 	}
+	if len(m.Labels) > 8 {
+		return ErrBad
+	}
+	lab, lseen := []string{}, map[string]bool{}
+	for _, l := range m.Labels {
+		l = strings.Join(strings.Fields(l), " ")
+		if l == "" || lseen[strings.ToLower(l)] {
+			continue
+		}
+		if utf8.RuneCountInString(l) > 24 {
+			return ErrBad
+		}
+		for _, r := range l {
+			if r < 32 || r == 127 {
+				return ErrBad
+			}
+		}
+		lseen[strings.ToLower(l)] = true
+		lab = append(lab, l)
+	}
+	m.Labels = lab
 	for _, l := range m.Link {
 		if !reID.MatchString(l) {
 			return ErrBad
@@ -313,7 +354,7 @@ func (s *Svc) spawn(old *Task, now time.Time) *Task {
 	nd, days := nextDue(base, old.Repeat, today)
 	t := &Task{ID: s.newID(), Title: old.Title, Desc: old.Desc, By: old.By, Group: old.Group, Assignee: old.Assignee,
 		Watch: append([]string{}, old.Watch...), Status: "open", Prio: old.Prio, Due: nd.Format(layout), Repeat: old.Repeat,
-		Link: []string{old.ID}, Created: now.Unix(), Updated: now.UnixMilli()}
+		Link: []string{old.ID}, Labels: old.Labels, Priv: old.Priv, Created: now.Unix(), Updated: now.UnixMilli()}
 	for i, m := range old.Miles {
 		nm := Mile{ID: i + 1, Text: m.Text}
 		if d, err := time.Parse(layout, m.Due); err == nil {
@@ -432,7 +473,7 @@ func (s *Svc) Create(user string, m meta) (*Task, error) {
 		return nil, errors.New("too many tasks")
 	}
 	t := &Task{ID: s.newID(), Title: m.Title, Desc: m.Desc, By: user, Group: m.Group, Assignee: m.Assignee, Watch: m.Watch,
-		Req: req, Status: "open", Prio: m.Prio, Due: m.Due, Repeat: m.Repeat, Link: m.Link, Created: now.Unix()}
+		Req: req, Status: "open", Prio: m.Prio, Due: m.Due, Repeat: m.Repeat, Link: m.Link, Labels: m.Labels, Created: now.Unix()}
 	for i, ml := range m.Miles {
 		t.Miles = append(t.Miles, Mile{ID: i + 1, Text: ml.Text, Due: ml.Due})
 	}
@@ -470,6 +511,7 @@ func (s *Svc) Update(user, id string, m meta) error {
 	old := t.Assignee
 	dueOld := t.Due
 	t.Title, t.Desc, t.Prio, t.Due, t.Repeat, t.Watch, t.Link = m.Title, m.Desc, m.Prio, m.Due, m.Repeat, m.Watch, m.Link
+	t.Labels = m.Labels
 	t.DueNt = t.DueNt && t.Due != "" && t.Due == dueOld // neues Datum: Fälligkeitsmeldung wieder möglich
 	// Meilensteine: vorhandene IDs behalten Erledigt/Meldung, neue bekommen eine ID
 	byID, next := map[int]Mile{}, 1
@@ -655,7 +697,7 @@ func (s *Svc) Tick(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, t := range s.tasks {
-		if t.Status == "done" || t.Status == "closed" {
+		if t.Class || t.Status == "done" || t.Status == "closed" {
 			continue
 		}
 		who := t.Assignee
@@ -767,7 +809,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 				links = append(links, lk{o.ID, o.Title, o.Status})
 			}
 		}
-		out(w, map[string]any{"task": v, "links": links})
+		out(w, map[string]any{"task": v, "links": links, "kids": s.kidsOf(me, t)})
 	}))
 	mux.Handle("POST /api/tasks", h(func(w http.ResponseWriter, r *http.Request) {
 		var m meta
@@ -801,6 +843,14 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		if _, err := s.Act(auth.User(r.Context()), r.PathValue("id"), in); err != nil {
 			fail(w, err)
 		}
+	}))
+	mux.Handle("POST /api/tasks/{id}/distribute", h(func(w http.ResponseWriter, r *http.Request) {
+		n, err := s.Distribute(auth.User(r.Context()), r.PathValue("id"))
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		out(w, map[string]int{"n": n})
 	}))
 	mux.Handle("DELETE /api/tasks/{id}", h(func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Delete(auth.User(r.Context()), r.PathValue("id")); err != nil {

@@ -84,6 +84,7 @@ type Group struct {
 	Units  []string `json:"units,omitempty"`  // Organisationen (leer = "all")
 	Stay   []string `json:"stay,omitempty"`   // Wiederholer: bleiben beim nächsten Jahrgangswechsel in der Gruppe (wird danach geleert)
 	AI     string   `json:"ai,omitempty"`     // KI-Assistent legt Dokumente an: "" = nur Admins, "member" = auch Mitglieder (Gruppen-Admin schaltet)
+	DM     string   `json:"dm,omitempty"` // 1:1-Nachrichten in der Gruppe: "" = aus, "admin" = nur Gruppen-Admin und Mitglied, "member" = Mitglieder untereinander (Gruppen-Admin schaltet)
 	Folder string   `json:"folder,omitempty"` // Gruppenordner: "" keiner, "ro" Mitglieder lesen (Gruppen-Admins schreiben), "rw" Mitglieder lesen+schreiben
 }
 
@@ -218,6 +219,9 @@ func (a *Auth) SetFolder(ctx context.Context, name, mode string) error {
 func (a *Auth) adminOf(user string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if u, ok := a.users[user]; ok && u.Guest { // Gaeste verwalten nie
+		return nil
+	}
 	var out []string
 	for n, g := range a.groups {
 		for _, x := range g.Admins {
@@ -591,6 +595,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Tasks   string   `json:"tasks"`
 			ChatDays int     `json:"chatDays"`
 			AI      string   `json:"ai"`
+			DM      string   `json:"dm"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
 			Entries []string `json:"entries,omitempty"` // Mitgliederliste zum Bearbeiten: Konten + "@untergruppe" + "#organisation" + "DOMAENE\gruppe"
 			Dir     []string `json:"dir,omitempty"`     // Verzeichnisgruppen als Mitgliederquelle (nur Verwalter)
@@ -603,7 +608,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		a.mu.Lock()
 		out := []row{}
 		for n, g := range a.groups {
-			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, AI: aiMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
+			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, AI: aiMode(g), DM: dmMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
 			if n == DefaultGroup { // Gruppen-Admins der Standardgruppe = globale Admins
 				rw.Admins = []string{}
 				for un, u := range a.users {
@@ -847,6 +852,21 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			fail_(w, err)
 		}
 	})))
+	// 1:1-Nachrichten: Gruppen-Admin (oder globaler Admin) der Gruppe schaltet: off | admin | member; Standard aus
+	mux.Handle("POST /api/groups/{name}/dm", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !CanManage(r.Context(), r.PathValue("name")) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		var in struct{ Mode string }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&in) != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		if err := a.SetGroupDM(r.Context(), r.PathValue("name"), in.Mode); err != nil {
+			fail_(w, err)
+		}
+	})))
 	mux.Handle("POST /api/groups/{name}/members", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !CanManage(r.Context(), r.PathValue("name")) {
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -916,7 +936,17 @@ func (a *Auth) manages(ctx context.Context, target string) bool {
 		return true
 	}
 	u, ok := a.get(ctx, target)
-	return ok && !u.Admin && shares(effGroups(u), AdminOf(ctx)) && within(own(effGroups(u)), AdminOf(ctx))
+	g := own(effGroups(u))
+	if u.Guest { // Gast: die Gruppe guests gehoert dem globalen Admin und zaehlt nicht gegen die Verwaltung durch den Gruppen-Admin
+		var rest []string
+		for _, x := range g {
+			if x != GuestGroup {
+				rest = append(rest, x)
+			}
+		}
+		g = rest
+	}
+	return ok && !u.Admin && shares(effGroups(u), AdminOf(ctx)) && within(g, AdminOf(ctx))
 }
 
 // unassigned: Konto ohne eigene Gruppe (nur alluser) und kein Admin - ein Gruppen-Admin darf es in seine Gruppe aufnehmen

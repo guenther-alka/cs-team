@@ -89,12 +89,12 @@ func ValidKey(typ, k string) bool {
 // reFmt: erlaubte Formatierung (Whitelist, landet im Client in style-Attributen): b fett, i kursiv, u unterstrichen,
 // l Aufzählung, o Nummerierung, sNN Schriftgröße (px), nN Einrückung, c#rrggbb Textfarbe, g#rrggbb Hintergrund,
 // dN Nachkommastellen, pc Prozent, cu Währung, hl/hc/hr Ausrichtung, w Zeilenumbruch (nur Calc-Zahlenanzeige).
-var reFmt = regexp.MustCompile(`^(?:(?:b|i|u|l|o|s[0-9]{1,2}|n[0-8]|d[0-9]|pc|cu|h[lcr]|w|[cg]#[0-9a-fA-F]{6})(?: |$))*$`)
+var reFmt = regexp.MustCompile(`^(?:(?:b|i|u|l|o|s[0-9]{1,2}|n[0-8]|d[0-9]|pc|cu|h[lcr]|w|t|m[A-Za-z0-9%._~-]{1,600}|[cg]#[0-9a-fA-F]{6})(?: |$))*$`)
 
-func ValidFmt(f string) bool { return len(f) <= 80 && reFmt.MatchString(f) }
+func ValidFmt(f string) bool { return len(f) <= 700 && reFmt.MatchString(f) }
 
 var (
-	reCharFmt = regexp.MustCompile(`^(?:(?:b|i|u|s[0-9]{1,2}|[cg]#[0-9a-fA-F]{6})(?: |$))*$`)
+	reCharFmt = regexp.MustCompile(`^(?:(?:b|i|u|t|s[0-9]{1,2}|[cg]#[0-9a-fA-F]{6}|m[A-Za-z0-9%._~-]{1,600})(?: |$))*$`)
 	reRun     = regexp.MustCompile(`^[0-9]{1,6}:(.*)$`)
 )
 
@@ -103,13 +103,13 @@ func ValidRuns(r string) bool {
 	if r == "" {
 		return true
 	}
-	if len(r) > 4000 {
+	if len(r) > 16000 {
 		return false
 	}
 	n := 0
 	for _, seg := range strings.Split(r, ";") {
 		m := reRun.FindStringSubmatch(seg)
-		if m == nil || len(m[1]) > 80 || !reCharFmt.MatchString(m[1]) {
+		if m == nil || len(m[1]) > 700 || !reCharFmt.MatchString(m[1]) {
 			return false
 		}
 		if n++; n > 400 {

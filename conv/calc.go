@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/csv"
-	"encoding/json"
 	"encoding/xml"
 	"io"
 	"math"
@@ -169,39 +168,6 @@ var numRe = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?$
 // isNumber: nur echte Dezimalzahlen (führende Nullen, Hex, NaN, "+5" bleiben Text).
 func isNumber(s string) bool { return numRe.MatchString(s) }
 
-func ToXLSX(cells map[string]string) ([]byte, error) {
-	keys, ps, _, _ := sorted(cells)
-	var b strings.Builder
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" +
-		`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`)
-	curRow := 0
-	for _, k := range keys {
-		p := ps[k]
-		if p.row != curRow {
-			if curRow != 0 {
-				b.WriteString(`</row>`)
-			}
-			curRow = p.row
-			b.WriteString(`<row r="` + strconv.Itoa(curRow) + `">`)
-		}
-		v := cells[k]
-		switch {
-		case strings.HasPrefix(v, "=") && len(v) > 1 && safeFormula(xlFormula(v[1:])):
-			b.WriteString(`<c r="` + k + `"><f>` + xmlEsc(xlFormula(v[1:])) + `</f></c>`)
-		case isNumber(v):
-			b.WriteString(`<c r="` + k + `"><v>` + v + `</v></c>`)
-		default:
-			b.WriteString(`<c r="` + k + `" t="inlineStr"><is><t xml:space="preserve">` + xmlEsc(v) + `</t></is></c>`)
-		}
-	}
-	if curRow != 0 {
-		b.WriteString(`</row>`)
-	}
-	b.WriteString(`</sheetData></worksheet>`)
-	return zipParts([][2]string{{"[Content_Types].xml", ctypesXlsx}, {"_rels/.rels", relsXlsx},
-		{"xl/workbook.xml", wbXlsx}, {"xl/_rels/workbook.xml.rels", wbRelsXlsx}, {"xl/worksheets/sheet1.xml", b.String()}})
-}
-
 func sharedStrings(b []byte) []string {
 	dec := xml.NewDecoder(bytes.NewReader(b))
 	var out []string
@@ -325,162 +291,7 @@ func xlDate(val string) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-// FromXLSX liest das erste Blatt: Werte, Text und Formeln (als "=..."), Daten als Text "JJJJ-MM-TT", Wahrheitswerte als TRUE/FALSE.
-// Keine Formate.
-func FromXLSX(b []byte) (map[string]string, error) {
-	zr, err := openZip(b)
-	if err != nil {
-		return nil, err
-	}
-	var sst []string
-	if s, err := readPart(zr, "xl/sharedStrings.xml"); err == nil {
-		sst = sharedStrings(s)
-	}
-	dates := dateStyles(zr)
-	sheet := ""
-	for _, f := range zr.File {
-		if strings.HasPrefix(f.Name, "xl/worksheets/sheet") && strings.HasSuffix(f.Name, ".xml") && (sheet == "" || f.Name < sheet) {
-			sheet = f.Name
-		}
-	}
-	if sheet == "" {
-		return nil, ErrFormat
-	}
-	raw, err := readPart(zr, sheet)
-	if err != nil {
-		return nil, err
-	}
-	dec := xml.NewDecoder(bytes.NewReader(raw))
-	out := map[string]string{}
-	var ref, typ, val, formula string
-	sty := -1
-	var text strings.Builder
-	inC, inV, inF, inT, inIS := false, false, false, false, false
-	for {
-		tok, err := dec.Token()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, ErrFormat
-		}
-		switch t := tok.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "c":
-				inC = true
-				ref, typ, val, formula, sty = "", "", "", "", -1
-				text.Reset()
-				for _, a := range t.Attr {
-					switch a.Name.Local {
-					case "s":
-						sty, _ = strconv.Atoi(a.Value)
-					case "r":
-						ref = a.Value
-					case "t":
-						typ = a.Value
-					}
-				}
-			case "v":
-				inV = inC
-			case "f":
-				inF = inC
-			case "is":
-				inIS = inC
-			case "t":
-				inT = inIS
-			}
-		case xml.EndElement:
-			switch t.Name.Local {
-			case "v":
-				inV = false
-			case "f":
-				inF = false
-			case "t":
-				inT = false
-			case "is":
-				inIS = false
-			case "c":
-				if !inC {
-					break
-				}
-				inC = false
-				v := val
-				switch typ {
-				case "s":
-					if i, err := strconv.Atoi(val); err == nil && i >= 0 && i < len(sst) {
-						v = sst[i]
-					} else {
-						v = ""
-					}
-				case "inlineStr":
-					v = text.String()
-				case "", "n":
-					if sty >= 0 && sty < len(dates) && dates[sty] && val != "" {
-						v = xlDate(val)
-					}
-				case "b":
-					if val == "1" {
-						v = "TRUE"
-					} else if val == "0" {
-						v = "FALSE"
-					}
-				}
-				if formula != "" {
-					v = "=" + formula
-				}
-				if _, _, ok := ColRow(ref); ok && v != "" {
-					out[ref] = v
-					if len(out) > MaxCells {
-						return nil, ErrFormat
-					}
-				}
-			}
-		case xml.CharData:
-			switch {
-			case inV:
-				val += string(t)
-			case inF:
-				formula += string(t)
-			case inT:
-				text.Write(t)
-			}
-		}
-	}
-	return out, nil
-}
-
 // ---------- .cscalc (JSON) ----------
-
-type cscalc struct {
-	Format  string            `json:"format"`
-	Version int               `json:"version"`
-	Cells   map[string]string `json:"cells"`
-}
-
-func ToCSCalc(cells map[string]string) ([]byte, error) {
-	out := map[string]string{}
-	for k, v := range cells {
-		if v != "" {
-			out[k] = v
-		}
-	}
-	return json.MarshalIndent(cscalc{"cs-team/calc", 1, out}, "", " ")
-}
-
-func FromCSCalc(b []byte) (map[string]string, error) {
-	var c cscalc
-	if json.Unmarshal(b, &c) != nil || c.Format != "cs-team/calc" || len(c.Cells) > MaxCells {
-		return nil, ErrFormat
-	}
-	out := map[string]string{}
-	for k, v := range c.Cells {
-		if _, _, ok := ColRow(k); ok && v != "" {
-			out[k] = v
-		}
-	}
-	return out, nil
-}
 
 // xlFormula übersetzt eine Calc-Formel (deutsche oder englische Funktionsnamen, ; oder , als Trenner) in die
 // Schreibweise der xlsx-Datei (englische Namen, Komma). Text in Anführungszeichen bleibt unverändert.

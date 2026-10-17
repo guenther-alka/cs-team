@@ -4,9 +4,20 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"io"
 	"sort"
+	"strings"
 	"time"
+
+	"cs-team/auth"
 )
+
+const (
+	maxExportAtts     = 5000
+	maxExportAttBytes = int64(2) << 30
+)
+
+type exportAtt struct{ g, c, id, name string }
 
 const maxExportMsgs = 10000 // neueste Nachrichten in der Datenauskunft (weitere: Hinweis "truncated")
 
@@ -40,6 +51,7 @@ func (s *Svc) ExportUser(ctx context.Context, user string, zw *zip.Writer) error
 	}
 	var rows []row
 	var votes []exportVote
+	var atts []exportAtt
 	for _, k := range s.channelKeys(ctx) {
 		c := s.ch(ctx, k[0], k[1])
 		c.mu.Lock()
@@ -61,6 +73,9 @@ func (s *Svc) ExportUser(ctx context.Context, user string, zw *zip.Writer) error
 				e.File = m.Att.Name
 			}
 			rows = append(rows, row{m.ID, e})
+			if m.Att != nil && !m.Del {
+				atts = append(atts, exportAtt{k[0], k[1], m.Att.ID, m.Att.Name})
+			}
 		}
 		c.mu.Unlock()
 	}
@@ -78,6 +93,39 @@ func (s *Svc) ExportUser(ctx context.Context, user string, zw *zip.Writer) error
 		return err
 	}
 	b, _ := json.MarshalIndent(map[string]any{"count": len(out), "truncated": trunc, "messages": out, "votes": votes}, "", " ")
-	_, err = w.Write(b)
-	return err
+	if _, err = w.Write(b); err != nil {
+		return err
+	}
+	var total int64
+	var skipped []string
+	for n, a := range atts { // eigene Anhaenge: chat-anhaenge/<gruppe>/<kanal>/<kennung>-<name>
+		if n >= maxExportAtts || total >= maxExportAttBytes {
+			skipped = append(skipped, a.g+"/"+a.c+"/"+a.name)
+			continue
+		}
+		rc, err := s.St.GetStream(ctx, fileKey(a.g, a.c, a.id))
+		if err != nil {
+			skipped = append(skipped, a.g+"/"+a.c+"/"+a.name)
+			continue
+		}
+		aw, err := zw.CreateHeader(&zip.FileHeader{Name: "chat-anhaenge/" + auth.ZipSafe(a.g+"/"+a.c+"/"+a.id+"-"+a.name), Method: zip.Deflate})
+		if err == nil {
+			var c int64
+			c, err = io.Copy(aw, rc)
+			total += c
+		}
+		rc.Close()
+		if err != nil {
+			return err
+		}
+	}
+	if len(skipped) > 0 {
+		sw, err := zw.Create("chat-anhaenge/_nicht-enthalten.txt")
+		if err != nil {
+			return err
+		}
+		_, err = sw.Write([]byte("Nicht exportiert (nicht mehr vorhanden oder Grenze erreicht):\r\n" + strings.Join(skipped, "\r\n") + "\r\n"))
+		return err
+	}
+	return nil
 }

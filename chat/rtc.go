@@ -166,7 +166,7 @@ func (s *Svc) rtcJoin(ctx context.Context, c *client, m inMsg) error {
 		return errors.New("not available")
 	}
 	on, ice := s.Cfg.ICE(c.user)
-	if rd, _ := access(c.user, m.G); !on || !rd || !s.exists(ctx, m.G, m.C) {
+	if rd, _ := access(c.user, m.G); !on || !rd || !s.exists(ctx, m.G, m.C) || s.dmOf(ctx, m.G, m.C) != nil {
 		return errors.New("not available")
 	}
 	ch := s.ch(ctx, m.G, m.C)
@@ -272,7 +272,7 @@ func (s *Svc) rtcStart(ctx context.Context, me, g, cn string) (int64, error) {
 	if on, _ := s.Cfg.ICE(me); !on {
 		return 0, errNA
 	}
-	if _, wr := access(me, g); !wr || !s.exists(ctx, g, cn) {
+	if _, wr := access(me, g); !wr || !s.exists(ctx, g, cn) || s.dmOf(ctx, g, cn) != nil {
 		return 0, errForbidden
 	}
 	now := time.Now()

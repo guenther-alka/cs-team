@@ -62,20 +62,23 @@ Konto: %s
 Erstellt: %s
 
 Enthalten:
-  account.json    Konto: Name, Gruppen, E-Mail-Adresse, Sprache, Anlegedatum (nie das Passwort oder dessen Hash).
+  account.json    Konto: Name, Gruppen, E-Mail-Adresse, Sprache, Anlegedatum, Meldungs-Einstellungen, Gast-Status (nie das Passwort oder dessen Hash).
   files/          Ihre eigenen Dateien (persoenlicher Bereich, ohne Papierkorb).
   calendars/      Ihre persoenlichen Kalender als .ics (ein Kalender je Datei; Abos sind nicht enthalten).
   tasks.json      Aufgaben, die Sie angelegt haben oder bearbeiten, mit Verlauf.
-  chat.json       Ihre eigenen Chat-Nachrichten mit Gruppe, Kanal und Zeit.
+  chat.json       Ihre eigenen Chat-Nachrichten (auch 1:1) mit Gruppe, Kanal und Zeit, Umfrage-Teilnahmen.
+  chat-anhaenge/  Ihre eigenen Chat-Anhaenge (die Dateien selbst).
+  documents/      Ihre eigenen Calc- und Text-Dokumente als .xlsx bzw. .docx.
+  notices.json    Von Ihnen verfasste Aushaenge (nur wenn vorhanden).
   README.txt      diese Datei.
 
 Nicht enthalten:
   - Inhalte anderer Personen (deren Nachrichten, Dateien, Termine), auch wenn sie in denselben Aufgaben, Kanaelen
     oder Kalendern stehen; Aufgaben-Verlaeufe koennen Kommentare anderer Beteiligter enthalten.
   - Gruppenordner, Gruppen- und globale Kalender, mit Ihnen geteilte Dateien und Dokumente.
-  - Calc- und Text-Dokumente: bitte beim Administrator anfragen.
+  - Dokumente anderer Personen, auch wenn sie mit Ihnen geteilt sind.
   - Protokolle des Servers (Zugriffs-/Audit-Protokolle) und Sicherungen/Snapshots.
-  - Anhaenge zu Chat-Nachrichten (nur der Dateiname steht in chat.json).
+  - Chat-Anhaenge anderer Personen.
 Bei Fragen wenden Sie sich an die Administration Ihrer cs-team-Installation.
 `
 
@@ -111,7 +114,7 @@ func (a *Auth) writeExport(w http.ResponseWriter, r *http.Request, name string) 
 	}
 	sort.Strings(notices)
 	acc := map[string]any{"name": name, "groups": effGroups(u), "mail": u.Mail, "language": u.Lang, "created": u.Created,
-		"admin": u.Admin, "disabled": u.Disabled, "chatAddressSet": u.Chat != "", "realm": u.Realm, "source": u.Source, "notices": notices}
+		"admin": u.Admin, "disabled": u.Disabled, "chatAddressSet": u.Chat != "", "realm": u.Realm, "source": u.Source, "notices": notices, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires}
 	b, _ := json.MarshalIndent(acc, "", " ")
 	put("account.json", b)
 	var failed []string

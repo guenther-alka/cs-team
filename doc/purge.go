@@ -90,3 +90,15 @@ func (h *Hub) PurgeUser(ctx context.Context, user string) error {
 	}
 	return nil
 }
+
+// OwnedIDs: Kennungen der Dokumente, die user gehoeren (Datenauskunft).
+func (h *Hub) OwnedIDs(ctx context.Context, user string) []string {
+	ids, ms := h.metas(ctx)
+	var out []string
+	for i, m := range ms {
+		if m.Owner == user {
+			out = append(out, ids[i])
+		}
+	}
+	return out
+}

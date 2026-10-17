@@ -28,6 +28,7 @@ import (
 	"cs-team/chat"
 	"cs-team/doc"
 	"cs-team/files"
+	"cs-team/news"
 	"cs-team/office"
 	"cs-team/store"
 	"cs-team/tasks"
@@ -109,7 +110,21 @@ func loadConf() {
 	}
 }
 
-const version = "0.61.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+// notifySend: eine Meldung an einen Benutzer ueber seine externen Adressen (E-Mail und/oder Chat-Adresse, z. B. ntfy fuers Handy); die Tests ersetzen die Funktion.
+var notifySend = func(m *chat.Mailer, user, subj, text string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	m.Notify(ctx, user, subj, text)
+}
+
+// notifyUser: Meldung der Art kind (task | mention | news), nur wenn der Benutzer sie nicht abgewaehlt hat (Konto: "Benachrichtigen bei").
+func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
+	if auth.NotifyWanted(user, kind) {
+		notifySend(m, user, subj, text)
+	}
+}
+
+const version = "0.62.0-test17" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -249,7 +264,8 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	fsvc := &files.Svc{St: st, Max: int64(mb) << 20}
 	fsvc.Routes(mux, a.Wrap)
-	(&office.Svc{Hub: hub, Files: fsvc}).Routes(mux, a.Wrap)
+	osvc := &office.Svc{Hub: hub, Files: fsvc}
+	osvc.Routes(mux, a.Wrap)
 	cs := chat.New(st)
 	if n, _ := strconv.Atoi(env("CS_CHAT_MAX_MB", "10")); n > 0 {
 		cs.MaxMB = int64(n)
@@ -279,14 +295,18 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	cfg.Routes(mux, a.Wrap, mailer)
 	mailer.Routes(mux, a.Wrap)
 	ts := tasks.New(st)
-	ts.Notify = func(user, subj, text string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
-		mailer.Notify(ctx, user, subj, text)
-	}
+	ts.Notify = func(user, subj, text string) { notifyUser(mailer, user, "task", subj, text) }
+	cs.Notify = func(user, subj, text string) { notifyUser(mailer, user, "mention", subj, text) } // Erwaehnung und Antwort im Chat (chat/notify.go)
+	cs.NotifyDM = func(user, subj, text string) { notifyUser(mailer, user, "dm", subj, text) }       // 1:1-Nachricht
+	cs.Base = cfg.PublicURL
 	ts.Base = cfg.PublicURL
 	ts.ClosedDays = cfg.ClosedDays // Aufbewahrung abgeschlossener Aufgaben (globale Einstellung, 0 = unbegrenzt)
 	ts.Routes(mux, a.Wrap)
+	searchRoutes(mux, a.Wrap, ts, cs, fsvc, hub, cb)
+	ns := news.New(st) // Aushaenge auf der Startseite (news/news.go)
+	ns.Notify = func(user, subj, text string) { notifyUser(mailer, user, "news", subj, text) }
+	ns.Base = cfg.PublicURL
+	ns.Routes(mux, a.Wrap)
 	ts.Start(context.Background())
 	auth.RenameHooks = []auth.RenameHook{ // Jahrgangswechsel im Modus "Gruppe wird umbenannt": jedes Modul benennt seine Daten um
 		{Name: "files", Rename: fsvc.RenameGroup, Used: fsvc.FolderUsed},
@@ -295,24 +315,31 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		{Name: "calendar", Area: "cal", Rename: cb.RenameGroup, Used: cb.CalUsed, Drop: cb.DropGroup},
 		{Name: "chat", Area: "chat", Rename: cs.RenameGroup, Used: cs.ChatUsed},
 		{Name: "tasks", Area: "tasks", Rename: ts.RenameGroup, Used: ts.TasksUsed},
+		{Name: "news", Rename: ns.RenameGroup},
 	}
+	auth.MessageCount = cs.MsgCount
 	auth.GroupCalMode = cb.GroupCalMode
 	auth.GroupCalState = cb.GroupCalState // Gruppen-Einstellungen zeigen/ändern die Freigabe des Gruppenkalenders
 	auth.UserHooks = []auth.UserHook{     // Benutzer löschen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
 		{Name: "files", Count: fsvc.UserCount, Purge: fsvc.PurgeUser},
 		{Name: "documents", Count: hub.UserCount, Purge: hub.PurgeUser},
 		{Name: "calendar", Count: cb.UserCount, Purge: cb.PurgeUser},
+		{Name: "news", Early: true, Count: ns.Count, Purge: ns.Purge}, // vor dem Anonymisieren, sonst findet Purge die Aushaenge nicht mehr
+		{Name: "chat", Early: true, Count: cs.UserCount, Purge: cs.PurgeUser}, // 1:1-Kanaele, eigene Anhaenge, auf Wunsch die Nachrichten
 	}
 	auth.AnonHooks = []auth.AnonHook{ // Benutzer löschen mit Option "anonymize": der Name bleibt in Inhalten der Gruppen nicht stehen
 		{Name: "chat", Count: cs.AnonCount, Anon: cs.Anon},
 		{Name: "tasks", Count: ts.AnonCount, Anon: ts.Anon},
 		{Name: "events", Count: cb.AnonCount, Anon: cb.Anon},
+		{Name: "news", Count: ns.AnonCount, Anon: ns.Anon},
 	}
 	auth.ExportHooks = []auth.ExportHook{ // Datenauskunft: ZIP mit den Daten einer Person
 		{Name: "files", Write: fsvc.ExportUser},
 		{Name: "calendar", Write: cb.ExportUser},
 		{Name: "tasks", Write: ts.ExportUser},
 		{Name: "chat", Write: cs.ExportUser},
+		{Name: "documents", Write: osvc.ExportUser},
+		{Name: "notices", Write: ns.ExportUser},
 	}
 	aiSvc := ai.New(st) // KI-Assistent: Provider zentral in den Einstellungen; Daten nur mit den Rechten des Fragenden
 	aiSvc.H = mux
@@ -359,6 +386,10 @@ func secHeaders(next http.Handler) http.Handler {
 			"img-src 'self' data: blob:; connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
 		if r.TLS != nil {
 			h.Set("Strict-Transport-Security", "max-age=15552000")
+		}
+		// API-Antworten enthalten personenbezogene Daten: nicht in Browser-/Proxy-Caches ablegen (Handler dürfen überschreiben).
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/dav/") || strings.HasPrefix(r.URL.Path, "/webdav/") {
+			h.Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)
 	})

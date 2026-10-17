@@ -22,6 +22,8 @@ func fail_(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrSysAdmin):
 		code = http.StatusForbidden
+	case errors.Is(err, ErrGuest):
+		code = http.StatusBadRequest
 	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed):
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
@@ -63,7 +65,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		if realm == "" {
 			realm, src = RealmLocal, "local"
 		}
-		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
+		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
 			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(),
 			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote(),
 			"twofa": u.TOTP != "", "need2fa": need2FA(u, isLocalKey(User(r.Context()), u))})
@@ -140,6 +142,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			ChatSet  bool     `json:"chatSet,omitempty"` // Webhook-Adresse vorhanden (die Adresse selbst nur für den Besitzer und globale Admins, S-09)
 			Sys      bool     `json:"sys,omitempty"`     // Sysadmin-Konto (geschützt)
 			TOTP     bool     `json:"totp,omitempty"`    // Zwei-Faktor-Anmeldung eingerichtet (nur Admin und Besitzer, 0.60)
+			Guest    bool     `json:"guest,omitempty"`   // Gast-Konto (guest.go)
+			Expires  string   `json:"expires,omitempty"` // Gast: letzter gueltiger Tag
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -147,11 +151,11 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != ""})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires})
 			case n == me:
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != ""})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != ""})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires})
 			}
 		}
 		a.mu.Unlock()
@@ -167,8 +171,14 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			Admin          bool
 			Groups         []string
 			Mail, Chat     string
+			Guest          bool   // Gast-Konto mit Ablauf (guest.go)
+			Expires        string // Gast: letzter gueltiger Tag
 		}
 		if !body(w, r, &in) {
+			return
+		}
+		if in.Guest && in.Admin {
+			fail_(w, ErrGuest)
 			return
 		}
 		if !IsAdmin(r.Context()) {
@@ -191,7 +201,12 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			http.Error(w, "chat address: only the owner or a global admin", http.StatusForbidden)
 			return
 		}
-		if err := a.AddUser(r.Context(), in.Name, in.Password, in.Admin, in.Groups); err != nil {
+		if in.Guest {
+			if err := a.AddGuest(r.Context(), in.Name, in.Password, in.Groups, in.Expires); err != nil {
+				fail_(w, err)
+				return
+			}
+		} else if err := a.AddUser(r.Context(), in.Name, in.Password, in.Admin, in.Groups); err != nil {
 			fail_(w, err)
 			return
 		}
@@ -239,6 +254,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	a.routineRoutes(mux, adm)
 	a.purgeRoutes(mux, adm)
 	a.contactRoutes(mux, usr)
+	a.notifyRoutes(mux)
+	a.guestRoutes(mux)
 	a.exportRoutes(mux)
 	a.bulkRoutes(mux)
 	a.dataExportRoutes(mux, adm)

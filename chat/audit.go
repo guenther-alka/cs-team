@@ -130,7 +130,10 @@ func (s *Svc) allGroups(ctx context.Context) []string {
 func (s *Svc) channelsOf(ctx context.Context, g string) []string {
 	out := []string{DefaultCh}
 	var more []string
-	for c := range s.list(ctx, g) {
+	for c, ci := range s.list(ctx, g) {
+		if len(ci.Dm) > 0 {
+			continue // 1:1-Kanaele sind privat: nie in der Auswertung
+		}
 		more = append(more, c)
 	}
 	sort.Strings(more)
@@ -254,6 +257,9 @@ func (s *Svc) search(ctx context.Context, f Filter, limit int) (*Result, error) 
 func (s *Svc) get(ctx context.Context, r Ref) (Msg, bool) {
 	if !validG(r.G) || !validC(r.C) {
 		return Msg{}, false
+	}
+	if s.dmOf(ctx, r.G, r.C) != nil {
+		return Msg{}, false // 1:1-Kanaele sind privat
 	}
 	c := s.ch(ctx, r.G, r.C)
 	c.mu.Lock()

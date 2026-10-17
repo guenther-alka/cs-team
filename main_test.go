@@ -546,7 +546,7 @@ func TestOfficeImportExport(t *testing.T) {
 	if c, b := req(t, srv, "anna", "GET", "/api/docs/"+tid2+"/export", ""); c != 200 || b != "Hallo Welt\n\nGrüße aus Köln" {
 		t.Fatalf("docx roundtrip: %d %q", c, b)
 	}
-	if c, _ := req(t, srv, "anna", "GET", "/api/docs/"+tid2+"/export?format=pdf", ""); c != 400 {
+	if c, _ := req(t, srv, "anna", "GET", "/api/docs/"+tid2+"/export?format=odt", ""); c != 400 {
 		t.Fatalf("unknown format must be 400: %d", c)
 	}
 

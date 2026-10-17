@@ -36,45 +36,69 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	f := func(fn http.HandlerFunc) http.Handler { return wrap(fn) }
 	mux.Handle("GET /api/docs/{id}/export", f(s.export))
 	mux.Handle("POST /api/docs/{id}/tofiles", f(s.toFiles))
+	mux.Handle("POST /api/docs/{id}/export", f(s.export)) // Calc als PDF: der Browser schickt die angezeigten Werte (siehe pdfVals)
 	mux.Handle("POST /api/docs/import", f(s.importDoc))
+	mux.Handle("POST /api/docs/merge", f(s.merge))       // Quellen zusammenfuegen -> cs-text oder PDF (compose.go)
+	mux.Handle("POST /api/docs/fromtext", f(s.fromText)) // Text (z. B. KI-Zusammenfassung) -> cs-text oder PDF
 }
 
 // render: Standardformat je Dokumenttyp, wenn format leer ist (csv / txt).
-func render(m doc.Meta, d *doc.Doc, format string) (data []byte, ext string, err error) {
+func render(m doc.Meta, d *doc.Doc, format string, vals map[string]string) (data []byte, ext string, err error) {
 	if m.Type == "sheet" {
-		cells := d.Cells()
 		switch strings.ToLower(format) {
 		case "", "csv":
-			return conv.ToCSV(cells), "csv", nil
+			return conv.ToCSV(d.Cells()), "csv", nil
 		case "xlsx":
-			data, err = conv.ToXLSX(cells)
+			data, err = conv.ToXLSXRich(richCells(d))
 			return data, "xlsx", err
+		case "pdf":
+			return conv.ToPDFCells(m.Name, richCells(d), vals), "pdf", nil
 		case "cscalc":
-			data, err = conv.ToCSCalc(cells)
+			data, err = conv.ToCSCalcRich(richCells(d))
 			return data, "cscalc", err
 		}
 		return nil, "", conv.ErrFormat
 	}
-	p := d.Paragraphs()
 	switch strings.ToLower(format) {
 	case "", "txt":
-		return conv.ToTXT(p), "txt", nil
+		return conv.ToTXT(d.Paragraphs()), "txt", nil
 	case "rtf":
-		return conv.ToRTF(p), "rtf", nil
+		return conv.ToRTF(d.Paragraphs()), "rtf", nil
 	case "docx":
-		data, err = conv.ToDOCX(p)
+		data, err = conv.ToDOCXRich(richParas(d))
 		return data, "docx", err
+	case "pdf":
+		return conv.ToPDFRich(m.Name, richParas(d)), "pdf", nil
 	case "cstext":
-		data, err = conv.ToCSText(p)
+		data, err = conv.ToCSTextRich(richParas(d))
 		return data, "cstext", err
 	}
 	return nil, "", conv.ErrFormat
 }
 
+// richParas / richCells: Absaetze und Zellen mit Formaten (Absatzformat, Zeichenformate, Zellformat inkl. Kommentar/Notiz).
+func richParas(d *doc.Doc) []conv.Para {
+	l := d.ParagraphItems()
+	out := make([]conv.Para, len(l))
+	for i, it := range l {
+		out[i] = conv.Para{V: it.V, F: it.F, R: it.R}
+	}
+	return out
+}
+
+func richCells(d *doc.Doc) map[string]conv.FCell {
+	out := map[string]conv.FCell{}
+	for k, it := range d.CellItems() {
+		out[k] = conv.FCell{V: it.V, F: it.F}
+	}
+	return out
+}
 func ctype(ext string) string {
 	switch ext {
 	case "csv":
 		return "text/csv; charset=utf-8"
+	case "pdf":
+		return "application/pdf"
 	case "txt":
 		return "text/plain; charset=utf-8"
 	case "rtf":
@@ -111,7 +135,7 @@ func (s *Svc) snapshot(w http.ResponseWriter, r *http.Request) (doc.Meta, []byte
 		http.Error(w, "not found", http.StatusNotFound)
 		return m, nil, "", false
 	}
-	data, ext, err := render(m, d, r.URL.Query().Get("format"))
+	data, ext, err := render(m, d, r.URL.Query().Get("format"), pdfVals(w, r))
 	if err != nil {
 		http.Error(w, "unsupported format", http.StatusBadRequest)
 		return m, nil, "", false
@@ -156,45 +180,69 @@ func (s *Svc) toFiles(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"name": name})
 }
 
-// items: Startinhalt für ein neues Dokument (Zeitstempel = jetzt, damit LWW sauber startet).
-func items(user string, kv []string, cells map[string]string) map[string]doc.Item {
+// items: Startinhalt für ein neues Dokument (Zeitstempel = jetzt, damit LWW sauber startet). Formate aus fremden Dateien werden
+// gegen dieselbe Whitelist geprüft wie Eingaben im Editor; ungültige Formate entfallen, der Text bleibt.
+func items(user string, paras []conv.Para, cells map[string]conv.FCell) map[string]doc.Item {
 	now := time.Now().UnixNano()
 	out := map[string]doc.Item{}
-	for i, v := range kv {
-		out[fmt.Sprintf("p%05d", i+1)] = doc.Item{V: v, Pos: float64(i + 1), TS: now + int64(i), By: user}
+	for i, p := range paras {
+		it := doc.Item{V: p.V, Pos: float64(i + 1), TS: now + int64(i), By: user}
+		if doc.ValidFmt(p.F) {
+			it.F = p.F
+		}
+		if doc.ValidRuns(p.R) {
+			it.R = p.R
+		}
+		out[fmt.Sprintf("p%05d", i+1)] = it
 	}
-	for k, v := range cells {
-		out[k] = doc.Item{V: v, TS: now, By: user}
+	for k, c := range cells {
+		it := doc.Item{V: c.V, TS: now, By: user}
+		if doc.ValidFmt(c.F) {
+			it.F = c.F
+		}
+		out[k] = it
 	}
 	return out
 }
-
-func parseImport(ext string, b []byte) (typ string, paras []string, cells map[string]string, err error) {
+func parseImport(ext string, b []byte) (typ string, paras []conv.Para, cells map[string]conv.FCell, err error) {
+	plain := func(p []string) []conv.Para {
+		out := make([]conv.Para, len(p))
+		for i, v := range p {
+			out[i] = conv.Para{V: v}
+		}
+		return out
+	}
 	switch ext {
 	case ".txt":
 		typ = "text"
-		paras, err = conv.FromTXT(b)
+		var p []string
+		p, err = conv.FromTXT(b)
+		paras = plain(p)
 	case ".docx":
 		typ = "text"
-		paras, err = conv.FromDOCX(b)
+		paras, err = conv.FromDOCXRich(b)
 	case ".cstext":
 		typ = "text"
-		paras, err = conv.FromCSText(b)
+		paras, err = conv.FromCSTextRich(b)
 	case ".csv":
 		typ = "sheet"
-		cells, err = conv.FromCSV(b)
+		var m map[string]string
+		m, err = conv.FromCSV(b)
+		cells = map[string]conv.FCell{}
+		for k, v := range m {
+			cells[k] = conv.FCell{V: v}
+		}
 	case ".xlsx":
 		typ = "sheet"
-		cells, err = conv.FromXLSX(b)
+		cells, err = conv.FromXLSXRich(b)
 	case ".cscalc":
 		typ = "sheet"
-		cells, err = conv.FromCSCalc(b)
+		cells, err = conv.FromCSCalcRich(b)
 	default:
 		err = conv.ErrFormat
 	}
 	return
 }
-
 // POST /api/docs/import {"owner":"anna","file":"bericht.docx","name":"optional"}
 // Quelle: eine Datei aus der Ablage (eigene oder mit dem Benutzer geteilte). Ergebnis: neues Dokument im Besitz des Benutzers.
 func (s *Svc) importDoc(w http.ResponseWriter, r *http.Request) {

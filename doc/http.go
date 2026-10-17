@@ -151,7 +151,7 @@ func (h *Hub) ws(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.CloseNow()
-	conn.SetReadLimit(maxValue + 1024)
+	conn.SetReadLimit(maxValue + 20480)
 	c := &client{user: me, write: wr, out: make(chan []byte, 256)}
 	l.join(c)
 	defer l.leave(c)

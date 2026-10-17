@@ -225,7 +225,7 @@ func (s *Svc) videoRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			return
 		}
 		o := opts[in.Slot]
-		if _, wr := access(me, g); !wr || !s.exists(r.Context(), g, cn) || (o.Who == "admin" && !auth.IsGroupAdmin(me, g)) {
+		if _, wr := access(me, g); !wr || !s.exists(r.Context(), g, cn) || s.dmOf(r.Context(), g, cn) != nil || (o.Who == "admin" && !auth.IsGroupAdmin(me, g)) {
 			http.Error(w, "forbidden", 403)
 			return
 		}
@@ -267,7 +267,7 @@ func (s *Svc) videoRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 	mux.Handle("GET /api/chat/{g}/{c}/video/{id}", h(func(w http.ResponseWriter, r *http.Request) {
 		me, g, cn := auth.User(r.Context()), r.PathValue("g"), r.PathValue("c")
 		id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-		if rd, _ := access(me, g); !rd || s.Cfg == nil || !s.exists(r.Context(), g, cn) {
+		if rd, _ := access(me, g); !rd || s.Cfg == nil || !s.exists(r.Context(), g, cn) || s.dmOf(r.Context(), g, cn) != nil {
 			http.Error(w, "not found", 404)
 			return
 		}

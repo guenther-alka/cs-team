@@ -15,11 +15,27 @@ import (
 // Purge löscht auch Freigaben des Namens in fremden Objekten. Count wird für die Vorschau gebraucht.
 type UserHook struct {
 	Name  string
+	Early bool // laeuft vor dem Anonymisieren (1:1-Kanaele, Anhaenge: danach waere der Name nicht mehr zu finden)
 	Count func(ctx context.Context, user string) int
 	Purge func(ctx context.Context, user string) error
 }
 
 var UserHooks []UserHook
+
+type hardKey struct{}
+
+// HardDelete: Option "Nachrichten hart loeschen" des Loeschassistenten (statt sie zu anonymisieren); wird den Hooks im Kontext uebergeben.
+func HardDelete(ctx context.Context) bool { v, _ := ctx.Value(hardKey{}).(bool); return v }
+
+// MessageCount: Zahl der Gruppen-Nachrichten des Kontos (Vorschau der Option); vom Chat gesetzt.
+var MessageCount func(ctx context.Context, user string) int
+
+func messageCount(ctx context.Context, user string) int {
+	if MessageCount == nil {
+		return 0
+	}
+	return MessageCount(ctx, user)
+}
 
 // DeletedUser: Ersatztext für den Namen eines gelöschten Kontos (Option "anonymize", Standard an).
 const DeletedUser = "gelöschter Benutzer"
@@ -87,7 +103,7 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		if !ok {
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"counts": counts(r.Context(), name), "anon": anonCounts(r.Context(), name), "replacement": DeletedUser, "snapshot": SnapshotMode(), "dataset": SnapshotInfo})
+		json.NewEncoder(w).Encode(map[string]any{"counts": counts(r.Context(), name), "anon": anonCounts(r.Context(), name), "messages": messageCount(r.Context(), name), "replacement": DeletedUser, "snapshot": SnapshotMode(), "dataset": SnapshotInfo})
 	}))
 	mux.Handle("POST /api/users/{name}/delete", adm(func(w http.ResponseWriter, r *http.Request) {
 		name, ok := check(w, r)
@@ -98,6 +114,7 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Password  string
 			NoSnap    bool  `json:"noSnapshot"`
 			Anonymize *bool `json:"anonymize"` // Standard: an
+			Hard      *bool `json:"hardDelete"` // Gruppen-Nachrichten des Kontos ganz loeschen statt anonymisieren (Standard: aus)
 		}
 		if !body(w, r, &in) {
 			return
@@ -110,7 +127,7 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			http.Error(w, msg, code)
 			return
 		}
-		ctx := r.Context()
+		ctx := context.WithValue(r.Context(), hardKey{}, in.Hard != nil && *in.Hard)
 		if t, _ := a.get(ctx, name); t.Sys { // das Sysadmin-Konto bleibt (Notfallzugang)
 			fail_(w, ErrSysAdmin)
 			return
@@ -132,6 +149,14 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			}
 		}
 		cnt := counts(ctx, name)
+		for _, h := range UserHooks { // zuerst, was den Namen noch braucht (1:1-Kanaele, Anhaenge, ggf. Nachrichten)
+			if h.Purge != nil && h.Early {
+				if err := h.Purge(ctx, name); err != nil {
+					http.Error(w, "deleting "+h.Name+" failed: "+err.Error()+" (account not deleted; snapshot "+snap+")", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
 		var anon map[string]int
 		if in.Anonymize == nil || *in.Anonymize { // Name in Nachrichten, Aufgaben und Terminen ersetzen (vor dem Löschen: bei Fehler bleibt das Konto)
 			anon = map[string]int{}
@@ -148,7 +173,7 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			}
 		}
 		for _, h := range UserHooks {
-			if h.Purge != nil {
+			if h.Purge != nil && !h.Early {
 				if err := h.Purge(ctx, name); err != nil {
 					http.Error(w, "deleting "+h.Name+" failed: "+err.Error()+" (account not deleted; snapshot "+snap+")", http.StatusInternalServerError)
 					return

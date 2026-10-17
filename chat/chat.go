@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -56,6 +57,7 @@ type Msg struct {
 	Del bool                `json:"del,omitempty"`
 	Vid *Vid                `json:"vid,omitempty"` // Einladung zu einem Videochat (siehe video.go)
 	Poll *Poll              `json:"poll,omitempty"` // Umfrage (siehe poll.go)
+	Rp   int64               `json:"rp,omitempty"` // Antwort (Thread): Nummer der ersten Nachricht des Threads
 }
 
 type channel struct {
@@ -69,11 +71,13 @@ type channel struct {
 type chanInfo struct {
 	By      string `json:"by"`
 	Created int64  `json:"created"`
+	Dm      []string `json:"dm,omitempty"` // 1:1-Kanal: die beiden Teilnehmer (sortiert), sonst leer
 }
 
 type client struct {
 	user string
 	born time.Time
+	seq  uint64 // Reihenfolge des Verbindens (born kann bei grober Uhr gleich sein, dann waere die aelteste Verbindung nicht eindeutig)
 	out  chan []byte
 	done chan struct{} // wird (unter s.mu, genau einmal) geschlossen; out selbst bleibt offen -> kein Senden auf geschlossenen Kanal
 	// Videochat (rtc.go): Raum und Teilnehmerkennung unter s.mu; sigT/sigN nur von der Lese-Schleife benutzt
@@ -95,6 +99,12 @@ type Svc struct {
 	AIReview func() bool
 	// Cfg: Einstellungen (Videochat-Server); nil = kein Videochat
 	Cfg *Settings
+	// Notify: Meldung an einen Benutzer (Erwaehnung, notify.go); von main gesetzt, nil = keine. Base: oeffentliche Adresse fuer den Link.
+	Notify func(user, subj, text string)
+	NotifyDM func(user, subj, text string) // Meldung bei einer 1:1-Nachricht (main: Art dm)
+	Base   func() string
+	nmu    sync.Mutex
+	mnote  map[string]time.Time
 }
 
 func New(st store.Store) *Svc {
@@ -233,6 +243,16 @@ func wireMsg(m Msg, user string, now time.Time) Msg {
 
 // broadcastMsg sendet eine neue/geaenderte Nachricht (typ msg/upd); bei anonymen Umfragen wird je Empfaenger zugeschnitten.
 func (s *Svc) broadcastMsg(g, typ, cn string, m Msg) {
+	if p := s.dmOf(context.Background(), g, cn); p != nil { // 1:1: nur die beiden Teilnehmer
+		b, _ := json.Marshal(map[string]any{"t": typ, "g": g, "c": cn, "m": m})
+		s.broadcastF(g, func(user string) []byte {
+			if inDM(p, user) {
+				return b
+			}
+			return nil
+		})
+		return
+	}
 	if m.Poll == nil || !m.Poll.Anon {
 		s.broadcast(g, map[string]any{"t": typ, "g": g, "c": cn, "m": m})
 		return
@@ -256,6 +276,9 @@ func (s *Svc) broadcastF(g string, enc func(user string) []byte) {
 			continue
 		}
 		b := enc(c.user)
+		if b == nil { // Empfaenger ausgenommen (1:1-Kanal)
+			continue
+		}
 		select {
 		case c.out <- b:
 		case <-c.done:
@@ -278,6 +301,11 @@ func (s *Svc) Post(ctx context.Context, user, g, cn, text string, att *Att) (*Ms
 }
 
 func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid *Vid, poll *Poll) (*Msg, error) {
+	return s.postRe(ctx, user, g, cn, text, att, vid, poll, 0)
+}
+
+// postRe: wie post, mit Antwort auf die Nachricht rp (Thread, eine Ebene: die Antwort auf eine Antwort zeigt auf die Wurzel).
+func (s *Svc) postRe(ctx context.Context, user, g, cn, text string, att *Att, vid *Vid, poll *Poll, rp int64) (*Msg, error) {
 	text = clean(text)
 	if _, w := access(user, g); !w {
 		if r, _ := access(user, g); r {
@@ -287,6 +315,27 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 	}
 	if !s.exists(ctx, g, cn) {
 		return nil, ErrNoChan
+	}
+	if r, w := s.chanOK(ctx, user, g, cn); !w { // 1:1-Kanal: nur die beiden Teilnehmer, und nur solange die Gruppe es erlaubt
+		if r {
+			return nil, ErrReadonly
+		}
+		return nil, ErrNoChat
+	}
+	var parentBy string
+	if rp != 0 {
+		c0 := s.ch(ctx, g, cn)
+		c0.mu.Lock()
+		i := find(c0, rp)
+		if i < 0 || c0.msgs[i].Del {
+			c0.mu.Unlock()
+			return nil, errors.New("bad reply")
+		}
+		parentBy = c0.msgs[i].By
+		if c0.msgs[i].Rp != 0 {
+			rp = c0.msgs[i].Rp
+		}
+		c0.mu.Unlock()
 	}
 	if (text == "" && att == nil) || utf8.RuneCountInString(text) > maxText {
 		return nil, errors.New("bad text")
@@ -301,7 +350,7 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 		id = c.last + 1
 	}
 	c.last = id
-	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid, Poll: poll}
+	m := Msg{ID: id, By: user, T: text, Att: att, Vid: vid, Poll: poll, Rp: rp}
 	c.msgs = append(c.msgs, m)
 	if err := s.save(ctx, c); err != nil {
 		c.msgs = c.msgs[:len(c.msgs)-1]
@@ -311,6 +360,8 @@ func (s *Svc) post(ctx context.Context, user, g, cn, text string, att *Att, vid 
 	}
 	c.mu.Unlock()
 	s.broadcastMsg(g, "msg", cn, m)
+	s.notifyMentions(g, cn, user, text)
+	s.notifyAfterPost(g, cn, user, parentBy, text, s.dmOf(ctx, g, cn))
 	return &m, nil
 }
 
@@ -326,8 +377,8 @@ func find(c *channel, id int64) int {
 // change: Nachricht bearbeiten/löschen/reagieren. fn läuft unter c.mu und liefert false bei Ablehnung.
 // needW: Bearbeiten und Reaktionen verlangen Schreibrecht und zählen zum Tempolimit (C-07); Löschen nur Leserecht (Autor/Gruppen-Admin).
 func (s *Svc) change(ctx context.Context, user, g, cn string, id int64, needW bool, fn func(m *Msg) bool) error {
-	r, w := access(user, g)
-	if !r || !s.exists(ctx, g, cn) {
+	r, w := s.chanOK(ctx, user, g, cn)
+	if !r {
 		return ErrNoChat
 	}
 	if needW {
@@ -376,12 +427,13 @@ type inMsg struct {
 	Data json.RawMessage `json:"data"` // Videochat: Signal (SDP / ICE)
 	Poll *pollIn         `json:"poll"` // neue Umfrage
 	Sel  []int           `json:"sel"`  // Stimme: gewaehlte Optionen
+	Rp   int64           `json:"rp"` // Antwort auf Nachricht (Thread)
 }
 
 func (s *Svc) handle(ctx context.Context, user string, m inMsg) error {
 	switch m.T {
 	case "send":
-		_, err := s.Post(ctx, user, m.G, m.C, m.Text, nil)
+		_, err := s.postRe(ctx, user, m.G, m.C, m.Text, nil, nil, nil, m.Rp)
 		return err
 	case "edit":
 		text := clean(m.Text)
@@ -482,19 +534,19 @@ func (s *Svc) MakeChannel(ctx context.Context, user, g, name string) error {
 	if !canMake(user, g) {
 		return errors.New("not allowed")
 	}
-	if !reChan.MatchString(name) || name == DefaultCh {
+	if !reChan.MatchString(name) || name == DefaultCh || strings.HasPrefix(name, "dm-") {
 		return errors.New("channel name: a-z 0-9 _ - (max 30)")
 	}
 	l := s.list(ctx, g)
 	s.mu.Lock()
-	if _, ok := l[name]; ok || len(l) >= maxChans {
+	if _, ok := l[name]; ok || s.countChans(l) >= maxChans {
 		s.mu.Unlock()
 		return errors.New("exists or too many channels")
 	}
 	l[name] = chanInfo{By: user, Created: time.Now().UnixNano()}
 	s.mu.Unlock()
 	s.saveList(ctx, g)
-	s.broadcast(g, map[string]any{"t": "chans", "g": g, "chans": s.chanRows(ctx, g)})
+	s.broadcastChans(ctx, g)
 	return nil
 }
 
@@ -504,7 +556,7 @@ func (s *Svc) RemoveChannel(ctx context.Context, user, g, name string) error {
 	s.mu.Lock()
 	info, ok := l[name]
 	s.mu.Unlock()
-	if !ok || name == DefaultCh {
+	if !ok || name == DefaultCh || len(info.Dm) > 0 { // 1:1-Kanaele lassen sich nicht loeschen
 		return ErrNoChan
 	}
 	if r, _ := access(user, g); !r || (!auth.IsGroupAdmin(user, g) && info.By != user) {
@@ -525,7 +577,7 @@ func (s *Svc) RemoveChannel(ctx context.Context, user, g, name string) error {
 			s.St.Delete(ctx, i.Key)
 		}
 	}
-	s.broadcast(g, map[string]any{"t": "chans", "g": g, "chans": s.chanRows(ctx, g)})
+	s.broadcastChans(ctx, g)
 	return nil
 }
 
@@ -533,14 +585,22 @@ type chanRow struct {
 	Name string `json:"name"`
 	By   string `json:"by,omitempty"`
 	Last int64  `json:"last"`
+	Dm   string `json:"dm,omitempty"` // 1:1-Kanal: der andere Teilnehmer
 }
 
-func (s *Svc) chanRows(ctx context.Context, g string) []chanRow {
+func (s *Svc) chanRows(ctx context.Context, g, user string) []chanRow {
 	l := s.list(ctx, g)
 	s.mu.Lock()
 	names := []string{}
 	by := map[string]string{}
+	dm := map[string]string{}
 	for n, i := range l {
+		if len(i.Dm) == 2 { // 1:1-Kanal: nur fuer die beiden Teilnehmer sichtbar
+			if !inDM(i.Dm, user) {
+				continue
+			}
+			dm[n] = otherOf(i.Dm, user)
+		}
 		names = append(names, n)
 		by[n] = i.By
 	}
@@ -550,7 +610,7 @@ func (s *Svc) chanRows(ctx context.Context, g string) []chanRow {
 	for _, n := range append([]string{DefaultCh}, names...) {
 		c := s.ch(ctx, g, n)
 		c.mu.Lock()
-		out = append(out, chanRow{n, by[n], c.last})
+		out = append(out, chanRow{n, by[n], c.last, dm[n]})
 		c.mu.Unlock()
 	}
 	return out
@@ -563,13 +623,14 @@ type groupRow struct {
 	Make  bool       `json:"make"` // darf Kanäle anlegen
 	Chans []chanRow  `json:"chans"`
 	Video []videoRow `json:"video,omitempty"` // Videochat-Einträge dieser Gruppe
+	DM    string     `json:"dm,omitempty"` // Modus der 1:1-Nachrichten dieser Gruppe: admin | member, leer = aus
 }
 
 func (s *Svc) groupsOf(ctx context.Context, user string) []groupRow {
 	out := []groupRow{}
 	for _, g := range auth.GroupsOf(user) {
 		if r, w := access(user, g); r {
-			out = append(out, groupRow{g, w, auth.IsGroupAdmin(user, g), canMake(user, g), s.chanRows(ctx, g), s.videoFor(user, g, w)})
+			out = append(out, groupRow{g, w, auth.IsGroupAdmin(user, g), canMake(user, g), s.chanRows(ctx, g, user), s.videoFor(user, g, w), dmModeOf(g)})
 		}
 	}
 	return out
@@ -577,12 +638,13 @@ func (s *Svc) groupsOf(ctx context.Context, user string) []groupRow {
 
 func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	h := func(fn http.HandlerFunc) http.Handler { return wrap(http.HandlerFunc(fn)) }
+	s.dmRoutes(mux, h) // 1:1-Nachrichten (dm.go)
 	mux.Handle("GET /api/chat/groups", h(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]any{"groups": s.groupsOf(r.Context(), auth.User(r.Context())), "reactions": Reactions})
 	}))
 	mux.Handle("GET /api/chat/{g}/{c}/history", h(func(w http.ResponseWriter, r *http.Request) {
 		g, cn := r.PathValue("g"), r.PathValue("c")
-		if rd, _ := access(auth.User(r.Context()), g); !rd || !s.exists(r.Context(), g, cn) {
+		if rd, _ := s.chanOK(r.Context(), auth.User(r.Context()), g, cn); !rd {
 			http.Error(w, "not found", 404)
 			return
 		}
@@ -610,7 +672,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	}))
 	mux.Handle("POST /api/chat/{g}/{c}/upload", h(func(w http.ResponseWriter, r *http.Request) {
 		me, g, cn := auth.User(r.Context()), r.PathValue("g"), r.PathValue("c")
-		if _, wr := access(me, g); !wr || !s.exists(r.Context(), g, cn) {
+		if _, wr := s.chanOK(r.Context(), me, g, cn); !wr {
 			http.Error(w, "forbidden", 403)
 			return
 		}
@@ -644,7 +706,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	}))
 	mux.Handle("GET /api/chat/{g}/{c}/file/{id}", h(func(w http.ResponseWriter, r *http.Request) {
 		g, cn, id := r.PathValue("g"), r.PathValue("c"), r.PathValue("id")
-		if rd, _ := access(auth.User(r.Context()), g); !rd || !s.exists(r.Context(), g, cn) || strings.ContainsAny(id, "/.\\") {
+		if rd, _ := s.chanOK(r.Context(), auth.User(r.Context()), g, cn); !rd || strings.ContainsAny(id, "/.\\") {
 			http.Error(w, "not found", 404)
 			return
 		}
@@ -702,6 +764,8 @@ const (
 )
 
 // dropOldest schließt die älteste Verbindung des Benutzers, wenn das Limit erreicht ist (s.mu gehalten).
+var connSeq uint64
+
 func (s *Svc) dropOldest(user string) {
 	var all []*client
 	for c := range s.conns {
@@ -712,7 +776,7 @@ func (s *Svc) dropOldest(user string) {
 	for len(all) >= maxConnsUser {
 		k := 0
 		for i, c := range all {
-			if c.born.Before(all[k].born) {
+			if c.born.Before(all[k].born) || (c.born.Equal(all[k].born) && c.seq < all[k].seq) {
 				k = i
 			}
 		}
@@ -733,7 +797,7 @@ func (s *Svc) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 	conn.SetReadLimit(16 << 10)
-	c := &client{user: me, born: time.Now(), out: make(chan []byte, 256), done: make(chan struct{})}
+	c := &client{user: me, born: time.Now(), seq: atomic.AddUint64(&connSeq, 1), out: make(chan []byte, 256), done: make(chan struct{})}
 	s.mu.Lock()
 	s.dropOldest(me) // C-13: höchstens maxConnsUser Verbindungen je Benutzer, die älteste weicht
 	s.conns[c] = true

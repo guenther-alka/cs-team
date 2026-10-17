@@ -55,7 +55,7 @@ func (s *Svc) AnonCount(ctx context.Context, user string) int {
 	}
 	for g := range groups {
 		for _, ci := range s.list(ctx, g) {
-			if ci.By == user {
+			if ci.By == user || inDM(ci.Dm, user) {
 				n++
 			}
 		}
@@ -126,8 +126,19 @@ func (s *Svc) Anon(ctx context.Context, user, repl string) (int, error) {
 		s.mu.Lock()
 		ch := 0
 		for name, ci := range l {
-			if ci.By == user {
-				ci.By = repl
+			if ci.By == user || inDM(ci.Dm, user) {
+				if ci.By == user {
+					ci.By = repl
+				}
+				if len(ci.Dm) == 2 { // 1:1-Kanal: der Name des Teilnehmers wird ersetzt
+					dm := append([]string(nil), ci.Dm...)
+					for i := range dm {
+						if dm[i] == user {
+							dm[i] = repl
+						}
+					}
+					ci.Dm = dm
+				}
 				l[name] = ci
 				ch++
 			}
