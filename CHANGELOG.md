@@ -1,5 +1,9 @@
 cs-team changelog (newest first)
 
+2026-10-17  0.62.0-test18 (Windows-Testbuild, kein Tag) Audit-Nacharbeit: /api/news liefert application/json (A-5). Browser-Test (Oberflaeche, Testinstanz): Chat, Thread, 1:1, Gast-Anzeige, Loeschdialog, XSS-Probe (img onerror, script, javascript:-Links werden als Text angezeigt, nichts laeuft) ohne Befund; Vorschau "anonymisiert" zaehlte den 1:1-Kanal des Kontos mit, obwohl er vorher geloescht wird - korrigiert. Geprueft und ohne Code-Aenderung geschlossen: A-4 (Sperre gilt je Benutzer+Adresse, je Adresse und erst bei 100
+                   Fehlversuchen je Name ueber alle Adressen; ein Fremder sperrt das Konto nicht) und A-6 (Chat-Adresse wird beim Speichern auf Format geprueft; die Sperre privater/interner Ziele muss beim Senden greifen, wegen DNS-Wechsel).
+                   Zurueckgestellt: A-2 (CSP ohne unsafe-inline) - die Oberflaeche baut 234 Inline-Handler und 171 style-Attribute im Skript; Umbau auf Ereignis-Delegation ist ein eigenes Vorhaben, siehe AUDIT-0.62.0-test16.md.
+
 2026-10-17  0.62.0-test17 (Windows-Testbuild, kein Tag) Sicherheitsaudit (AUDIT-0.62.0-test16.md) und Sicherheits-Update: Build mit Go 1.27.2 (behebt die von govulncheck gemeldeten Luecken der Standardbibliothek in net/http, crypto/tls,
                    crypto/x509, net/url, net/mail u. a.), golang.org/x/net 0.61.0, x/crypto 0.58.0, x/sys 0.49.0, x/text 0.43.0. API-, DAV- und WebDAV-Antworten tragen jetzt "Cache-Control: no-store" (secHeaders). Live-Audit: keine kritische
                    Luecke, Rechtetrennung (Gruppen, Gruppen-Admin, DAV, WebSocket-Origin, Papierkorb) in allen Tests dicht; offen siehe Bericht (CSP unsafe-inline, Sperre je Konto, Aushang-Content-Type).

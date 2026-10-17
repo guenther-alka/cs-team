@@ -144,6 +144,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		if groups == nil {
 			groups = []string{}
 		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"items": out, "can": all || len(groups) > 0, "all": all, "groups": groups})
 	}))
 	mux.Handle("POST /api/news", h(func(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +198,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 		if in.Notify && s.Notify != nil {
 			go s.tell(it)
 		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"id": it.ID})
 	}))
 	mux.Handle("DELETE /api/news/{id}", h(func(w http.ResponseWriter, r *http.Request) {

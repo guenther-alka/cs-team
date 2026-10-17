@@ -55,7 +55,7 @@ func (s *Svc) AnonCount(ctx context.Context, user string) int {
 	}
 	for g := range groups {
 		for _, ci := range s.list(ctx, g) {
-			if ci.By == user || inDM(ci.Dm, user) {
+			if ci.By == user && len(ci.Dm) == 0 { // 1:1-Kanaele werden vorher geloescht (PurgeUser), sie zaehlen nicht als "anonymisiert"
 				n++
 			}
 		}
