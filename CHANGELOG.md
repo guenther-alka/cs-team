@@ -1,5 +1,7 @@
 cs-team changelog (newest first)
 
+2026-10-17  0.62.0-test28 (Windows-Testbuild, kein Tag) Menue Heute zeigt hinter dem Datum die cs-team-Version.
+
 2026-10-17  0.62.0-test27 (Windows-Testbuild, kein Tag) OIDC-Anbieter in den Einstellungen (Google, Microsoft; Apple entfaellt): Client-ID und Secret (Microsoft zusaetzlich feste Mandanten-ID) werden unter Einstellungen eingetragen, ohne team.cfg und ohne Neustart (auth/oidcgui.go, Speicher oidc-settings.json, GET/POST /api/settings/oidc nur fuer Admins, das Secret kommt nie zurueck). Ist ein Anbieter vollstaendig ausgefuellt, steht er auf der Anmeldeseite und bei "Passwort waehlen oder mit Anbieter verknuepfen" zur Wahl. Die Rueckkehradresse BASE/oidc/callback wird angezeigt; BASE = CS_OIDC_BASE, sonst die oeffentliche Adresse (Netzwerk), nur https (oder localhost). Eingestellte Werte gehen den Startparametern CS_OIDC_* vor, weitere Anbieter bleiben ueber die Startparameter moeglich. Texte in allen 13 Sprachen. Test auth/oidcgui_test.go.
 
 2026-10-17  0.62.0-test26 (Windows-Testbuild, kein Tag) Abmelden wirkt auch mit gemerkten Basic-Zugangsdaten: im Formularmodus gilt fuer Browser-Anfragen nur das Sitzungs-Cookie (Authorization wird ignoriert, ausser bei der internen Pruefung von POST /api/login); WebDAV/CalDAV/curl behalten Basic. Vorher blieb man nach "Abmelden" angemeldet, wenn der Browser noch Daten vom frueheren Dialog hatte. Test auth/logout_test.go.

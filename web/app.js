@@ -3189,7 +3189,7 @@ S.today={
   select(){},
   async home(){
     const m=$('#main');m.className='';
-    m.innerHTML='<h3>'+esc(t('Heute'))+' <small class="muted">'+esc(new Date().toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))+'</small></h3><div id="tdbox" class="muted">…</div>';
+    m.innerHTML='<h3>'+esc(t('Heute'))+' <small class="muted">'+esc(new Date().toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))+(me.version?' &middot; cs-team v'+esc(me.version):'')+'</small></h3><div id="tdbox" class="muted">…</div>';
     const d0=new Date();d0.setHours(0,0,0,0);const d2=addDays(d0,2),k0=dkey(d0),k1=dkey(addDays(d0,1));
     const cals=(await J('GET','/api/cal'))||[],evs=[];
     await Promise.all(cals.map(async c=>{const q='?from='+encodeURIComponent(d0.toISOString())+'&to='+encodeURIComponent(d2.toISOString());
