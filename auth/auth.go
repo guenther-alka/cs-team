@@ -651,12 +651,12 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		if n := a.ok(key); n > 0 {
 			logLimited("auth: login ok user=%q ip=%s after %d failed attempts", safeName(name), cip, n)
 		}
-		if u.Must && ForceChange && r.URL.Path != "/api/me" && r.URL.Path != "/api/me/password" && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html")) {
+		if u.Must && ForceChange && r.URL.Path != "/api/me" && r.URL.Path != "/api/me/password" && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/app.js")) {
 			w.Header().Set("X-Must-Change", "1")
 			http.Error(w, "password change required", http.StatusForbidden)
 			return
 		}
-		if need2FA(u, id.Local) && r.URL.Path != "/api/me" && !strings.HasPrefix(r.URL.Path, "/api/me/") && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html")) {
+		if need2FA(u, id.Local) && r.URL.Path != "/api/me" && !strings.HasPrefix(r.URL.Path, "/api/me/") && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/app.js")) {
 			w.Header().Set("X-2FA-Required", "1") // Admin ohne 2FA bei gesetzter Pflicht: nur Konto-Seite, bis sie eingerichtet ist
 			http.Error(w, "two-factor setup required", http.StatusForbidden)
 			return

@@ -12,12 +12,13 @@ import (
 	"testing"
 )
 
-// Die Oberfläche baut alle Texte aus deutschen Vorlagen: t('...') in web/index.html, die Übersetzung kommt aus
+// Die Oberfläche baut alle Texte aus deutschen Vorlagen: t('...') in web/app.js (und web/index.html), die Übersetzung kommt aus
 // web/lang/<code>.json (Schlüssel = deutscher Text). Fehlt ein Schlüssel im Katalog web/lang/_template.json, bleibt
 // die Stelle in jeder Sprache deutsch und ein Tippfehler fällt nie auf - deshalb prüft dieser Test den Abgleich.
 var reTKey = regexp.MustCompile(`(?:^|[^\w$.'"\\\n])t\('((?:[^'\\]|\\.)*)'`)
 
-// reScript: jeder Inline-<script>-Block der Seite (die Oberfläche hat keine externen Skripte).
+// reScript: jeder <script>-Block der Seite. Das Skript liegt in web/app.js; ein Inline-Block mit Inhalt ist ein Fehler,
+// weil die CSP (script-src 'self') ihn nicht ausführen würde.
 var reScript = regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`)
 
 // Formularfelder der Anmeldung (idPanel) und Zugriffe darauf (save): beide Seiten müssen zusammenpassen,
@@ -34,20 +35,42 @@ func TestWebUISyntax(t *testing.T) {
 		t.Skip("node nicht gefunden: JavaScript-Syntax wird nicht geprüft")
 	}
 	html := webFile(t, "web/index.html")
-	ms := reScript.FindAllStringSubmatch(html, -1)
-	if len(ms) == 0 {
-		t.Fatal("kein <script>-Block in web/index.html gefunden")
+	if !strings.Contains(html, `<script src="app.js"></script>`) {
+		t.Error("web/index.html lädt web/app.js nicht")
 	}
-	for i, m := range ms {
-		if strings.TrimSpace(m[1]) == "" {
-			continue
+	for i, m := range reScript.FindAllStringSubmatch(html, -1) {
+		if strings.TrimSpace(m[1]) != "" {
+			t.Errorf("web/index.html, Skript-Block %d enthält Inline-Code: die CSP (script-src 'self') führt ihn nicht aus - nach web/app.js verschieben", i+1)
 		}
-		f := filepath.Join(t.TempDir(), fmt.Sprintf("block%d.js", i+1))
-		if err := os.WriteFile(f, []byte(m[1]), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if out, err := exec.Command(node, "--check", f).CombinedOutput(); err != nil {
-			t.Errorf("web/index.html, Skript-Block %d: %v\n%s", i+1, err, out)
+	}
+	js := webFile(t, "web/app.js")
+	if len(js) < 100000 {
+		t.Fatalf("web/app.js ist nur %d Zeichen lang - Auslagerung unvollständig?", len(js))
+	}
+	f := filepath.Join(t.TempDir(), "app.js")
+	if err := os.WriteFile(f, []byte(js), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command(node, "--check", f).CombinedOutput(); err != nil {
+		t.Errorf("web/app.js: %v\n%s", err, out)
+	}
+	_ = fmt.Sprint
+}
+
+// Inline-Ereignis-Attribute (onclick="...") führt die CSP ohne 'unsafe-inline' nicht aus; die Oberfläche setzt Handler
+// per Eigenschaft (el.onclick = ...) oder addEventListener. Dieser Test hält das fest (Tag-Kontext, auch in Zeichenketten des Skripts).
+var reInlineHandler = regexp.MustCompile(`<[a-zA-Z][^<>]*?\son[a-z]+\s*=\s*\\?["']`)
+
+func TestWebUINoInlineHandlers(t *testing.T) {
+	for _, name := range []string{"web/index.html", "web/app.js"} {
+		src := webFile(t, name)
+		for i, line := range strings.Split(src, "\n") {
+			if m := reInlineHandler.FindString(line); m != "" {
+				t.Errorf("%s:%d: Inline-Handler-Attribut (blockiert von der CSP): %.80s", name, i+1, m)
+			}
+			if strings.Contains(line, "href=\"javascript:") || strings.Contains(line, "href='javascript:") {
+				t.Errorf("%s:%d: javascript:-URL (blockiert von der CSP)", name, i+1)
+			}
 		}
 	}
 }
@@ -62,7 +85,7 @@ func webFile(t *testing.T, name string) string {
 }
 
 func TestWebUITranslationsAndAuthFields(t *testing.T) {
-	html := webFile(t, "web/index.html")
+	html := webFile(t, "web/index.html") + "\n" + webFile(t, "web/app.js") // Seite und Skript zusammen
 
 	// 1. jeder t('...')-Text muss im Sprachkatalog stehen (Der Katalog beginnt mit "_" und liegt deshalb
 	// nicht im eingebetteten Dateisystem - er wird als Quelldatei gelesen.)

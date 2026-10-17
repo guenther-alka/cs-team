@@ -124,7 +124,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.62.0-test18" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.62.0-test19" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -375,14 +375,15 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 }
 
 // secHeaders: Sicherheits-Header für alle Antworten (Clickjacking, MIME-Sniffing, Referrer, Skript-Quellen).
-// Die Oberfläche ist eine Datei mit eingebettetem Skript/Stil, daher 'unsafe-inline'; fremde Quellen sind gesperrt.
+// Das Skript liegt in web/app.js (eingebettet per go:embed), deshalb script-src 'self' ohne 'unsafe-inline': eingeschleustes
+// Markup kann kein Skript ausführen. Stil bleibt 'unsafe-inline' (style=-Attribute der Oberfläche); fremde Quellen sind gesperrt.
 func secHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "+
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
 			"img-src 'self' data: blob:; connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
 		if r.TLS != nil {
 			h.Set("Strict-Transport-Security", "max-age=15552000")

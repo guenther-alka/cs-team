@@ -179,7 +179,7 @@ KONZEPTE ZU DEN GROSSEN THEMEN (Review 2026-10-06; nur Konzept, nichts umgesetzt
 
  STAND 2026-10-17 (Audit AUDIT-0.62.0-test16.md): A-1 (Go 1.27.2, x/net 0.61.0, govulncheck 0), A-3 (Cache-Control no-store), A-5 (news JSON) erledigt in test17/test18;
     A-4 und A-6 nach Codepruefung geschlossen. OFFEN: A-2 = Punkt C oben.
- C. NAECHSTER SCHRITT (morgen): Variante 2 umsetzen. Bestandsaufnahme: es gibt KEINE Inline-Event-Attribute (0 on*=-Attribute im Tag-Kontext, 0 javascript:-URLs);
+ C. ERLEDIGT in test19 (2026-10-17, Skript nach web/app.js, script-src 'self'; Rest: style-src 'unsafe-inline' wegen 178 style=-Attributen). Plan zur Dokumentation: Variante 2 umgesetzt. Bestandsaufnahme: es gibt KEINE Inline-Event-Attribute (0 on*=-Attribute im Tag-Kontext, 0 javascript:-URLs);
     die rund 220 "onclick=" sind Property-Zuweisungen (el.onclick = ...) und mit CSP erlaubt. Das einzige <script> (rund 357 kB) kann nach web/app.js:
     1. node-Skript: <script>...</script> aus web/index.html nach web/app.js, im HTML <script src="app.js"></script> (am gleichen Platz, ohne defer).
     2. main.go secHeaders: script-src 'self' (ohne unsafe-inline). style-src bleibt 'self' 'unsafe-inline' (178 style=-Attribute, spaeter eigener Schritt).
