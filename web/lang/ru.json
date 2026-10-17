@@ -448,7 +448,7 @@
  "Merkliste speichern": "Сохранить список",
  "Modus": "Режим",
  "Mitglieder wechseln (Gruppen sind Stufen: Chat, Ordner und Kalender bleiben bei der Gruppe)": "Участники переходят (группы — это ступени: чат, папка и календарь остаются у группы)",
- "Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit)": "Группа переименовывается (группы — это классы: участники, файлы и общий доступ переходят вместе с ней)",
+ "Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit, Kalender, Chat, Aufgaben und Groupadmins nur auf Wunsch)": "Группа переименовывается (группы — это классы: участники, файлы и общий доступ переходят вместе с ней)",
  "Wandert zusätzlich mit:": "Также переходит:",
  "Gruppen-Admins auch in die neue Gruppe übernehmen": "Передать администраторов группы и новой группе",
  "Gruppe umbenennen in:": "Переименовать группу в:",

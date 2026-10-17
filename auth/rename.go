@@ -109,7 +109,7 @@ func (a *Auth) planRename(ctx context.Context, p YearParams) (*Plan, error) {
 	}
 	var names []string
 	for n := range a.groups {
-		if n == DefaultGroup || reNum.FindStringSubmatch(n) == nil || (len(sel) > 0 && !sel[n]) {
+		if n == DefaultGroup || sysGroup(n) || reNum.FindStringSubmatch(n) == nil || (len(sel) > 0 && !sel[n]) {
 			continue
 		}
 		if n == "f" {

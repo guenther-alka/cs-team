@@ -327,6 +327,12 @@ func canSend(user, g string) bool {
 	return info.Msg == auth.ModeMember || auth.IsGroupAdmin(user, g)
 }
 
+// wideSend: E-Mail und externe Chat-Adresse darf nur ein Admin nutzen (globaler Admin oder Gruppen-Admin der Gruppe);
+// normale Mitglieder, denen die Gruppe das Senden erlaubt, schreiben nur in den Gruppen-Chat.
+func wideSend(ctx context.Context, user, g string) bool {
+	return auth.IsAdmin(ctx) || auth.IsGroupAdmin(user, g)
+}
+
 type sendIn struct {
 	Group, Subject, Body string
 	Mail, Hook, Chat     bool
@@ -345,6 +351,9 @@ func (m *Mailer) send(ctx context.Context, user string, in sendIn) (*sendOut, in
 	in.Subject, in.Body = strings.TrimSpace(noCRLF(in.Subject)), strings.TrimSpace(strings.ReplaceAll(in.Body, "\r\n", "\n"))
 	if !canSend(user, in.Group) {
 		return nil, http.StatusForbidden, errors.New("not allowed")
+	}
+	if (in.Mail || in.Hook) && !wideSend(ctx, user, in.Group) {
+		return nil, http.StatusForbidden, errors.New("mail and external chat are for admins only")
 	}
 	if in.Body == "" || utf8.RuneCountInString(in.Body) > 20000 || utf8.RuneCountInString(in.Subject) > 200 || (!in.Mail && !in.Hook && !in.Chat) {
 		return nil, http.StatusBadRequest, errors.New("bad message")
@@ -455,13 +464,14 @@ func (m *Mailer) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler
 			Mail    int    `json:"mail"`
 			Hook    int    `json:"hook"`
 			Chat    bool   `json:"chat"` // Gruppen-Chat beschreibbar
+			Wide    bool   `json:"wide"` // E-Mail und externe Chat-Adresse erlaubt (Admin), sonst nur Gruppen-Chat
 		}
 		out := []row{}
 		for _, g := range auth.GroupsOf(me) {
 			if !canSend(me, g) {
 				continue
 			}
-			rw := row{Name: g}
+			rw := row{Name: g, Wide: wideSend(r.Context(), me, g)}
 			for _, mb := range auth.MembersOf(g) {
 				rw.Members++
 				if mb.Mail != "" {
@@ -532,6 +542,15 @@ func (m *Mailer) Invite(to []string, subject, body, ics, method, replyTo string)
 		return false, nil
 	}
 	return true, s.SendICS(to, noCRLF(subject), body, ics, method, replyTo)
+}
+
+// SendOne: Systemmail (z.B. Initialpasswort) an eine Adresse. Absender ist die eingestellte SMTP-Adresse, Zustellfehler gehen dorthin.
+func (m *Mailer) SendOne(to, subject, body string) error {
+	s := m.smtp()
+	if !s.Enabled() {
+		return fmt.Errorf("mail not configured")
+	}
+	return s.Send([]string{to}, noCRLF(subject), body, "")
 }
 
 // MailEnabled: ist E-Mail-Versand eingerichtet?

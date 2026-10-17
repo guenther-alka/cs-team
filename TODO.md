@@ -191,3 +191,9 @@ KONZEPTE ZU DEN GROSSEN THEMEN (Review 2026-10-06; nur Konzept, nichts umgesetzt
        Chat/Text/Calc/Kalender oeffnen, Pflicht-Passwortwechsel-Seite, CSP-Header pruefen. Danach test19, push, Sync, ausrollen.
  E. WEITERE OFFENE PUNKTE: Browser-Test Gast-Login (Einschraenkungen), JSON-Antworten der API ohne application/json (text/plain, harmlos wegen nosniff),
     Binaries FreeBSD/illumos/Linux in csweb-gui\_my\tools\cs-team sind vom 06.10. (neu bauen), Release 0.62.0 mit Tag, Handbuch de/en + PDFs (Linux), OIDC/SSO.
+ F. LOGIN, ROLLEN, VERWALTUNG (Gea 2026-10-17, test20/test21, ERLEDIGT bis auf Test/Doku): Anmeldeformular + OIDC (nur Verknuepfung nach Login), Initialpasswoerter/Listen/Neu konfigurieren,
+    Rollen Sysadmin > globale Admins > Gruppen-Admins > Benutzer, Systemgruppen globaladmins/groupadmins, zuletzt gesehen, Gruppen-Beschreibung, Nachricht-Kanaele nur Admins, Chat-Menue aktuell (CHANGELOG test21).
+    OFFEN: (a) Browser-Test Schritt 5 mit Test-Anbieter: Login-Knoepfe, ?login=failed, Erst-Login-Auswahl, Konto-Seite (Verknuepfen); (b) echter SMTP-Versand der Initialpasswort-Mail und Test gegen Google/Microsoft;
+    (c) Handbuch de/en, README, howto.ai\cs-team.info: CS_LOGIN_FORM, CS_OIDC_*, Rollen/Systemgruppen, Benutzerliste, Initialpasswoerter; (d) Uebersetzungen der neuen Texte (ar, cn, es, fr, it, ru, tr; bis dahin Deutsch);
+    (e) optional: Listen-Abgleich ("abgleichen" mit Vorschau), Schritt "Neue Eingangsklasse" im Jahrgangswechsel, Kanalbaum Obergruppe/Untergruppen-Chats (nur auf Wunsch), eigener Befehl "cs-team 2fa-off NAME";
+    (f) Bestehende Installationen: Systemgruppen werden beim Start angelegt (Migrate); Sysadmin = CS_ADMIN_USER (EnsureSys). Vor Produktivstart Freigabe durch Gea.

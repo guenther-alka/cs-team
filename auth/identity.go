@@ -226,6 +226,17 @@ func parseLogin(name string, id Identity) (loginID, error) {
 	}
 }
 
+// resolveLogin: wie parseLogin, aber ein vorhandenes lokales Konto mit genau diesem Namen (name@domain.tld) geht vor.
+func (a *Auth) resolveLogin(ctx context.Context, name string, id Identity) (loginID, error) {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if strings.Contains(n, "@") && validAcct.MatchString(n) {
+		if u, ok := a.get(ctx, n); ok && u.Source != "dir" {
+			return loginID{Key: n, Name: n, Realm: RealmLocal, Source: "local", Local: true}, nil
+		}
+	}
+	return parseLogin(name, id)
+}
+
 // verifyDirCached wie verifyDir, merkt sich aber erfolgreiche Anmeldungen authTTL lang - sonst kostet jede Anfrage
 // mit Basic Auth eine Prüfung gegen das Verzeichnis. Ein im Verzeichnis geändertes Passwort wirkt spätestens nach
 // authTTL; Phase 3 (Zwischenspeicher über CacheDays) erweitert das auf Zeiten ohne Verzeichnis.
@@ -317,6 +328,11 @@ func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser, pass strin
 	idc := a.identity()
 	grp, now := idc.Group(), time.Now()
 	cur, have := a.get(ctx, id.Key)
+	if have && cur.Source != "dir" {
+		// lokales Konto gleichen Namens (name@other.org): nie vom Verzeichnis übernehmen
+		log.Printf("auth: %s refused: local account with directory-like name", id.Key)
+		return Account{}, ErrBadDir
+	}
 	hash, seen := "!", ""
 	if idc.CacheDays > 0 {
 		hash, seen = dirCache(cur, pass, now)

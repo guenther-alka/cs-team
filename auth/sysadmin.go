@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"sort"
-	"strings"
 )
 
 // Sysadmin (0.57.1): genau ein lokales cs-team-Konto ist das Sysadmin-Konto. Es ist immer Admin und aktiv, kann nicht
@@ -13,7 +12,7 @@ import (
 // vergeben wird die Rolle immer lokal, das Verzeichnis liefert sie nie.
 
 // isLocalKey: lokale cs-team-Konten haben keinen Namensraum (kein "@") und sind keine Spiegelkonten.
-func isLocalKey(name string, u Account) bool { return !strings.Contains(name, "@") && u.Source != "dir" }
+func isLocalKey(name string, u Account) bool { return u.Source != "dir" && validAcct.MatchString(name) }
 
 // EnsureSys legt beim Start fest, welches Konto das Sysadmin-Konto ist, und stellt Admin-Recht und Aktivierung sicher.
 // Ist schon eines markiert, bleibt es (ein Wechsel nur per SetSys/Kommandozeile). Sonst gilt das Konto aus

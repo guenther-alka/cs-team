@@ -352,6 +352,10 @@ func (a *Auth) contactRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+		if err := a.adminGuard(r.Context(), r.PathValue("name"), true); err != nil {
+			fail_(w, err)
+			return
+		}
 		if !IsAdmin(r.Context()) && r.PathValue("name") != User(r.Context()) { // Gruppen-Admin: nur die E-Mail-Adresse; Webhook (enthält Token) bleibt unberührt
 			if strings.TrimSpace(in.Chat) != "" {
 				http.Error(w, "chat address: only the owner or a global admin", http.StatusForbidden)

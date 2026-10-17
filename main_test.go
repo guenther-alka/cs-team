@@ -46,6 +46,9 @@ func setup(t *testing.T) (*httptest.Server, store.Store) {
 			t.Fatal(err)
 		}
 	}
+	if err := a.EnsureSys(ctx, "anna"); err != nil { // anna ist der Sysadmin (Startup-Admin); nur er aendert globale Admins
+		t.Fatal(err)
+	}
 	return httptest.NewServer(routes(st, a)), st
 }
 
@@ -228,11 +231,12 @@ func TestUserAdmin(t *testing.T) {
 		t.Fatalf("re-enabled login: %d", c)
 	}
 
+	// anna ist der Sysadmin: nicht loesch- und nicht sperrbar (403; der "letzte Admin" ist in den auth-Tests abgedeckt)
 	// letzter Admin ist geschützt
-	if c := reqp(t, srv, "anna", pa, "DELETE", "/api/users/anna", ""); c != 400 {
+	if c := reqp(t, srv, "anna", pa, "DELETE", "/api/users/anna", ""); c != 403 {
 		t.Fatalf("delete last admin: %d", c)
 	}
-	if c := reqp(t, srv, "anna", pa, "POST", "/api/users/anna/flags", `{"disabled":true}`); c != 400 {
+	if c := reqp(t, srv, "anna", pa, "POST", "/api/users/anna/flags", `{"disabled":true}`); c != 403 {
 		t.Fatalf("disable last admin: %d", c)
 	}
 
@@ -1538,7 +1542,7 @@ func TestUnits(t *testing.T) {
 	}
 	_, b = req(t, srv, "bob", "GET", "/api/units", "")
 	// groups/members: die Antwort enthält hinter "groups" weitere Felder (Mitglieder) - deshalb ohne schließende Klammer
-	if !strings.Contains(b, `{"name":"forschung","groups":["x1"]`) || !strings.Contains(b, `{"name":"all","groups":["alluser"]`) {
+	if !strings.Contains(b, `{"name":"forschung","groups":["x1"]`) || !strings.Contains(b, `{"name":"all","groups":["alluser","globaladmins","groupadmins"]`) {
 		t.Fatal(b)
 	}
 	if c, _ := req(t, srv, "anna", "POST", "/api/groups/x1", `{"units":["forschung"]}`); c != 200 {
@@ -1548,7 +1552,7 @@ func TestUnits(t *testing.T) {
 		t.Fatal(c)
 	}
 	_, b = req(t, srv, "anna", "GET", "/api/units", "")
-	if strings.Contains(b, "forschung") || !strings.Contains(b, `{"name":"all","groups":["alluser","x1"]`) {
+	if strings.Contains(b, "forschung") || !strings.Contains(b, `{"name":"all","groups":["alluser","globaladmins","groupadmins","x1"]`) {
 		t.Fatal("Gruppe ohne Organisation faellt auf all", b)
 	}
 }

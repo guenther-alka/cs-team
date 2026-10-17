@@ -241,7 +241,7 @@ func (a *Auth) dropSessions(user string) {
 // Fehlversuch (es war kein falsches Passwort); die Rechenzeit ist dieselbe wie bei einer normalen Prüfung.
 func (a *Auth) loginLocal(ctx context.Context, name, pass, ip, path string) (Account, bool, bool) {
 	u, ok := a.get(ctx, name)
-	if !ok || u.TOTP == "" || u.Disabled || !validName.MatchString(name) {
+	if !ok || u.TOTP == "" || u.Disabled || u.Source == "dir" || !validAcct.MatchString(name) {
 		v, good := a.verifyCached(ctx, name, pass)
 		return v, good, false
 	}
@@ -613,6 +613,10 @@ func (a *Auth) twofaRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		t := r.PathValue("name")
 		if t == User(r.Context()) {
 			http.Error(w, "use the account page to switch off your own 2FA", http.StatusBadRequest)
+			return
+		}
+		if err := a.adminGuard(r.Context(), t, false); err != nil { // Zwei-Faktor eines globalen Admins setzt nur der Sysadmin zurueck
+			fail_(w, err)
 			return
 		}
 		if tu, ok := a.get(r.Context(), t); ok && tu.Sys {

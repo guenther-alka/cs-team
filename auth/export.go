@@ -137,7 +137,7 @@ func (a *Auth) dataExportRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) h
 	})))
 	mux.Handle("GET /api/users/{name}/export", adm(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
-		if !validName.MatchString(name) {
+		if !validAcct.MatchString(name) {
 			http.Error(w, ErrBadName.Error(), http.StatusBadRequest)
 			return
 		}

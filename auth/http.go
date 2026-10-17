@@ -20,7 +20,7 @@ func body(w http.ResponseWriter, r *http.Request, v any) bool {
 func fail_(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, ErrSysAdmin):
+	case errors.Is(err, ErrSysAdmin), errors.Is(err, ErrSysOnly):
 		code = http.StatusForbidden
 	case errors.Is(err, ErrGuest):
 		code = http.StatusBadRequest
@@ -28,7 +28,7 @@ func fail_(w http.ResponseWriter, err error) {
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
 		code = http.StatusNotFound
-	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadDays), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed):
+	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadDays), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed), errors.Is(err, ErrOIDCAdmin), errors.Is(err, ErrNotEligible), errors.Is(err, ErrSysGroup), errors.Is(err, ErrBadComment):
 		code = http.StatusBadRequest
 	}
 	http.Error(w, err.Error(), code)
@@ -66,7 +66,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			realm, src = RealmLocal, "local"
 		}
 		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
-			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(),
+			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(), "loginForm": LoginForm, "oidc": linkProv(u), "pw": pwState(u), "initExp": u.InitExp,
 			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote(),
 			"twofa": u.TOTP != "", "need2fa": need2FA(u, isLocalKey(User(r.Context()), u))})
 	})))
@@ -102,7 +102,11 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			return
 		}
 		me := User(r.Context())
-		if u, _ := a.get(r.Context(), me); u.Must && in.Old == "" {
+		if u, _ := a.get(r.Context(), me); u.Link != nil {
+			http.Error(w, "account is linked to an identity provider: only an admin can reset it", http.StatusForbidden)
+			return
+		}
+		if u, _ := a.get(r.Context(), me); (u.Must || u.Hash == "") && in.Old == "" {
 			// Startpasswort: diese Anfrage ist bereits damit angemeldet, das alte Passwort muss nicht noch einmal eingegeben werden
 			if _, same := a.verify(r.Context(), me, in.New); same {
 				http.Error(w, "new password must differ", http.StatusBadRequest)
@@ -110,6 +114,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			}
 			if err := a.SetPassword(r.Context(), me, in.New); err != nil {
 				fail_(w, err)
+			} else {
+				a.renewWeb(w, r, me)
 			}
 			return
 		}
@@ -125,6 +131,8 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		}
 		if err := a.SetPassword(r.Context(), me, in.New); err != nil {
 			fail_(w, err)
+		} else {
+			a.renewWeb(w, r, me)
 		}
 	})))
 
@@ -144,18 +152,33 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			TOTP     bool     `json:"totp,omitempty"`    // Zwei-Faktor-Anmeldung eingerichtet (nur Admin und Besitzer, 0.60)
 			Guest    bool     `json:"guest,omitempty"`   // Gast-Konto (guest.go)
 			Expires  string   `json:"expires,omitempty"` // Gast: letzter gueltiger Tag
+			OIDC     string   `json:"oidc,omitempty"`    // Anbieter, mit dem das Konto verknüpft ist
+			AdminOf  []string `json:"adminOf,omitempty"` // Gruppen, die das Konto als Gruppen-Admin verwaltet
+			PW       string   `json:"pw,omitempty"`      // Anmeldeart: local | oidc | init (Initialpasswort offen) | none (initpw.go)
+			Seen     string   `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, seen.go)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
+		gadm := map[string][]string{}
+		for gn, g := range a.groups {
+			if !sysGroup(gn) {
+				for _, x := range g.Admins {
+					gadm[x] = append(gadm[x], gn)
+				}
+			}
+		}
+		for _, l := range gadm {
+			sort.Strings(l)
+		}
 		out := []row{}
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u)})
 			case n == me:
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			}
 		}
 		a.mu.Unlock()
@@ -179,6 +202,10 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		}
 		if in.Guest && in.Admin {
 			fail_(w, ErrGuest)
+			return
+		}
+		if in.Admin && !a.isSys(r.Context()) { // globale Admins legt nur der Sysadmin an
+			fail_(w, ErrSysOnly)
 			return
 		}
 		if !IsAdmin(r.Context()) {
@@ -227,6 +254,10 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+		if err := a.adminGuard(r.Context(), r.PathValue("name"), true); err != nil { // globale Admins: Passwort nur Sysadmin (oder selbst)
+			fail_(w, err)
+			return
+		}
 		if t, ok := a.get(r.Context(), r.PathValue("name")); ok && t.Sys && User(r.Context()) != r.PathValue("name") { // Sysadmin-Passwort: nur er selbst oder die Kommandozeile
 			fail_(w, ErrSysAdmin)
 			return
@@ -250,6 +281,9 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		json.NewEncoder(w).Encode(res)
 	}))
 
+	a.loginRoutes(mux)
+	a.oidcRoutes(mux)
+	a.initRoutes(mux, usr)
 	a.groupRoutes(mux, adm)
 	a.routineRoutes(mux, adm)
 	a.purgeRoutes(mux, adm)
@@ -266,6 +300,14 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		if !body(w, r, &in) {
 			return
 		}
+		if in.Admin != nil && !a.isSys(r.Context()) { // Admin-Recht vergibt/entzieht nur der Sysadmin
+			fail_(w, ErrSysOnly)
+			return
+		}
+		if err := a.adminGuard(r.Context(), r.PathValue("name"), false); err != nil {
+			fail_(w, err)
+			return
+		}
 		if err := a.SetFlags(r.Context(), r.PathValue("name"), in.Admin, in.Disabled); err != nil {
 			fail_(w, err)
 		}
@@ -274,11 +316,15 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	// ?purge=1 löscht zusätzlich die Kalender des Benutzers. Dokumente bleiben (Admin kann sie übernehmen/löschen).
 	mux.Handle("DELETE /api/users/{name}", adm(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
+		if err := a.adminGuard(r.Context(), name, false); err != nil {
+			fail_(w, err)
+			return
+		}
 		if err := a.DeleteUser(r.Context(), name); err != nil {
 			fail_(w, err)
 			return
 		}
-		if r.URL.Query().Get("purge") == "1" && validName.MatchString(name) {
+		if r.URL.Query().Get("purge") == "1" && validAcct.MatchString(name) {
 			infos, _ := a.st.List(r.Context(), "cal/"+name+"/")
 			for _, i := range infos {
 				if strings.HasPrefix(i.Key, "cal/"+name+"/") {

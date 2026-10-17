@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"cs-team/store"
@@ -84,7 +83,7 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 	}
 	check := func(w http.ResponseWriter, r *http.Request) (string, bool) {
 		name := r.PathValue("name")
-		if !validName.MatchString(name) {
+		if !validAcct.MatchString(name) {
 			http.Error(w, ErrBadName.Error(), http.StatusBadRequest)
 			return "", false
 		}
@@ -128,12 +127,16 @@ func (a *Auth) purgeRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			return
 		}
 		ctx := context.WithValue(r.Context(), hardKey{}, in.Hard != nil && *in.Hard)
+		if err := a.adminGuard(ctx, name, false); err != nil { // globale Admins loescht nur der Sysadmin
+			fail_(w, err)
+			return
+		}
 		if t, _ := a.get(ctx, name); t.Sys { // das Sysadmin-Konto bleibt (Notfallzugang)
 			fail_(w, ErrSysAdmin)
 			return
 		}
 		// Vorbedingung vor allem Löschen: nicht der letzte aktive lokale Admin (Notfallzugang, 0.55)
-		if u, _ := a.get(ctx, name); u.Admin && !strings.Contains(name, "@") {
+		if u, _ := a.get(ctx, name); u.Admin && u.Source != "dir" {
 			if a.LocalAdmins(ctx) <= 1 {
 				fail_(w, ErrLastAdm)
 				return

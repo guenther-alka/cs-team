@@ -84,12 +84,13 @@ type Group struct {
 	Units  []string `json:"units,omitempty"`  // Organisationen (leer = "all")
 	Stay   []string `json:"stay,omitempty"`   // Wiederholer: bleiben beim nächsten Jahrgangswechsel in der Gruppe (wird danach geleert)
 	AI     string   `json:"ai,omitempty"`     // KI-Assistent legt Dokumente an: "" = nur Admins, "member" = auch Mitglieder (Gruppen-Admin schaltet)
+	Comment string  `json:"comment,omitempty"` // Beschreibung der Gruppe (z.B. "3D Einfuehrung Prof xyz"), Verwalter der Gruppe aendern sie
 	DM     string   `json:"dm,omitempty"` // 1:1-Nachrichten in der Gruppe: "" = aus, "admin" = nur Gruppen-Admin und Mitglied, "member" = Mitglieder untereinander (Gruppen-Admin schaltet)
 	Folder string   `json:"folder,omitempty"` // Gruppenordner: "" keiner, "ro" Mitglieder lesen (Gruppen-Admins schreiben), "rw" Mitglieder lesen+schreiben
 }
 
 func defaultGroups() map[string]Group {
-	return map[string]Group{DefaultGroup: {Areas: append([]string{}, Areas...)}}
+	return map[string]Group{DefaultGroup: {Areas: append([]string{}, Areas...)}, AdminGroup: {}, GAdminGroup: {}}
 }
 
 func (a *Auth) loadGroups(ctx context.Context) (map[string]Group, bool) {
@@ -299,6 +300,22 @@ func resolveMembers(us map[string]Account, gs map[string]Group) map[string]Accou
 			s[g] = true
 		}
 		mem[n] = s
+	}
+	_, hasAG := gs[AdminGroup]
+	_, hasGA := gs[GAdminGroup]
+	for n, u := range us { // Systemgruppen (sysgroups.go): globaladmins = Admin-Recht, groupadmins = Eintrag in einer Admin-Liste
+		if hasAG && u.Admin {
+			mem[n][AdminGroup] = true
+		}
+	}
+	if hasGA {
+		for _, g := range gs {
+			for _, an := range g.Admins {
+				if s, ok := mem[an]; ok {
+					s[GAdminGroup] = true
+				}
+			}
+		}
 	}
 	for n, u := range us { // Verzeichnisgruppen
 		if u.Source != "dir" || len(u.DirGroups) == 0 {
@@ -513,6 +530,9 @@ func (a *Auth) SetGroup(ctx context.Context, name string, areas, read []string) 
 }
 
 func (a *Auth) DeleteGroup(ctx context.Context, name string) error {
+	if sysGroup(name) {
+		return ErrSysGroup
+	}
 	if name == DefaultGroup {
 		return ErrDefaultGroup
 	}
@@ -551,6 +571,7 @@ func (a *Auth) DeleteGroup(ctx context.Context, name string) error {
 
 // SetUserGroups ersetzt die Gruppen eines Benutzers (mindestens eine).
 func (a *Auth) SetUserGroups(ctx context.Context, name string, groups []string) error {
+	groups = noSysGroups(groups)
 	if len(groups) == 0 {
 		return ErrNoGroups
 	}
@@ -596,6 +617,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			ChatDays int     `json:"chatDays"`
 			AI      string   `json:"ai"`
 			DM      string   `json:"dm"`
+			Comment string   `json:"comment,omitempty"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
 			Entries []string `json:"entries,omitempty"` // Mitgliederliste zum Bearbeiten: Konten + "@untergruppe" + "#organisation" + "DOMAENE\gruppe"
 			Dir     []string `json:"dir,omitempty"`     // Verzeichnisgruppen als Mitgliederquelle (nur Verwalter)
@@ -609,10 +631,20 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		out := []row{}
 		for n, g := range a.groups {
 			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, AI: aiMode(g), DM: dmMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
-			if n == DefaultGroup { // Gruppen-Admins der Standardgruppe = globale Admins
+			rw.Comment = g.Comment
+			if n == DefaultGroup || n == GAdminGroup { // Gruppen-Admins der Standardgruppe = globale Admins (groupadmins: globale Admins legen Gruppen-Admins an)
 				rw.Admins = []string{}
 				for un, u := range a.users {
 					if u.Admin && !u.Disabled {
+						rw.Admins = append(rw.Admins, un)
+					}
+				}
+				sort.Strings(rw.Admins)
+			}
+			if n == AdminGroup { // Verantwortlich fuer globaladmins: der Sysadmin
+				rw.Admins = []string{}
+				for un, u := range a.users {
+					if u.Sys {
 						rw.Admins = append(rw.Admins, un)
 					}
 				}
@@ -646,6 +678,9 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 				rw.Entries = append(rw.Entries, rw.Unit...)
 				rw.Entries = append(rw.Entries, rw.Dir...)
 				sort.Strings(rw.Entries)
+				if sysGroup(n) { // berechnete Mitglieder sind die Bearbeitungsliste
+					rw.Entries = append([]string{}, rw.Members...)
+				}
 			}
 			out = append(out, rw)
 		}
@@ -852,6 +887,21 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			fail_(w, err)
 		}
 	})))
+	// Beschreibung der Gruppe: Gruppen-Admin (oder globaler Admin) der Gruppe
+	mux.Handle("POST /api/groups/{name}/comment", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !CanManage(r.Context(), r.PathValue("name")) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		var in struct{ Comment string }
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
+			http.Error(w, "bad json", http.StatusBadRequest)
+			return
+		}
+		if err := a.SetGroupComment(r.Context(), r.PathValue("name"), in.Comment); err != nil {
+			fail_(w, err)
+		}
+	})))
 	// 1:1-Nachrichten: Gruppen-Admin (oder globaler Admin) der Gruppe schaltet: off | admin | member; Standard aus
 	mux.Handle("POST /api/groups/{name}/dm", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !CanManage(r.Context(), r.PathValue("name")) {
@@ -960,7 +1010,7 @@ func (a *Auth) unassigned(ctx context.Context, target string) bool {
 func own(l []string) []string {
 	var out []string
 	for _, x := range l {
-		if x != DefaultGroup {
+		if x != DefaultGroup && !sysGroup(x) { // Systemgruppen zaehlen nicht als fremde Gruppe
 			out = append(out, x)
 		}
 	}
@@ -1032,6 +1082,9 @@ func (a *Auth) entryKind(e string) (int, string) {
 // landen in der Handliste des Kontos (Account.Groups), "@untergruppe"/Gruppenname in Group.Sub, Verzeichnisgruppen
 // ("DOMAENE\gruppe") in Group.Dir. Verzeichnis-Einträge darf nur der globale Admin setzen (Prüfung in der Route).
 func (a *Auth) SetMembers(ctx context.Context, group string, add, remove []string) error {
+	if sysGroup(group) {
+		return a.setSysMembers(ctx, group, add, remove)
+	}
 	a.refresh(ctx)
 	a.mu.Lock()
 	_, ok := a.groups[group]
@@ -1301,6 +1354,9 @@ func dropRef(l []string, name string, sub bool) []string {
 // setAccountMembers: Handliste (Account.Groups) der genannten cs-team-Konten ändern; jeder Benutzer behält mindestens
 // eine Gruppe. Nur die Handliste wird geschrieben - Mitgliedschaften aus Verzeichnis-/Untergruppen bleiben berechnet.
 func (a *Auth) setAccountMembers(ctx context.Context, group string, add, remove []string) error {
+	if sysGroup(group) {
+		return ErrSysGroup
+	}
 	return a.mutate(ctx, func(m map[string]Account) error {
 		for _, n := range add {
 			u, ok := m[n]
@@ -1348,6 +1404,9 @@ func contains(l []string, x string) bool {
 }
 
 func (a *Auth) SetGroupAdmins(ctx context.Context, group string, admins []string) error {
+	if sysGroup(group) {
+		return ErrSysGroup
+	}
 	if group == DefaultGroup {
 		return ErrDefaultGroup
 	}
@@ -1672,6 +1731,11 @@ func (a *Auth) Migrate(ctx context.Context) error {
 				renamed = true
 			} else {
 				m[DefaultGroup] = Group{Areas: append([]string{}, Areas...)}
+			}
+		}
+		for _, n := range []string{AdminGroup, GAdminGroup} { // feste Systemgruppen (sysgroups.go)
+			if _, ok := m[n]; !ok {
+				m[n] = Group{}
 			}
 		}
 		return nil

@@ -137,7 +137,7 @@ func (a *Auth) planYear(ctx context.Context, p YearParams) (*Plan, error) {
 	pl := &Plan{Routine: "yearchange", Leave: p.Leave, effects: map[string]effect{}}
 	if p.Leave == "archive" {
 		p.Archive = strings.TrimSpace(p.Archive)
-		if !okName(p.Archive) || p.Archive == DefaultGroup {
+		if !okName(p.Archive) || p.Archive == DefaultGroup || sysGroup(p.Archive) {
 			return nil, errors.New("archive group: name a-z 0-9 . _ -")
 		}
 		pl.Archive = p.Archive
@@ -151,7 +151,7 @@ func (a *Auth) planYear(ctx context.Context, p YearParams) (*Plan, error) {
 	}
 	var names []string
 	for n := range a.groups {
-		if n == DefaultGroup || reNum.FindStringSubmatch(n) == nil || (len(sel) > 0 && !sel[n]) {
+		if n == DefaultGroup || sysGroup(n) || reNum.FindStringSubmatch(n) == nil || (len(sel) > 0 && !sel[n]) {
 			continue
 		}
 		names = append(names, n)
@@ -584,7 +584,7 @@ func (a *Auth) routineRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http
 	// Wiederholer-Merkliste: Gruppen-Admin der Gruppe oder globaler Admin
 	mux.Handle("POST /api/groups/{name}/stay", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := r.PathValue("name")
-		if !CanManage(r.Context(), n) || n == DefaultGroup {
+		if !CanManage(r.Context(), n) || n == DefaultGroup || sysGroup(n) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

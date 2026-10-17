@@ -67,6 +67,7 @@ window.alert=uiToast;
 async function api(method,url,body){
   try{
     const r=await fetch(url,{method,body:body===undefined?undefined:JSON.stringify(body)});
+    if(r.status==401&&r.headers.get('X-Login-Form')=='1'){location.reload();return null;}   // Sitzung abgelaufen: Anmeldeformular
     if(!r.ok){alert((await r.text()).trim()||r.status);return null;}
     return r;
   }catch(e){alert(e);return null;}
@@ -106,8 +107,8 @@ function shareBody(){const t=$('#st').value;
 const sharePanel=(d,extra)=>{keepShare={read:otherEntries(d.read),write:otherEntries(d.write)};
   return '<div class="row">'+t('Alle angemeldeten Benutzer: ')+teamSelect(teamVal(d.read,d.write))+'</div>'+
   '<div class="muted">'+t('Gruppennamen, mehrere mit Komma getrennt (z.B. klasse5a, chor).')+'</div>'+
-  '<div class="muted">'+t('Die Organisation vergibt selbst keine Rechte: sie wirkt dort, wo sie als Empfänger eingetragen ist (Freigaben "g:schule", Organisation im Kalender).')+'</div>'+'<div class="row">'+t('Gruppen dürfen lesen: ')+'<input id="sr" list="dlg" value="'+esc(grpList(d.read))+'" placeholder="klasse5a, chor"></div>'+
-  '<div class="row">'+t('Gruppen dürfen schreiben: ')+'<input id="sw" list="dlg" value="'+esc(grpList(d.write))+'" placeholder="klasse5a"></div>'+
+  '<div class="muted">'+t('Die Organisation vergibt selbst keine Rechte: sie wirkt dort, wo sie als Empfänger eingetragen ist (Freigaben "g:schule", Organisation im Kalender).')+'</div>'+'<div class="row">'+t('Gruppen dürfen lesen: ')+'<input id="sr" list="dlg" value="'+esc(grpList(d.read))+'" placeholder="klasse5a, chor">'+pickBtn('sr','groups')+'</div>'+
+  '<div class="row">'+t('Gruppen dürfen schreiben: ')+'<input id="sw" list="dlg" value="'+esc(grpList(d.write))+'" placeholder="klasse5a">'+pickBtn('sw','groups')+'</div>'+
   '<datalist id="dlg">'+allGroups.map(g=>'<option value="'+esc(g.name)+'">').join('')+'</datalist>'+(extra||'')+
   '<div class="muted row">'+t('Lesen: ansehen und herunterladen. Schreiben: den Inhalt dieser Datei bzw. dieses Dokuments ändern, aber keine neuen Dateien anlegen, nicht löschen, umbenennen oder weitergeben. Neue Dateien mehrerer Mitglieder: Gruppenordner (Menü Files).')+'</div>'+
   '<button id="ss">'+t('Speichern')+'</button>'+(keepShare.read.length+keepShare.write.length?' <span class="muted">'+t('(+ Einzelfreigaben: ')+esc(keepShare.read.concat(keepShare.write).join(', '))+')</span>':'');};
@@ -124,11 +125,12 @@ function lpress(el,fn){let tm=null,x0=0,y0=0;const cl=()=>{if(tm)clearTimeout(tm
   el.addEventListener('contextmenu',e=>{if(tm!==null||'ontouchstart' in window)e.preventDefault();});}
 function setList(items){
   const el=$('#list'),q=($('#flt').value||'').trim().toLowerCase();el.innerHTML='';
+  let rx=null;if(/[\^$|*+?\[\](){}\\]/.test(q)){try{rx=new RegExp(($('#flt').value||'').trim(),'i');}catch(e){}}   // Sonderzeichen im Filter: regulärer Ausdruck (ungültig = Textsuche)
   let shown=0,hid=0;const S_=S[sec]||{};
   for(const it of items){
     const d=document.createElement('div');
     if(it.head){d.className='head';d.textContent=it.head;el.append(d);continue;}
-    if(q&&!((it.label+' '+(it.sub||'')).toLowerCase().includes(q)))continue;   // JS-Filter
+    if(q&&!(rx?(rx.test(it.label)||rx.test(it.sub||'')):(it.label+' '+(it.sub||'')).toLowerCase().includes(q)))continue;   // JS-Filter
     if(shown>=MAXSHOW){hid++;continue;}
     shown++;
     d.className='item'+(it.k===sel?' act':'');
@@ -166,6 +168,44 @@ const S={};
 const isGA=()=>me.admin||(me.adminOf||[]).length>0;
 const manageable=()=>me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);
 const gdl=(id,l)=>'<datalist id="'+id+'">'+l.map(g=>'<option value="'+esc(g)+'">').join('')+'</datalist>';
+/* Auswahl-Popup fuer Felder mit Benutzer-/Gruppenlisten: Knopf "Auswaehlen" neben dem Feld, Popup mit Filter und scrollbarer Liste
+   (Haken = aktuelle Eintraege, darunter die moeglichen). Die Kommaliste bleibt editierbar; Eintraege, die nicht in der Liste stehen
+   (E-Mail-Adressen, @Untergruppen, Verzeichnisgruppen), bleiben unveraendert erhalten.
+   kind: users | groups | mgroups (nur verwaltbare Gruppen) | units | members (Konten und @Gruppen) */
+const pickBtn=(id,kind,single)=>' <button type="button" class="pkb" data-pk="'+id+'" data-kind="'+kind+'"'+(single?' data-single="1"':'')+'>'+esc(t('Auswählen …'))+'</button>';
+async function pickItems(kind){
+  if(kind=='users'||kind=='members'){if(!allUsers.length)allUsers=(await J('GET','/api/users'))||[];}
+  if(kind=='groups'||kind=='mgroups'||kind=='members'){if(!allGroups.length)allGroups=(await J('GET','/api/groups'))||[];}
+  if(kind=='units'){if(!allUnits.length)allUnits=(await J('GET','/api/units'))||[];}
+  const u=allUsers.map(x=>x.name),g=allGroups.map(x=>x.name);
+  const l=kind=='users'?u:kind=='groups'?g:kind=='mgroups'?manageable():kind=='units'?allUnits.map(x=>x.name):u.concat(g.map(x=>'@'+x));
+  return [...new Set(l)].sort((a,b)=>a.localeCompare(b));}
+async function pickDlg(inp,kind,single){
+  if(!inp)return;
+  const all=await pickItems(kind),sep=inp.tagName=='TEXTAREA'?'\n':', ';
+  const cur=inp.value.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean),known=new Set(all);
+  const el=document.createElement('div'),f=document.createElement('input'),box=document.createElement('div'),info=document.createElement('div');
+  f.placeholder=t('Filter …');f.style.cssText='width:100%;box-sizing:border-box';
+  box.style.cssText='margin:8px 0;max-height:46vh;overflow-y:auto;border:1px solid rgba(128,128,128,.45);border-radius:4px;padding:4px 8px';
+  info.className='muted';el.append(f,box,info);
+  const lines=[],mk=(name,extra)=>{
+    const lb=document.createElement('label'),cb=document.createElement('input');
+    lb.style.cssText='display:block;padding:2px 0;cursor:pointer';cb.type='checkbox';cb.checked=cur.includes(name);
+    lb.append(cb,document.createTextNode(' '+name));
+    cb.onchange=()=>{if(single&&cb.checked)lines.forEach(x=>{if(x.cb!=cb)x.cb.checked=false;});upd();};
+    box.append(lb);lines.push({name,cb,row:lb});};
+  [...cur.filter(x=>!known.has(x)),...cur.filter(x=>known.has(x)),...all.filter(x=>!cur.includes(x))].forEach(x=>mk(x));
+  const none=document.createElement('div');none.className='muted';none.textContent=t('Nichts gefunden.');none.style.display='none';box.append(none);
+  const upd=()=>{const q=f.value.trim().toLowerCase();let v=0;
+    lines.forEach(x=>{const sh=!q||x.name.toLowerCase().includes(q);x.row.style.display=sh?'block':'none';if(sh)v++;});
+    none.style.display=v?'none':'';
+    info.textContent=t('{0} ausgewählt, {1} von {2} angezeigt',lines.filter(x=>x.cb.checked).length,v,lines.length);};
+  f.oninput=upd;upd();
+  if(!await uiBox(t('Auswahl'),el,{ok:t('Auswahl übernehmen')}))return;
+  const on=new Set(lines.filter(x=>x.cb.checked).map(x=>x.name));
+  inp.value=[...cur.filter(x=>on.has(x)),...lines.filter(x=>on.has(x.name)&&!cur.includes(x.name)).map(x=>x.name)].join(sep);
+  inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));inp.focus();}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pkb');if(!b)return;e.preventDefault();pickDlg(document.getElementById(b.dataset.pk),b.dataset.kind,!!b.dataset.single);});
 const contactPanel=(m,c,own,set,nt)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
   '<div class="row"><input id="cmail" style="width:320px" placeholder="'+t('E-Mail-Adresse')+'" value="'+esc(m||'')+'"></div>'+
   (own?'<div class="row"><input id="cchat" style="width:320px" placeholder="'+t('Chat-Adresse (https://…)')+'" value="'+esc(c||'')+'"></div>'
@@ -299,43 +339,52 @@ async function tfaInit(){
     if(!await uiAsk(t('App-Passwort "{0}" widerrufen?',b.dataset.n)))return;
     if(await api('DELETE','/api/me/apppass/'+encodeURIComponent(b.dataset.id)))tfaInit();});
 }
+function roleText(u){   // Rolle in einem Satz: Sysadmin > globaler Admin > Gruppen-Admin > Benutzer
+  const ao=u.adminOf||[];
+  if(u.sys)return t('Sysadmin: primärer globaler Admin (Startup-Konto). Legt weitere globale Admins an und verwaltet alles.');
+  if(u.admin)return t('Globaler Admin: verwaltet cs-team, Gruppen und Gruppen-Admins.');
+  if(ao.length)return t('Gruppen-Admin: verwaltet die Gruppen {0}.',ao.join(', '));
+  return t('Benutzer: Mitglied in {0}.',(u.groups||[]).join(', ')||'-');}
+function pwText(u){
+  if(u.oidc)return t('verbunden mit {0}',u.oidc);
+  return({local:t('lokales Passwort'),init:t('Initialpasswort offen'),expired:t('Initialpasswort abgelaufen'),none:t('kein Passwort gesetzt'),dir:t('Verzeichniskonto')})[u.pw]||'';}
 S.users={
   items:[],
   canAdd:()=>isGA(),delable:k=>me.admin&&k!=me.name&&!(allUsers.find(x=>x.name==k)||{}).sys,
   async load(){
     allUsers=(await J('GET','/api/users'))||[];
     allGroups=(await J('GET','/api/groups'))||[];
-    this.items=allUsers.map(u=>({k:u.name,label:u.name,sub:(u.sys?t('Sysadmin')+' ':u.admin?t('Globaler Admin')+' ':'')+(u.guest?t('Gast bis {0}',u.expires||'?')+' ':'')+(u.disabled?t('gesperrt')+' ':'')+(u.groups||[]).join(',')}));
+    this.items=allUsers.map(u=>({k:u.name,label:u.name,sub:(u.sys?t('Sysadmin')+' ':u.admin?t('Globaler Admin')+' ':'')+(u.guest?t('Gast bis {0}',u.expires||'?')+' ':'')+(u.disabled?t('gesperrt')+' ':'')+(u.totp?'2FA ':'')+(u.groups||[]).join(',')}));
     setList(this.items);
   },
   home(){
-    $('#main').innerHTML='<h3>'+t('Konto: ')+esc(me.name)+(me.admin?' ('+t('Globaler Admin')+')':'')+'</h3><div class="muted">'+t('Gruppen: ')+esc((me.groups||[]).join(', '))+((me.adminOf||[]).length?t(' &nbsp; Gruppen-Admin von: ')+esc(me.adminOf.join(', ')):'')+'</div>'+
+    $('#main').innerHTML='<h3>'+t('Konto: ')+esc(me.name)+(me.admin?' ('+t('Globaler Admin')+')':'')+'</h3><div class="muted">'+esc(roleText(me))+'</div><div class="muted">'+t('Gruppen: ')+esc((me.groups||[]).join(', '))+((me.adminOf||[]).length?t(' &nbsp; Gruppen-Admin von: ')+esc(me.adminOf.join(', ')):'')+'</div>'+
      (me.idRealm&&me.idRealm!='local'?'<div class="muted">'+t('Anmeldung am Verzeichnis: name@{0}',esc(me.idRealm))+(me.allowLocal?' &nbsp; '+t('(lokale Konten mit dem Namen ohne @)'):'')+'</div>':'')+
-     '<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
+     (me.oidc?'<div class="panel"><b>'+esc(t('Anmeldung über {0}',provName(me.oidc)))+'</b><div class="muted row">'+esc(t('Dieses Konto hat kein Passwort. Zurücksetzen (neues Initialpasswort) kann nur ein Admin.'))+'</div></div>':'<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
-     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>'+'<div class="panel" id="tfa"></div>'+contactPanel(me.mail,me.chat,true,false,me.notifyOff||[])+
+     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>')+'<div id="lnk"></div>'+(me.oidc?'':'<div class="panel" id="tfa"></div>')+contactPanel(me.mail,me.chat,true,false,me.notifyOff||[])+
      '<div class="panel"><div class="row"><button id="mexp">'+t('Meine Daten exportieren (ZIP)')+'</button></div><div class="muted">'+t('Alles, was cs-team über dich gespeichert hat (Konto, eigene Dateien, Kalender, Aufgaben, Chat), als ZIP-Datei (Auskunft nach Art. 15 und 20 DSGVO).')+'</div></div>'+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
-    $('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
+    if($('#pgo'))$('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
     $('#mexp').onclick=()=>{location.href='/api/me/export';};
-    tfaInit();
+    if(!me.oidc&&me.loginForm&&!me.admin&&me.source!='dir')oidcProvs().then(oi=>{const l=$('#lnk');if(l&&oi.oidc&&oi.oidc.length)l.innerHTML='<div class="panel"><b>'+esc(t('Mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>';});
+    if(!me.oidc)tfaInit();
   },
   add(){
     const m=manageable();
     $('#main').innerHTML='<h3>'+t('Benutzer anlegen')+'</h3><div class="row"><input id="nn" placeholder="'+t('name (a-z 0-9 . _ -)')+'"></div>'+
      '<div class="row"><input id="np" type="text" placeholder="'+t('Startpasswort (min. 8)')+'"> <span class="muted">'+t('Benutzer muss es beim ersten Login ändern')+'</span></div>'+
      '<div class="row"><input id="nm" style="width:260px" placeholder="'+t('E-Mail-Adresse')+' ('+t('optional')+')"> '+(me.admin?'<input id="nc" style="width:300px" placeholder="'+t('Chat-Adresse (https://…)')+' ('+t('optional')+')">':'')+'</div>'+
-     (me.admin?'<div class="row"><label><input id="na" type="checkbox"> '+t('Globaler Admin')+'</label></div>':'')+
-     '<div class="row">'+t('Gruppen (mind. eine, Komma getrennt): ')+'<input id="ng" list="dlm" value="'+esc(me.admin?'alluser':m[0]||'')+'"></div>'+gdl('dlm',m)+
+     '<div class="row">'+t('Gruppen (mind. eine, Komma getrennt): ')+'<input id="ng" list="dlm" value="'+esc(me.admin?'alluser':m[0]||'')+'">'+pickBtn('ng','mgroups')+'</div>'+gdl('dlm',m)+
      '<div class="row"><label><input id="ngu" type="checkbox"> '+t('Gast-Konto (läuft ab am)')+'</label> <input id="nge" type="date" value="'+dkey(addDays(new Date(),30))+'"> <span class="muted">'+t('Gäste sind immer in der Gruppe guests, deren Rechte der Admin festlegt; die Gruppen oben kommen dazu (ohne alluser).')+'</span></div>'+
       '<button id="ngo">'+t('Anlegen')+'</button>'+
      '<div class="panel"><b>'+t('Import (CSV)')+'</b><div class="muted">'+t('Eine Zeile je Benutzer: ')+'<code>name;passwort;gruppe1,gruppe2;mail;chat-url</code>'+t(' (Trenner ; oder Tab, # = Kommentar). Das Passwort steht nur in dieser Datei: es wird sofort gehasht, der Benutzer muss es beim ersten Login ändern. Bei vorhandenen Benutzern (Haken "aktualisieren") ersetzt die Datei die Gruppen; leeres Passwort = unverändert. Klassenwechsel: Export, Gruppen ändern, wieder importieren.')+' '+t('Optional Feld 4 und 5: E-Mail-Adresse und Chat-Adresse (leer = unverändert).')+(me.admin?'':t(' Nur eigene Gruppen.'))+'</div>'+
      '<textarea id="imp" rows="8" style="width:100%;box-sizing:border-box" placeholder="lisa;geheim123;klasse5a"></textarea>'+
      '<div class="row"><input type="file" id="impf" accept=".csv,.txt"> '+'<label><input id="impu" type="checkbox" checked>'+t(' vorhandene aktualisieren')+'</label> '+(me.admin?'<label><input id="impc" type="checkbox">'+t(' neue Gruppen anlegen mit Vorlage')+'</label> <select id="impt"><option value="">'+t('nur Files')+'</option><option value="team">Team</option><option value="klasse">'+t('Klasse')+'</option></select> ':'')+'<button id="igo">'+t('Importieren')+'</button></div><div id="ires"></div></div>';
     $('#ngo').onclick=async()=>{const n=$('#nn').value;
-      if(await api('POST','/api/users',{name:n,password:$('#np').value,admin:me.admin&&$('#na').checked&&!$('#ngu').checked,groups:names($('#ng').value).filter(g=>!($('#ngu').checked&&g=='alluser')),guest:$('#ngu').checked||undefined,expires:$('#ngu').checked?$('#nge').value:undefined,mail:$('#nm').value.trim(),chat:$('#nc')?$('#nc').value.trim():''})){await this.load();this.select(n);}};
+      if(await api('POST','/api/users',{name:n,password:$('#np').value,groups:names($('#ng').value).filter(g=>!($('#ngu').checked&&g=='alluser')),guest:$('#ngu').checked||undefined,expires:$('#ngu').checked?$('#nge').value:undefined,mail:$('#nm').value.trim(),chat:$('#nc')?$('#nc').value.trim():''})){await this.load();this.select(n);}};
     $('#impf').onchange=async e=>{const f=e.target.files[0];if(f)$('#imp').value=await f.text();};
     $('#igo').onclick=async()=>{
       try{const r=await fetch('/api/users/import?update='+($('#impu').checked?1:0)+(me.admin&&$('#impc')&&$('#impc').checked?'&create=1&template='+$('#impt').value:''),{method:'POST',body:$('#imp').value});
@@ -348,16 +397,18 @@ S.users={
     sel=k;setList(this.items);upd();
     const u=allUsers.find(x=>x.name==k);if(!u)return;
     if(k==me.name&&!me.admin){this.home();return;}
-    let h='<h3>'+esc(u.name)+'</h3><div class="muted">'+t('angelegt: ')+esc((u.created||'').slice(0,10))+'</div>'+
+    let h='<h3>'+esc(u.name)+'</h3><div class="muted">'+t('angelegt: ')+esc((u.created||'').slice(0,10))+'</div><div class="muted">'+esc(roleText(u))+'</div>'+
+     '<div class="muted">'+t('Anmeldung: ')+esc(pwText(u))+' &nbsp; '+(u.totp!==undefined||me.admin||u.name==me.name?t('Zwei-Faktor: ')+t(u.totp?'ein':'aus')+' &nbsp; ':'')+t('zuletzt gesehen: ')+esc(u.seen?new Date(u.seen).toLocaleString():t('noch nie'))+'</div>'+
      '<div class="row">'+t('Gruppen: ')+esc((u.groups||[]).join(', '))+'</div>'+
       (u.guest?'<div class="row">'+t('Gast-Konto, gültig bis')+' <input id="fge" type="date" value="'+esc(u.expires||'')+'"> <button id="fges">'+t('Frist ändern')+'</button></div>':'');
-    if(me.admin)h+='<div class="row">'+t('Gruppen ändern: ')+'<input id="fg" list="dlall" value="'+esc((u.groups||[]).join(', '))+'" style="width:320px"> <button id="fgs">'+t('Speichern')+'</button></div>'+gdl('dlall',allGroups.map(g=>g.name))+
-     '<div class="row"><label><input id="fa" type="checkbox" '+(u.admin?'checked':'')+(u.sys?' disabled':'')+'> '+t('Globaler Admin')+'</label></div>'+
-     '<div class="row"><label><input id="fd" type="checkbox" '+(u.disabled?'checked':'')+(u.sys?' disabled':'')+'> '+t('gesperrt')+'</label></div>';
+    if(me.admin)h+='<div class="row">'+t('Gruppen ändern: ')+'<input id="fg" list="dlall" value="'+esc((u.groups||[]).join(', '))+'" style="width:320px">'+pickBtn('fg','groups')+' <button id="fgs">'+t('Speichern')+'</button></div>'+gdl('dlall',allGroups.map(g=>g.name))+
+     '<div class="row">'+t('Globaler Admin')+': '+t(u.admin?'ja':'nein')+' <span class="muted">'+t('Vergabe nur durch den Sysadmin über die Gruppe globaladmins.')+'</span></div>'+
+     '<div class="row"><label><input id="fd" type="checkbox" '+(u.disabled?'checked':'')+(u.sys||(u.admin&&!me.sys)?' disabled':'')+'> '+t('gesperrt')+'</label></div>';
     else h+='<div class="muted">'+t('Gruppenzuordnung: Mitglieder in der Gruppen-Ansicht (Menü Gruppen) ändern.')+'</div>';
     if(u.sys)h+='<div class="row"><b>'+t('Sysadmin-Konto')+'</b> <span class="muted">'+t('lokal, immer Admin, nicht löschbar; das Passwort ändert nur das Konto selbst oder die Kommandozeile (cs-team sysadmin NAME).')+'</span></div>';
     if((!u.admin||me.admin)&&(!u.sys||u.name==me.name))h+='<div class="row"><button id="fp">'+t('Passwort setzen')+'</button></div>';
     if(me.admin&&u.totp&&u.name!=me.name)h+='<div class="row">'+t('Zwei-Faktor-Anmeldung: eingeschaltet')+' <button id="f2r" type="button">'+t('Zwei-Faktor zurücksetzen')+'</button></div><div class="muted">'+t('Bei verlorenem Gerät: danach meldet sich der Benutzer wieder nur mit dem Passwort an und richtet Zwei-Faktor neu ein.')+'</div>';
+    if((me.admin||isGA())&&u.pw&&u.pw!='dir'&&!u.admin&&!u.sys&&!u.guest&&u.name!=me.name)h+='<div class="row"><button id="urc">'+t('Neu konfigurieren')+'</button> <span class="muted">'+t('Wie beim ersten Login: neues Initialpasswort, Verknüpfung mit einem Anbieter, Zwei-Faktor und App-Passwörter werden gelöscht.')+'</span></div>';
     if(me.admin)h+='<div class="row"><button id="uxp">'+t('Daten exportieren')+'</button></div>';
     if(u.name==me.name)h+='<div class="panel" id="tfa"></div>';
     h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
@@ -368,13 +419,16 @@ S.users={
       if(await api('POST','/api/users/'+encodeURIComponent(k)+'/2fa/reset')){await this.load();this.select(k);}};
     if(me.admin){
       const flag=async f=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/flags',f)){await this.load();}else this.select(k);};
-      $('#fa').onchange=e=>flag({admin:e.target.checked});
       $('#fd').onchange=e=>flag({disabled:e.target.checked});
       $('#fgs').onclick=async()=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/groups',{groups:names($('#fg').value)})){await this.load();this.select(k);}};
     }
     if($('#uxp'))$('#uxp').onclick=()=>{location.href='/api/users/'+encodeURIComponent(k)+'/export';};
     if($('#fges'))$('#fges').onclick=async()=>{if(await api('POST','/api/users/'+encodeURIComponent(k)+'/expires',{expires:$('#fge').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if($('#fp'))$('#fp').onclick=async()=>{const p=await uiPrompt(t('Neues Passwort für {0} (min. 8):',k),'',1);if(p)await api('POST','/api/users/'+encodeURIComponent(k)+'/password',{password:p});};
+    if($('#urc'))$('#urc').onclick=async()=>{
+      const d=await uiDlg(t('{0} neu konfigurieren? Es gibt ein neues Initialpasswort; die Verknüpfung mit einem Anbieter, Zwei-Faktor und App-Passwörter werden gelöscht.',k),u.mail?{cancel:1,chk:t('Per E-Mail senden an {0}',u.mail),chkv:true}:{cancel:1});if(!d)return;
+      const r=await J('POST','/api/users/'+encodeURIComponent(k)+'/reconfigure',{send:!!d.checked});if(!r)return;
+      await this.load();this.select(k);await uiDlg(t('Neues Initialpasswort für {0}: {1}',k,r.pw||'')+(r.sent?'\n'+t('E-Mail-Versand: {0}',r.sent):''),{});};
   },
   async del(){
     const k=sel;if(!k)return;
@@ -446,13 +500,36 @@ S.units={
     if(await api('DELETE','/api/units/'+encodeURIComponent(k))){sel=null;await this.load();this.home();upd();}
   }
 };
+/* Benutzerliste einer Gruppe: hochladen (Name, E-Mail, Passwort je Zeile), Initialpasswörter erzeugen und einmal anzeigen */
+function listPanel(k){return '<div class="panel"><b>'+t('Benutzerliste')+'</b><div class="muted">'+t('Eine Zeile je Benutzer: Name, E-Mail, Passwort (E-Mail und Passwort sind optional). Neue Konten bekommen ein Initialpasswort.')+'</div>'+
+ '<div class="row"><textarea id="ulx" rows="5" style="width:100%;box-sizing:border-box" placeholder="anna, anna@schule.example"></textarea></div>'+
+ '<div class="row"><input type="file" id="ulf" accept=".txt,.csv,text/plain"> <button id="uli">'+t('Liste importieren')+'</button> <button id="ulp">'+t('Initialpasswörter erzeugen')+'</button> <a href="/api/groups/'+encodeURIComponent(k)+'/userlist">'+t('Liste herunterladen')+'</a></div><div id="ulr"></div></div>';}
+function listBind(k,reload){
+  const out=$('#ulr'),tbl=(head,rows)=>'<table class="t"><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c||'')+'</td>').join('')+'</tr>').join('')+'</table>';
+  $('#ulf').onchange=async e=>{const f=e.target.files[0];if(f)$('#ulx').value=await f.text();};
+  $('#uli').onclick=async()=>{
+    const txt=$('#ulx').value;if(!txt.trim())return;
+    const r=await fetch('/api/groups/'+encodeURIComponent(k)+'/userlist',{method:'POST',headers:{'Content-Type':'text/plain'},body:txt});
+    if(!r.ok){alert(await r.text());return;}
+    const j=await r.json();
+    out.innerHTML=tbl([t('Name'),t('E-Mail'),t('Aktion'),t('Zustand'),t('Hinweis')],(j.rows||[]).map(x=>[x.name,x.mail,x.action,x.state,x.note]))+((j.errors||[]).length?'<pre>'+esc(j.errors.join('\n'))+'</pre>':'');
+    reload();};
+  $('#ulp').onclick=async()=>{
+    const d=await uiDlg(t('Initialpasswörter für alle Mitglieder ohne offenes Initialpasswort erzeugen? Sie werden nur jetzt einmal angezeigt.'),{cancel:1,chk:t('Per E-Mail senden, wenn eine Adresse vorhanden ist'),chkv:false});if(!d)return;
+    const j=await J('POST','/api/groups/'+encodeURIComponent(k)+'/initpw',{all:false,send:!!d.checked});if(!j)return;
+    const rows=j.rows||[];
+    out.innerHTML='<div class="row"><b>'+esc(t('Nur jetzt sichtbar: Passwörter notieren oder als CSV speichern.'))+'</b></div>'+tbl([t('Name'),t('E-Mail'),t('Passwort'),t('Versand'),t('Hinweis')],rows.map(x=>[x.name,x.mail,x.pw,x.sent,x.note]))+'<div class="row"><button id="ulc">'+t('Als CSV speichern')+'</button></div>';
+    $('#ulc').onclick=()=>{const q=c=>'"'+String(c||'').replace(/"/g,'""')+'"',csv=rows.filter(x=>x.pw).map(x=>[x.name,x.mail,x.pw].map(q).join(';')).join('\r\n'),a=document.createElement('a');
+      a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=k+'-initpw.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);};
+    reload();};
+}
 S.groups={
   items:[],
-  canAdd:()=>me.admin,delable:k=>me.admin&&k!='alluser',   // alluser = Standardgruppe, nicht löschbar
+  canAdd:()=>me.admin,delable:k=>me.admin&&k!='alluser'&&k!='globaladmins'&&k!='groupadmins',   // alluser = Standardgruppe, nicht löschbar
   async load(){
     allUsers=(await J('GET','/api/users'))||[];
     allGroups=(await J('GET','/api/groups'))||[];allUnits=(await J('GET','/api/units'))||[];
-    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+g.areas.join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.cal?' '+t('Kalender').toLowerCase()+':'+g.cal:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
+    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:(g.comment?g.comment+' · ':'')+((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+g.areas.join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.cal?' '+t('Kalender').toLowerCase()+':'+g.cal:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
     setList(this.items);
   },
   home(){
@@ -467,8 +544,8 @@ S.groups={
      modeBoxes('gfo','','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben')+
      modeBoxes('gca','','Gruppenkalender anlegen','Mitglieder dürfen eintragen')+
      chatModes('gn',{},false)+
-     '<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" style="width:320px" placeholder="'+t('Benutzernamen, Komma getrennt')+'"></div>'+gdl('dlu',allUsers.map(u=>u.name))+
-     '<div class="row">'+t('Organisationen: ')+'<input id="gun" list="dlun" style="width:320px" placeholder="all"></div>'+gdl('dlun',allUnits.map(u=>u.name))+
+     '<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" style="width:320px" placeholder="'+t('Benutzernamen, Komma getrennt')+'">'+pickBtn('gad','users')+'</div>'+gdl('dlu',allUsers.map(u=>u.name))+
+     '<div class="row">'+t('Organisationen: ')+'<input id="gun" list="dlun" style="width:320px" placeholder="all">'+pickBtn('gun','units')+'</div>'+gdl('dlun',allUnits.map(u=>u.name))+
      '<button id="ggo">'+t('Anlegen')+'</button>'+
      '<div class="muted row">'+t('Gruppen-Admins verwalten die Mitglieder der Gruppe und werden automatisch Mitglied (z.B. Lehrer oder Abteilungsleiter). Sie dürfen im Gruppenordner und im Gruppenkalender immer schreiben.')+'</div>';
     rightsBind('ga');modeBind('gfo');modeBind('gca');
@@ -482,22 +559,28 @@ S.groups={
   select(k){
     sel=k;setList(this.items);upd();
     const g=allGroups.find(x=>x.name==k);if(!g)return;
-    let h='<h3>'+esc(g.name)+'</h3><div class="row">'+t('Bereiche: ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row">'+t('Gruppenkalender (Freigabe)')+': '+modeSel('gce',g.cal||'',[['','kein Gruppenkalender'],['off','nicht freigegeben (nur Verantwortliche)'],['ro','die Berechtigten lesen'],['rw','alle Berechtigten dürfen eintragen']],false)+'</div>':'')+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
-    h+='<div class="row">'+t('Organisationen: ')+(me.admin?'<input id="gun" list="dlun" value="'+esc((g.units||[]).join(', '))+'" style="width:320px"> <button id="gus">'+t('Speichern')+'</button>'+gdl('dlun',allUnits.map(u=>u.name)):esc((g.units||[]).join(', ')))+'</div>';
+    let h='<h3>'+esc(g.name)+'</h3>'+(g.manage?'<div class="row"><input id="gcm" maxlength="200" style="width:420px;max-width:100%" placeholder="'+esc(t('Beschreibung, z.B. 3D Einführung Prof xyz'))+'" value="'+esc(g.comment||'')+'"> <button id="gcs">'+t('Speichern')+'</button></div>':g.comment?'<div class="muted">'+esc(g.comment)+'</div>':'')+'<div class="row">'+t('Bereiche: ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row">'+t('Gruppenkalender (Freigabe)')+': '+modeSel('gce',g.cal||'',[['','kein Gruppenkalender'],['off','nicht freigegeben (nur Verantwortliche)'],['ro','die Berechtigten lesen'],['rw','alle Berechtigten dürfen eintragen']],false)+'</div>':'')+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
+    h+='<div class="row">'+t('Organisationen: ')+(me.admin?'<input id="gun" list="dlun" value="'+esc((g.units||[]).join(', '))+'" style="width:320px">'+pickBtn('gun','units')+' <button id="gus">'+t('Speichern')+'</button>'+gdl('dlun',allUnits.map(u=>u.name)):esc((g.units||[]).join(', ')))+'</div>';
     if(g.name=='alluser')h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">('+t('= globale Admins, Standardgruppe nicht löschbar')+')</span></div>';
-    else if(me.admin)h+='<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" value="'+esc((g.admins||[]).join(', '))+'" style="width:320px"> <button id="gas">'+t('Speichern')+'</button></div>'+gdl('dlu',allUsers.map(u=>u.name));
+    else if(g.name=='globaladmins'||g.name=='groupadmins')h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">'+t('(= Systemgruppe, nicht löschbar)')+'</span></div>';
+    else if(me.admin)h+='<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" value="'+esc((g.admins||[]).join(', '))+'" style="width:320px">'+pickBtn('gad','users')+' <button id="gas">'+t('Speichern')+'</button></div>'+gdl('dlu',allUsers.map(u=>u.name));
     else h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+'</div>';
     if(g.manage){
       h+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.')+'</div>'+
        '<div class="muted">'+t('"#organisation" zieht die Mitglieder aller Gruppen dieser Organisation mit (nur globale Admins).')+'</div>'+
-       '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box">'+esc((g.entries||[]).join('\n'))+'</textarea><div class="row"><button id="gms">'+t('Mitglieder speichern')+'</button></div></div>';
+       (g.name=='globaladmins'?'<div class="muted">'+t('Systemgruppe globaladmins: Mitglieder sind alle globalen Admins. Aufnehmen und Entfernen vergibt oder entzieht das Admin-Recht; das darf nur der Sysadmin.')+'</div>':g.name=='groupadmins'?'<div class="muted">'+t('Systemgruppe groupadmins: Mitglieder sind alle Gruppen-Admins. Aufgenommen wird in der jeweiligen Gruppe (Feld Gruppen-Admins); hier kann man Gruppen-Admins entfernen.')+'</div>':'')+
+       '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box"'+(g.name=='globaladmins'&&!me.sys?' readonly':'')+'>'+esc((g.entries||[]).join('\n'))+'</textarea><div class="row"><button id="gms"'+(g.name=='globaladmins'&&!me.sys?' disabled':'')+'>'+t('Mitglieder speichern')+'</button>'+pickBtn('gm','members')+'</div></div>';
       if(g.name!='alluser')h+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
        '<textarea id="gst" rows="3" style="width:100%;box-sizing:border-box">'+esc((g.stay||[]).join('\n'))+'</textarea><div class="row"><button id="gsts">'+t('Merkliste speichern')+'</button></div></div>';
     }else h+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
     if(g.manage)h+='<div class="panel"><b>'+t('KI für Mitglieder')+'</b> '+modeSel('gai',g.ai||'off',[['off','aus'],['member','ein']],false)+' <button id="gais">'+t('Speichern')+'</button>'+
       '<div class="muted">'+t('Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.')+'</div></div>';
     if(g.manage)h+='<div class="panel"><b>'+t('1:1-Nachrichten')+'</b> '+modeSel('gdm',g.dm||'off',[['off','aus'],['admin','nur Gruppen-Admin mit Mitglied'],['member','Mitglieder untereinander']],false)+' <button id="gdms">'+t('Speichern')+'</button><div class="muted">'+t('Private Unterhaltungen zwischen zwei Personen der Gruppe. Gruppen-Admins lesen sie nicht mit. Standard: aus.')+'</div></div>';
+    const sysg=k=='globaladmins'||k=='groupadmins';   // Systemgruppen: keine Benutzerliste
+    if(g.manage&&!sysg)h+=listPanel(k);
     $('#main').innerHTML=h;
+    if(g.manage)$('#gcs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/comment',{comment:$('#gcm').value})){await this.load();this.select(k);}};
+    if(g.manage&&!sysg)listBind(k,()=>this.load());
     if(g.manage)$('#gais').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/ai',{mode:$('#gai').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(g.manage)$('#gdms').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/dm',{mode:$('#gdm').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(me.admin){
@@ -547,7 +630,7 @@ async function wzDraw(){
     const log=await J('GET','/api/routines/log')||[];const last=[...log].reverse().find(x=>!x.undone);
     b.innerHTML='<p>'+esc(t('Verschiebt die Mitglieder jeder Gruppe mit Zahl im Namen in die Folgegruppe (5a → 6a, 9b → 10b). Wiederholer bleiben, Gruppen-Admins und globale Admins werden nie verschoben. Es wird erst nach Vorschau, Passwort und Sicherung etwas geändert.'))+'</p>'+
      '<h4>'+esc(t('Modus'))+'</h4>'+
-     [['members','Mitglieder wechseln (Gruppen sind Stufen: Chat, Ordner und Kalender bleiben bei der Gruppe)'],['rename','Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit)']].map(x=>'<div class="row"><label><input type="radio" name="wm" value="'+x[0]+'"'+(WZ.P.mode==x[0]?' checked':'')+'> '+esc(t(x[1]))+'</label></div>').join('')+
+     [['members','Mitglieder wechseln (Gruppen sind Stufen: Chat, Ordner und Kalender bleiben bei der Gruppe)'],['rename','Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit, Kalender, Chat, Aufgaben und Groupadmins nur auf Wunsch)']].map(x=>'<div class="row"><label><input type="radio" name="wm" value="'+x[0]+'"'+(WZ.P.mode==x[0]?' checked':'')+'> '+esc(t(x[1]))+'</label></div>').join('')+
      (WZ.P.mode=='rename'?'<div class="row">'+esc(t('Wandert zusätzlich mit:'))+' <label><input type="checkbox" id="wcc"'+(WZ.P.carry.cal?' checked':'')+'> '+esc(t('Kalender'))+'</label> <label><input type="checkbox" id="wch"'+(WZ.P.carry.chat?' checked':'')+'> '+esc(t('Chat'))+'</label> <label><input type="checkbox" id="wct"'+(WZ.P.carry.tasks?' checked':'')+'> '+esc(t('Aufgaben'))+'</label></div>'+
        '<div class="row"><label><input type="checkbox" id="wna"'+(WZ.P.newAdmins?' checked':'')+'> '+esc(t('Gruppen-Admins auch in die neue Gruppe übernehmen'))+'</label></div>':'')+
      '<h4>'+esc(t('Gruppen ohne Folgegruppe (Abgänger)'))+'</h4>'+
@@ -1080,7 +1163,7 @@ S.cal={
       (rec?'<div class="row"><label><input type="radio" name="esc" value="one" checked> '+t('Nur dieser Termin')+'</label> &nbsp; <label><input type="radio" name="esc" value="following"> '+t('Dieser und folgende')+'</label> &nbsp; <label><input type="radio" name="esc" value="all"> '+t('Alle Termine der Serie')+'</label></div>':'')+
       (ed&&e.att&&e.att.length?'<div class="row muted">'+t('Teilnehmer: ')+e.att.map(a=>this.attText(a)).join(', ')+(e.org?' · '+t('Organisator: ')+esc(e.org):'')+'</div>':'')+
       '<div class="row">'+t('Erinnerung: ')+'<select id="eal">'+alOpts+'</select></div>'+
-      '<div class="row" id="eatw">'+t('Teilnehmer: ')+'<input id="eat" style="width:380px" placeholder="'+t('Benutzername oder E-Mail, durch Komma getrennt')+'" value="'+esc(att0)+'"><div class="muted">'+t('Teilnehmer erhalten eine Einladung per E-Mail (wenn der Mailversand eingerichtet ist). Zu- und Absagen werden nicht ausgewertet.')+'</div></div>'+
+      '<div class="row" id="eatw">'+t('Teilnehmer: ')+'<input id="eat" style="width:380px" placeholder="'+t('Benutzername oder E-Mail, durch Komma getrennt')+'" value="'+esc(att0)+'">'+pickBtn('eat','users')+'<div class="muted">'+t('Teilnehmer erhalten eine Einladung per E-Mail (wenn der Mailversand eingerichtet ist). Zu- und Absagen werden nicht ausgewertet.')+'</div></div>'+
       '<div class="row" id="erw">'+t('Wiederholung: ')+'<select id="erp"'+(rulable?'':' disabled')+'>'+opt('',t('keine'),!fr)+opt('DAILY',t('täglich'),fr=='DAILY')+opt('WEEKLY',t('wöchentlich'),fr=='WEEKLY')+opt('MONTHLY',t('monatlich'),fr=='MONTHLY')+opt('YEARLY',t('jährlich'),fr=='YEARLY')+(rulable?'':opt('X',esc(this.ruleText(r)),true))+'</select> '+
        '<span id="erx" style="display:none">'+t('Intervall')+' <input id="eri" type="number" min="1" max="99" style="width:55px" value="'+((r&&r.interval)||1)+'"> '+t('Ende')+': <select id="ere">'+opt('n',t('nie'),!(r&&(r.count||r.until)))+opt('c',t('nach Anzahl'),!!(r&&r.count))+opt('u',t('am Datum'),!!(r&&r.until&&!r.count))+'</select> '+
        '<input id="erc" type="number" min="1" max="999" style="width:70px" value="'+((r&&r.count)||10)+'"> <input id="eru" type="date" value="'+((r&&r.until)||'')+'"></span></div>'+
@@ -2342,6 +2425,11 @@ function chBadge(){
   if(n){if(!s){s=document.createElement('span');s.className='bdg';b.append(s);}s.textContent=n;}else if(s)s.remove();
   if(sec=='chat'&&S.chat.items){S.chat.items=S.chat.mk();setList(S.chat.items);}
 }
+/* Gruppenliste des Chats neu holen: die Verbindung meldet sie nur beim Aufbau ("hello"). Beim Oeffnen des Chat-Menues, beim
+   Zurueckkehren ins Fenster und jede Minute, damit neue Gruppen (und das Menue selbst) ohne Neuladen erscheinen. */
+async function chRefresh(){
+  const d=await fetch('/api/chat/groups').then(r=>r.ok?r.json():null).catch(()=>null);if(!d||!d.groups)return;
+  CH.groups=d.groups;CH.hello=true;for(const g of CH.groups)chRows(g.name,g.chans);CH.hello=false;chSaveRd();chBadge();}
 function chStart(){
   if(CH.ws||CH.closed)return;
   const w=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host+'/api/chat/ws');CH.ws=w;
@@ -2711,7 +2799,7 @@ S.chat={
     if(vs.length){l.push({head:t('Videochat')+' · '+CH.g});
       for(const v of vs)l.push({k:'vid:'+v.slot,label:'📹 '+(v.slot==3?t('WebRTC (Browser)'):t(v.slot==0?'Fester Raum':v.slot==1?'Ad-hoc (Admin)':'Ad-hoc')+' · '+v.name)});}
     return l;},
-  async load(){this.items=this.mk();setList(this.items);},
+  async load(){await chRefresh();this.items=this.mk();setList(this.items);},
   home(){
     $('#main').className='';
     if(!CH.groups.length){$('#main').innerHTML='<h3>'+t('Chat')+'</h3><div class="muted">'+t('Kein Gruppen-Chat verfügbar.')+'</div>';return;}
@@ -2743,14 +2831,14 @@ S.msg={
     $('#main').innerHTML='<h3>'+t('Nachricht an ')+esc(k)+'</h3>'+
      '<div class="row"><input id="ms" style="width:100%;max-width:560px;box-sizing:border-box" placeholder="'+t('Betreff')+'" maxlength="200"></div>'+
      '<div class="row"><textarea id="mb" rows="8" style="width:100%;max-width:560px;box-sizing:border-box" placeholder="'+t('Text')+'"></textarea></div>'+
-     '<div class="row"><label><input type="checkbox" id="mm"'+(this.smtp&&g.mail?' checked':' disabled')+'> '+t('E-Mail')+' <small class="muted">('+g.mail+' '+t('von')+' '+g.members+' '+t('Mitgliedern haben eine Adresse')+(this.smtp?'':'; '+t('SMTP ist auf dem Server nicht eingerichtet'))+')</small></label></div>'+
-     '<div class="row"><label><input type="checkbox" id="mh"'+(g.hook?' checked':' disabled')+'> '+t('Externe Chat-Adresse')+' <small class="muted">('+g.hook+' '+t('von')+' '+g.members+')</small></label></div>'+
+     (g.wide?'<div class="row"><label><input type="checkbox" id="mm"'+(this.smtp&&g.mail?' checked':' disabled')+'> '+t('E-Mail')+' <small class="muted">('+g.mail+' '+t('von')+' '+g.members+' '+t('Mitgliedern haben eine Adresse')+(this.smtp?'':'; '+t('SMTP ist auf dem Server nicht eingerichtet'))+')</small></label></div>'+
+     '<div class="row"><label><input type="checkbox" id="mh"'+(g.hook?' checked':' disabled')+'> '+t('Externe Chat-Adresse')+' <small class="muted">('+g.hook+' '+t('von')+' '+g.members+')</small></label></div>':'')+
      '<div class="row"><label><input type="checkbox" id="mc"'+(g.chat?' checked':' disabled')+'> '+t('Gruppen-Chat')+(g.chat?'':' <small class="muted">('+t('Chat der Gruppe aus oder nur lesbar')+')</small>')+'</label></div>'+
      '<button id="mgo">'+t('Senden')+'</button><div id="mres" class="row"></div>'+
      '<div class="panel"><b>'+t('Gesendet')+'</b>'+(lg.length?'<table class="t"><tr><th>'+t('Zeit')+'</th><th>'+t('Gruppe')+'</th><th>'+t('Betreff')+'</th><th>'+t('von')+'</th><th>E-Mail</th><th>Chat-URL</th><th>Chat</th></tr>'+
        lg.map(x=>'<tr><td>'+esc(fmtDT(x.ts/1e6))+'</td><td>'+esc(x.group)+'</td><td>'+esc(x.subject)+'</td><td>'+esc(x.by)+'</td><td>'+x.mail+'</td><td>'+x.hook+'</td><td>'+(x.chat?'✓':'')+'</td></tr>').join('')+'</table>':'<div class="muted">-</div>')+'</div>';
     $('#mgo').onclick=async()=>{
-      const b={group:k,subject:$('#ms').value,body:$('#mb').value,mail:$('#mm').checked,hook:$('#mh').checked,chat:$('#mc').checked};
+      const b={group:k,subject:$('#ms').value,body:$('#mb').value,mail:!!$('#mm')&&$('#mm').checked,hook:!!$('#mh')&&$('#mh').checked,chat:$('#mc').checked};
       if(!b.body.trim()){alert(t('Text fehlt'));return;}
       if(!b.mail&&!b.hook&&!b.chat){alert(t('Mindestens einen Kanal wählen'));return;}
       $('#mgo').disabled=true;const r=await J('POST','/api/message',b);$('#mgo').disabled=false;if(!r)return;
@@ -3069,7 +3157,7 @@ function tkForm(x){
    '<div class="row"><textarea id="tkd" rows="6" style="width:100%;max-width:560px;box-sizing:border-box" placeholder="'+t('Beschreibung')+'">'+esc(x?x.desc||'':'')+'</textarea></div>'+
    '<div class="row">'+t('Gruppe')+': '+(x?'<b>'+esc(x.group||t('keine (persönlich)'))+'</b>':'<select id="tkg"><option value="">'+esc(t('keine (persönlich)'))+'</option>'+TK.groups.map(g=>opt(g.name,g.req?g.name+' ('+t('Anfrage')+')':g.name,'')).join('')+'</select>')+'</div>'+
    '<div class="muted row" id="tkrq" style="display:none">'+t('In dieser Gruppe weisen nur Gruppen-Admins Aufgaben zu: Ihre Aufgabe wird als Anfrage („Bitte bearbeiten“) für alle Gruppenmitglieder sichtbar, jedes Mitglied kann sie übernehmen.')+'</div>'+
-   '<div class="row">'+t('Bearbeiter')+': <input id="tka" list="tkpp" value="'+esc(x?x.assignee||'':'')+'" placeholder="'+t('leer = bitte bearbeiten')+'"> &nbsp; '+t('Beteiligte')+': <input id="tkw" list="tkpp" style="width:240px" value="'+esc(x?(x.watch||[]).join(', '):'')+'" placeholder="'+t('Benutzernamen, Komma getrennt')+'">'+ppl+'</div>'+
+   '<div class="row">'+t('Bearbeiter')+': <input id="tka" list="tkpp" value="'+esc(x?x.assignee||'':'')+'" placeholder="'+t('leer = bitte bearbeiten')+'">'+pickBtn('tka','users',1)+' &nbsp; '+t('Beteiligte')+': <input id="tkw" list="tkpp" style="width:240px" value="'+esc(x?(x.watch||[]).join(', '):'')+'" placeholder="'+t('Benutzernamen, Komma getrennt')+'">'+pickBtn('tkw','users')+ppl+'</div>'+
    '<div class="row">'+t('Priorität')+': <select id="tkp">'+[0,1,2].map(p=>opt(p,tkPrio(p),x?x.prio:1)).join('')+'</select> &nbsp; '+t('Fällig')+': <input type="date" id="tku" value="'+esc(x?x.due||'':'')+'"> &nbsp; '+
      t('Wiederholung')+': <select id="tkr">'+['','daily','weekly','monthly','yearly'].map(r=>opt(r,tkRep(r),x?x.repeat||'':'')).join('')+'</select></div>'+
    '<div class="muted row">'+t('Wiederholung: nach der Abnahme entsteht automatisch die nächste Aufgabe (Fälligkeit und Meilensteine verschieben sich). Dafür ist ein Fälligkeitsdatum nötig.')+'</div>'+
@@ -3688,12 +3776,46 @@ async function aiStart(){
     $('#aihint').textContent+=' '+t('Gewählte Dateien werden gelesen und an den KI-Anbieter gesendet.');}
   aiTopics();}
 
+let OI=null;   // Anbieter des Anmeldeformulars (GET /api/login/info)
+const oidcProvs=async()=>OI||(OI=(await fetch('/api/login/info').then(r=>r.ok?r.json():null).catch(()=>null))||{form:false,oidc:[]});
+const provName=id=>{const p=((OI&&OI.oidc)||[]).find(x=>x.id==id);return p?p.name:id;};
+// Anbieter-Knoepfe: mode "start" = anmelden, "link" = angemeldet verknuepfen (nach Rueckfrage)
+const provBtns=(mode)=>((OI&&OI.oidc)||[]).map(p=>'<button type="button" class="prvb" data-m="'+mode+'" data-id="'+esc(p.id)+'" data-n="'+esc(p.name)+'">'+esc(p.name)+'</button>').join(' ');
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.prvb');if(!b)return;e.preventDefault();
+  const go=()=>{location.href='/oidc/'+b.dataset.m+'/'+encodeURIComponent(b.dataset.id);};
+  if(b.dataset.m=='link')uiAsk(t('Konto mit {0} verknüpfen? Das Passwort entfällt; danach ist nur noch die Anmeldung über den Anbieter möglich, zurücksetzen kann nur ein Admin.',b.dataset.n)).then(ok=>{if(ok)go();});else go();});
+/* ---------- Anmeldeformular (CS_LOGIN_FORM=1): Name + Passwort (+ Code der Zwei-Faktor-Anmeldung) -> POST /api/login, Cookie setzt der Server ---------- */
+async function showLogin(){
+  await initLang('');
+  document.querySelectorAll('#nav button').forEach(b=>b.style.display='none');$('#left').style.display='none';
+  ['#gs','#who','#logout'].forEach(q=>{const e=$(q);if(e)e.style.display='none';});
+  $('#main').innerHTML='<h3>'+esc(t('Anmelden'))+'</h3><div class="panel" style="max-width:420px">'+
+    '<div class="row"><input id="lgn" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="'+esc(t('Anmeldename'))+'"></div>'+
+    '<div class="row"><input id="lgp" type="password" autocomplete="current-password" placeholder="'+esc(t('Passwort'))+'"></div>'+
+    '<div class="row"><input id="lgc" inputmode="numeric" autocomplete="one-time-code" placeholder="'+esc(t('Code (nur bei Zwei-Faktor-Anmeldung)'))+'"></div>'+
+    '<div class="row"><button id="lgo">'+esc(t('Anmelden'))+'</button></div><div id="lge" class="muted" role="alert"></div></div>';
+  const go=async()=>{
+    const r=await fetch('/api/login',{method:'POST',body:JSON.stringify({name:$('#lgn').value.trim(),password:$('#lgp').value,code:$('#lgc').value.trim()})}).catch(()=>null);
+    if(r&&r.ok){location.reload();return;}
+    $('#lge').textContent=!r?t('Server nicht erreichbar'):r.status==429?t('Zu viele Versuche, bitte später erneut versuchen.'):r.status==403?(await r.text()).trim():t('Anmeldung fehlgeschlagen');
+    $('#lgp').value='';$('#lgc').value='';};
+  $('#lgo').onclick=go;['#lgn','#lgp','#lgc'].forEach(q=>{$(q).onkeydown=e=>{if(e.key=='Enter')go();};});$('#lgn').focus();
+  await oidcProvs();
+  if(OI.oidc&&OI.oidc.length)$('#lgo').parentNode.insertAdjacentHTML('afterend','<div class="muted row">'+esc(t('oder anmelden mit'))+'</div><div class="row">'+provBtns('start')+'</div>');
+  if(/[?&]login=failed/.test(location.search)){$('#lge').textContent=t('Anmeldung über den Anbieter nicht möglich. Ist das Konto verknüpft? Sonst bitte mit Anmeldename und Passwort anmelden.');history.replaceState(null,'','/');}
+}
+
 /* ---------- Start ---------- */
 (async()=>{
-  me=(await J('GET','/api/me'))||me;me.ackT=Date.now();
+  const r0=await fetch('/api/me').catch(()=>null);
+  if(r0&&r0.status==401&&r0.headers.get('X-Login-Form')=='1'){await showLogin();return;}   // CS_LOGIN_FORM=1: Formular statt Browser-Dialog
+  me=(r0&&r0.ok?await r0.json().catch(()=>null):null)||(await J('GET','/api/me'))||me;me.ackT=Date.now();
   await initLang(me.lang);
+  if(me.loginForm)await oidcProvs();
   $('#who').textContent=me.name+' ('+(me.admin?t('Globaler Admin'):(me.adminOf||[]).length?t('Gruppen-Admin'):t('Benutzer'))+')';
-  $('#logout').onclick=async()=>{   // Basic Auth: ungültige Zugangsdaten an /logout überschreiben die gemerkten, dann neu laden -> Login-Dialog
+  $('#logout').onclick=async()=>{
+    if(me.loginForm){await fetch('/api/logout',{method:'POST'}).catch(()=>{});location.href='/';return;}   // Formular-Anmeldung: Sitzung beenden
+    // Basic Auth: ungültige Zugangsdaten an /logout überschreiben die gemerkten, dann neu laden -> Login-Dialog
     try{await fetch('/logout',{headers:{Authorization:'Basic '+btoa('logout:logout')}});}catch(e){}
     location.href='/logout';};
   if(me.must){   // Startpasswort: erst ändern, dann arbeiten
@@ -3702,7 +3824,7 @@ async function aiStart(){
       '<div class="muted row">'+t('Das Startpasswort gilt nur für den ersten Login.')+'</div>'+
       '<div class="row"><input id="pn" type="password" autocomplete="new-password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
       '<div class="row"><input id="pn2" type="password" autocomplete="new-password" placeholder="'+t('neues Passwort wiederholen')+'"></div>'+
-      '<button id="pgo">'+t('Speichern')+'</button></div>';
+      '<button id="pgo">'+t('Speichern')+'</button></div>'+(me.loginForm&&!me.admin&&OI&&OI.oidc&&OI.oidc.length?'<div class="panel" style="max-width:420px"><b>'+esc(t('Oder mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>':'');
     $('#pgo').onclick=async()=>{if($('#pn').value!=$('#pn2').value){alert(t('Die Passwörter sind nicht gleich.'));return;}
       if(await api('POST','/api/me/password',{old:'',new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
     return;
@@ -3719,7 +3841,7 @@ async function aiStart(){
   document.querySelectorAll('#nav button').forEach(b=>{   // Bereiche ohne Recht ausblenden
     const s=b.dataset.s;if(s=='chat'||s=='msg'||s=='task'||s=='set'||s=='today')return;if(s=='units'){if(!me.admin)b.style.display='none';}else if(s!='users'&&s!='groups'&&!me.areas.includes(s))b.style.display='none';
     else if(first=='users'&&s=='files')first='files';});
-  chStart();tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
+  chStart();setInterval(chRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)chRefresh();});tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
   if(me.guest){const gb=document.createElement('div');gb.id='guestbar';gb.textContent=t('Gast-Konto, gültig bis {0}',me.expires||'?');document.body.prepend(gb);}
   {const br=$('#brand'),vt='cs-team'+(me.version?' '+me.version:'');br.title=vt;
     if(me.admin){document.querySelector('#nav button[data-s=set]').style.display='';br.style.cursor='pointer';br.title=vt+'\n'+t('Einstellungen');br.onclick=()=>go('set');}}

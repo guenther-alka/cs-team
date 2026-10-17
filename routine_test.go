@@ -128,7 +128,7 @@ func TestYearChange(t *testing.T) {
 	}
 	var en struct{ ID string }
 	json.Unmarshal([]byte(b), &en)
-	for u, want := range map[string]string{"s1": "6a,chor", "s2": "5a", "s3": "7a", "s4": "ehemalige", "lehrer": "5a,alluser"} {
+	for u, want := range map[string]string{"s1": "6a,chor", "s2": "5a", "s3": "7a", "s4": "ehemalige", "lehrer": "5a,alluser,groupadmins"} {
 		if got := groupsOf(u); got != want {
 			t.Fatalf("%s: %q, erwartet %q", u, got, want)
 		}
@@ -259,7 +259,7 @@ func TestYearRename(t *testing.T) {
 	}
 	var en struct{ ID string }
 	json.Unmarshal([]byte(b), &en)
-	for u, want := range map[string]string{"s1": "6a", "s2": "5a", "s3": "7a", "s4": arch, "lehrer": "6a,alluser"} {
+	for u, want := range map[string]string{"s1": "6a", "s2": "5a", "s3": "7a", "s4": arch, "lehrer": "6a,alluser,groupadmins"} {
 		if got := groupsOf(u); got != want {
 			t.Fatalf("%s: %q, erwartet %q", u, got, want)
 		}
@@ -311,7 +311,7 @@ func TestYearRename(t *testing.T) {
 	if c, b := req(t, srv, "anna", "POST", "/api/routines/undo/"+en.ID, `{"password":"passwort-anna"}`); c != 200 {
 		t.Fatal(c, b)
 	}
-	for u, want := range map[string]string{"s1": "5a", "s2": "5a", "s3": "6a", "s4": "7a", "lehrer": "5a,alluser"} {
+	for u, want := range map[string]string{"s1": "5a", "s2": "5a", "s3": "6a", "s4": "7a", "lehrer": "5a,alluser,groupadmins"} {
 		if got := groupsOf(u); got != want {
 			t.Fatalf("nach undo %s: %q, erwartet %q", u, got, want)
 		}

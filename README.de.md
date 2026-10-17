@@ -15,7 +15,7 @@ Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 f
 Videokonferenz-Infrastruktur, Telefonie und volle docx/xlsx-Kompatibilität - bei deutlich weniger Komplexität als Teams, O365 oder Nextcloud
 (Ziel unter 10 %, qualitative Einschätzung): eine Datei, Copy and run, dateibasiert, keine Datenbank, im eigenen Haus und DSGVO-freundlich, leicht erweiter- und übersetzbar.
 KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch Kapitel 17, Version 0.61, Schätzungen): etwa 60 bis 70 % der täglich genutzten Funktionen sind abgedeckt;
-die größten Lücken sind globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung und Push, Gäste/SSO und Kommentare in Dokumenten.
+seitdem ergänzt: globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung (Mail, ntfy), Gäste, Kommentare in Dokumenten und Anmeldung per OIDC; offen: natives Web-Push (ntfy deckt das Handy ab) und volle docx/xlsx-Treue.
 
 ## Start
 
@@ -25,7 +25,7 @@ die größten Lücken sind globale Suche, 1:1-Nachrichten und Threads, Erwähnun
     ./cs-team adduser anna geheim2 [admin]              # Benutzer anlegen / Passwort setzen (optional als Admin)
     CS_MEM=1 ./cs-team                                  # Demo ohne RustFS (RAM)
 
-Bitte hinter TLS-Proxy betreiben (Basic Auth).
+Bitte hinter TLS-Proxy betreiben (Basic Auth; optional Anmeldeformular mit `CS_LOGIN_FORM=1`).
 
 ## Benutzerverwaltung
 
@@ -46,6 +46,16 @@ Dokumente eines gelöschten Benutzers bleiben; Admins können sie freigeben oder
 
 REST: `GET /api/me`, `POST /api/me/password`, `GET /api/users`, `POST /api/users`,
 `POST /api/users/<n>/password|flags`, `DELETE /api/users/<n>[?purge=1]`.
+
+## Anmeldung, Rollen und Gruppen (0.62)
+
+- **Anmeldung:** Standard ist HTTP Basic. Mit `CS_LOGIN_FORM=1` zeigt cs-team ein Anmeldeformular und merkt sich die Sitzung in einem Cookie (`cs_session`); WebDAV/CalDAV bleiben bei Basic bzw. App-Passwort. Kontoarten: **lokal**, **Verzeichnis** (LDAP/AD, `name@realm`) und **OIDC**. Lokale Namen wie `anna@schule.de` sind erlaubt (eindeutig, zugleich Kontakt-Mail); der Realm des Verzeichnisses bleibt für lokale Konten gesperrt.
+- **Initialpasswörter:** Der Admin lädt in einer Gruppe eine Benutzerliste hoch (`name[, mail[, passwort]]`; Kopfzeile `org: meine.schule.de` hängt die Domain an), erzeugt Initialpasswörter (30 Tage gültig, einmal angezeigt, gespeichert wird nur der Hash, Pflichtwechsel beim ersten Login) und stellt sie optional per Mail zu. *Neu konfigurieren* vergibt ein neues Initialpasswort und löscht OIDC-Verknüpfung, Zwei-Faktor und App-Passwörter. REST: `POST/GET /api/groups/<g>/userlist`, `POST /api/groups/<g>/initpw`, `POST /api/users/<n>/reconfigure`.
+- **OIDC** (Google, Microsoft, generisch; nur mit Anmeldeformular): `CS_OIDC=google,ms,keycloak`, `CS_OIDC_BASE=https://team.example.org` (Rückkehradresse `BASE/oidc/callback`), je Anbieter `CS_OIDC_<ID>_CLIENT_ID`, `_CLIENT_SECRET`, `_ISSUER`, `_NAME`, `_SCOPE`; Microsoft nur mit fester Mandanten-ID `CS_OIDC_MS_TENANT`. Der Benutzer meldet sich einmal mit dem Initialpasswort an und verknüpft sein Konto selbst (Authorization Code + PKCE, eigene id_token-Prüfung, Kennung = Aussteller + `sub`, nie die Mail-Adresse). Danach gilt nur noch OIDC (Passwort *oder* OIDC). Admins, Sysadmin und Verzeichniskonten nutzen kein OIDC.
+- **Rollen:** Der *Sysadmin* (`CS_ADMIN_USER` bzw. `cs-team sysadmin NAME`) ist der Startup-Admin und immer globaler Admin; nur er legt weitere globale Admins an und bearbeitet sie. Globale Admins verwalten alles andere samt Gruppen-Admins und sehen andere Admins nur. Feste Systemgruppen: `globaladmins` (Mitgliedschaft = Admin-Recht, Aufnahme/Entzug nur Sysadmin) und `groupadmins` (aus den Admin-Listen berechnet, globale Admins dürfen entfernen); nicht lösch- oder umbenennbar. Zwei-Faktor bleibt freiwillig (für Admins per Einstellung Pflicht).
+- **Benutzerseite:** Anmeldeart, Zwei-Faktor-Stand, *zuletzt gesehen* (im Speicher je Anfrage, stündlich in `users.json`; nicht für Verzeichniskonten) und die Rolle in einem Satz. Gruppen haben eine editierbare Beschreibung (z.B. `kurs23` - 3D Einführung Prof. Muster).
+- **Nachricht:** Admins einer Gruppe senden per Gruppen-Chat, Mail und externer Chat-Adresse; Mitglieder (wenn die Gruppe das Senden erlaubt) nur in den Gruppen-Chat.
+- Listen links lassen sich mit Text oder (bei Sonderzeichen) als regulärer Ausdruck filtern.
 
 ## Oberfläche
 
@@ -91,19 +101,27 @@ Admins sehen unter Einstellungen > Dateien die **Belegung** je Besitzer (`GET /a
 
 ## Export / Import (Text und Calc <-> Files)
 
-Nur Go-Standardbibliothek (package `conv`). Übernommen werden Text bzw. Zellwerte und Formeln, keine Formatierung
-(keine Schriftarten, kein Fett, keine Zellformate, Diagramme oder Makros).
+Nur Go-Standardbibliothek (package `conv`). Übernommen werden Inhalt und einfache Formate: Zeichenformate (fett, kursiv, unterstrichen, durchgestrichen, Farbe, Größe, Hintergrund), Listen, Einrückung, Kommentare (Word-Kommentare) bzw. Zellwerte, Formeln, Zellformate und Notizen (Excel-Notizen). Nicht: Schriftarten, Seitenformat, Bilder, Diagramme, Makros, mehrere Blätter. PDF-Export mit Standardschrift Helvetica (Latin-1 und Euro).
 
 | Typ | Export | Import |
 |-----|--------|--------|
-| Text | `.txt` `.rtf` `.docx` `.cstext` | `.txt` `.docx` `.cstext` |
-| Calc | `.csv` `.xlsx` `.cscalc` | `.csv` (`,` oder `;`, UTF-8/Latin-1) `.xlsx` (erstes Blatt) `.cscalc` |
+| Text | `.txt` `.rtf` `.docx` `.pdf` `.cstext` | `.txt` `.docx` `.cstext` |
+| Calc | `.csv` `.xlsx` `.pdf` `.cscalc` | `.csv` (`,` oder `;`, UTF-8/Latin-1) `.xlsx` (erstes Blatt) `.cscalc` |
 
 `.cstext` / `.cscalc` sind das eigene Format (JSON, `"format":"cs-team/text"` bzw. `"cs-team/calc"`) und ermöglichen
 die eindeutige Zuordnung in der Ablage. UI: im Dokument `Export: [Format] [Download] [-> Files]`, beim Anlegen
 `Aus Files importieren`. REST: `GET /api/docs/<id>/export?format=`, `POST /api/docs/<id>/tofiles?format=`,
 `POST /api/docs/import {"owner","file","name"}` (Quelle: eigene oder mit dem Benutzer geteilte Datei; das neue
 Dokument gehört dem Benutzer).
+
+## Text: Zusammenfügen, Zusammenfassen, KI-Recherche (0.62)
+
+Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer) oder ein PDF in Files.
+
+- **Zusammenfügen (ohne KI):** 2 bis 20 Quellen (`.pdf .docx .txt .cstext`, eigene und freigegebene, dazu Text-Dokumente) in der Reihenfolge der Auswahl. Ziel PDF: PDFs werden direkt verbunden (`conv/pdfmerge.go`; Lesezeichen, Formularfelder, Dokumentinfo gehen verloren, verschlüsselte PDFs werden abgelehnt), Word/Text vorher als PDF gesetzt. Ziel cs-text: eine fette Titelzeile je Quelle, PDFs als Text. REST: `POST /api/docs/merge`.
+- **Zusammenfassen (KI):** bis 4 Quellen, Funktionen Zusammenfassen, Stichpunkte, Aufgaben und Termine; gleicher Weg und gleiche Rechte wie das KI-Widget (40000 Zeichen je Datei, PDF bis 8 MB), Ergebnis bearbeitbar, speichern als cs-text oder PDF (`POST /api/docs/fromtext`).
+- **KI-Recherche:** Frage (die nur Thema ist, nie Anweisung) und Niveau: 1 einfache Sprache (Kurzübersicht, etwa 250 Wörter), 2 fachlich (Kurzreferat, 400-700 Wörter), 3 wissenschaftlich abwägend (Analysereferat, 900-1400 Wörter). Quellen so gut wie möglich: Websuche des KI-Anbieters (Anthropic, OpenAI-Suchmodelle), sonst Quellensuche durch cs-team (Wikipedia, OpenAlex und, wenn der Admin einen Dienst eingerichtet hat, Brave Search oder SearXNG: *Einstellungen > Websuche für die KI-Recherche*), sonst nur das Wissen der KI. Das Ergebnis trägt vom Programm erzeugte Rahmenbedingungen, einen Faktencheck mit genau einem Urteil, eine Quellenbewertung und "So prüfst du es selbst"; keine erfundenen Quellen, Webinhalte gelten als nicht vertrauenswürdig. Übersetzen in jede Oberflächensprache ersetzt den Text (`POST /api/ai/translate`), Original lässt sich wiederherstellen.
+- Calc: durchgestrichene Zellen zählen als leer (Strg+Umschalt+X), Zellnotizen (Umschalt+F2), PDF-Export; Text: Durchgestrichen und Kommentare.
 
 ## Gruppen, Rechte, Speicher (0.5.0)
 

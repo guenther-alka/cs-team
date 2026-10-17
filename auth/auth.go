@@ -53,6 +53,8 @@ var (
 	ErrBadPass  = errors.New("password: 8..72 bytes")
 	ErrWeakPass = errors.New("password too common (e.g. 12345678, password, one repeated character)")
 	validName   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,31}$`)
+	// validAcct: Kontoname lokaler Konten: wie validName oder eine Adresse name@domain.tld (zugleich Kontakt-Mail).
+	validAcct = regexp.MustCompile(`^([a-z0-9][a-z0-9._-]{0,31}|[a-z0-9][a-z0-9._+-]{0,63}@[a-z0-9][a-z0-9-]{0,62}(\.[a-z0-9][a-z0-9-]{0,62})+)$`)
 	errLockedIP = errors.New("locked")
 )
 
@@ -84,6 +86,9 @@ type Account struct {
 	TOTP      string    `json:"totp,omitempty"`     // Zwei-Faktor-Anmeldung (0.60): geheimer Schlüssel (Base32), leer = aus; twofa.go
 	Recovery  []string  `json:"recovery,omitempty"`  // Hashes der noch gültigen Wiederherstellungscodes
 	AppPw     []AppPass `json:"appPw,omitempty"`     // App-Passwörter (nur Dateien und Kalender, ohne Code)
+	Link      *OIDCLink `json:"oidc,omitempty"`    // feste Verknüpfung mit der Kennung beim OIDC-Anbieter (Aussteller + sub); dann gibt es kein Passwort (oidc.go)
+	Seen      string    `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, hoechstens stuendlich nachgetragen; seen.go)
+	InitExp   string    `json:"initExp,omitempty"` // Initialpasswort (Must + Passwort): gültig bis (RFC 3339), leer = unbegrenzt (initpw.go)
 	Member    []string `json:"-"`                   // berechnete Mitgliedschaften aus Group.Dir/Group.Sub (nur im Speicher)
 }
 
@@ -125,6 +130,8 @@ type Auth struct {
 	step   map[string]int64     // zuletzt benutzter TOTP-Schritt je Benutzer, unter tmu
 	pend   map[string]pendEnt   // laufende 2FA-Einrichtung je Benutzer, unter tmu
 	warm   chan struct{}  // beendet das Warmhalten der Verzeichnisverbindung (WarmDir), nil = läuft nicht
+	web    map[[32]byte]webSess // Browser-Sitzungen des Anmeldeformulars (session.go), unter mu
+	seen   map[string]time.Time // zuletzt gesehen je Konto (seen.go), unter mu
 }
 
 var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht die Gruppen eines Benutzers
@@ -132,7 +139,7 @@ var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht d
 func New(st store.Store) *Auth {
 	d, _ := bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.DefaultCost)
 	a := &Auth{st: st, fails: map[string]*fail{}, dummy: d, cache: map[[32]byte]cacheEnt{},
-		sess: map[[32]byte]sessEnt{}, step: map[string]int64{}, pend: map[string]pendEnt{}}
+		sess: map[[32]byte]sessEnt{}, step: map[string]int64{}, pend: map[string]pendEnt{}, web: map[[32]byte]webSess{}}
 	rand.Read(a.salt[:])
 	std = a
 	return a
@@ -233,8 +240,8 @@ func (a *Auth) mutate(ctx context.Context, fn func(m map[string]Account) error) 
 // Nur die lokalen Konten sind ohne Verzeichnis anmeldefähig - deshalb muss immer eines davon Admin bleiben
 // (KISS-Regel 0.55: Notfallzugang, "Zugehoerigkeit darf aus dem Verzeichnis kommen, Verantwortung nie").
 func hasLocalAdmin(m map[string]Account) bool {
-	for n, u := range m {
-		if u.Admin && !u.Disabled && !strings.Contains(n, "@") {
+	for _, u := range m {
+		if u.Admin && !u.Disabled && u.Source != "dir" {
 			return true
 		}
 	}
@@ -248,8 +255,8 @@ func (a *Auth) LocalAdmins(ctx context.Context) int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	n := 0
-	for name, u := range a.users {
-		if u.Admin && !u.Disabled && !strings.Contains(name, "@") {
+	for _, u := range a.users {
+		if u.Admin && !u.Disabled && u.Source != "dir" {
 			n++
 		}
 	}
@@ -309,8 +316,18 @@ func (a *Auth) Bootstrap(ctx context.Context, user, pass string) error {
 // reservierte Gerätenamen (con, nul, com1 ...), weil daraus Verzeichnisnamen werden.
 func okName(n string) bool { return validName.MatchString(n) && !store.WinReserved(n) }
 
+// okAcct: gültiger Name für neue Konten: einfacher Name oder Adresse name@domain.tld (nur lokale Konten).
+func okAcct(n string) bool { return validAcct.MatchString(n) && !store.WinReserved(strings.SplitN(n, "@", 2)[0]) }
+
+// NameRealmClash: ein lokaler Kontoname name@domain darf nicht in den Namensraum des Verzeichnisses fallen.
+func (a *Auth) NameRealmClash(n string) bool {
+	_, realm, has := strings.Cut(n, "@")
+	idc := a.identity()
+	return has && (realm == RealmLocal || idc.ValidRealm(realm))
+}
+
 func addTo(m map[string]Account, name, pass string, admin bool, groups []string) error {
-	if !okName(name) {
+	if !okAcct(name) {
 		return ErrBadName
 	}
 	if _, ok := m[name]; ok {
@@ -323,11 +340,19 @@ func addTo(m map[string]Account, name, pass string, admin bool, groups []string)
 	if len(groups) == 0 {
 		groups = []string{DefaultGroup}
 	}
-	m[name] = Account{Hash: h, Admin: admin, Created: time.Now().UTC().Format(time.RFC3339), Groups: groups}
+	acc := Account{Hash: h, Admin: admin, Created: time.Now().UTC().Format(time.RFC3339), Groups: groups}
+	if strings.Contains(name, "@") {
+		acc.Mail = name // Kontoname ist eine Adresse: zugleich Kontakt-Mail
+	}
+	m[name] = acc
 	return nil
 }
 
 func (a *Auth) AddUser(ctx context.Context, name, pass string, admin bool, groups []string) error {
+	groups = noSysGroups(groups)
+	if a.NameRealmClash(name) {
+		return ErrBadRealm // name@<Namensraum des Verzeichnisses> bliebe mehrdeutig
+	}
 	if err := a.checkGroups(ctx, groups); err != nil {
 		return err
 	}
@@ -344,6 +369,9 @@ func (a *Auth) AddUser(ctx context.Context, name, pass string, admin bool, group
 
 // SetUser (CLI): anlegen oder Passwort setzen; admin=true macht zusätzlich zum Admin.
 func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) error {
+	if a.NameRealmClash(name) {
+		return ErrBadRealm
+	}
 	return a.mutate(ctx, func(m map[string]Account) error {
 		u, ok := m[name]
 		if !ok {
@@ -388,6 +416,8 @@ func (a *Auth) setPass(ctx context.Context, name, pass string, must bool) error 
 			return err
 		}
 		u.Hash, u.Must = h, must
+		u.Link = nil     // Passwort oder OIDC, nie beides (oidc.go)
+		u.InitExp = "" // ein eigenes Passwort hat keine Frist (initpw.go setzt sie danach neu)
 		m[name] = u
 		return nil
 	})
@@ -555,7 +585,7 @@ func (a *Auth) failsBefore(keys ...string) int {
 // verify prüft Passwort; deaktivierte/unbekannte Benutzer kosten dieselbe Rechenzeit.
 func (a *Auth) verify(ctx context.Context, name, pass string) (Account, bool) {
 	u, ok := a.get(ctx, name)
-	if !ok || !validName.MatchString(name) || u.Disabled {
+	if !ok || !validAcct.MatchString(name) || u.Source == "dir" || u.Disabled {
 		bcrypt.CompareHashAndPassword(a.dummy, []byte(pass))
 		return Account{}, false
 	}
@@ -590,13 +620,21 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		}
 		name, pass, ok := r.BasicAuth()
 		if !ok {
-			w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
+			if wk, wu, good := a.webUser(r); good { // Anmeldeformular: Sitzungs-Cookie (session.go)
+				if !sameOriginStrict(r) {
+					http.Error(w, "cross-site request refused", http.StatusForbidden)
+					return
+				}
+				a.serve(w, r, next, loginID{Key: wk, Name: wk, Source: wu.Source, Local: isLocalKey(wk, wu)}, wu)
+				return
+			}
+			a.challenge(w, r)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		cip := a.ip(r)
 		idc := a.identity()
-		id, err := parseLogin(name, idc)
+		id, err := a.resolveLogin(r.Context(), name, idc)
 		key, ipKey, userKey := id.Key+"|"+cip, "ip|"+cip, "user|"+id.Key
 		var u Account
 		var good, scope bool
@@ -641,7 +679,7 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			case errors.Is(err, ErrBadRealm):
 				http.Error(w, "unknown login realm", http.StatusUnauthorized)
 			default: // falsches Passwort, unbekanntes Konto
-				w.Header().Set("WWW-Authenticate", `Basic realm="cs-team"`)
+				a.challenge(w, r)
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 			}
 			return
@@ -650,6 +688,17 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 		// (der Zähler wird dabei gelöscht; Fehlversuche anderer Konten derselben Adresse erzeugen keine Zeilen).
 		if n := a.ok(key); n > 0 {
 			logLimited("auth: login ok user=%q ip=%s after %d failed attempts", safeName(name), cip, n)
+		}
+		a.serve(w, r, next, id, u)
+	})
+}
+
+// serve: Rechte-Prüfung und Aufruf nach erfolgreicher Anmeldung (Basic Auth oder Sitzungs-Cookie).
+func (a *Auth) serve(w http.ResponseWriter, r *http.Request, next http.Handler, id loginID, u Account) {
+	{
+		if initExpired(u) {
+			http.Error(w, "initial password expired", http.StatusUnauthorized)
+			return
 		}
 		if u.Must && ForceChange && r.URL.Path != "/api/me" && r.URL.Path != "/api/me/password" && !strings.HasPrefix(r.URL.Path, "/lang/") && !(r.Method == "GET" && (r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/app.js")) {
 			w.Header().Set("X-Must-Change", "1")
@@ -661,14 +710,15 @@ func (a *Auth) Wrap(next http.Handler) http.Handler {
 			http.Error(w, "two-factor setup required", http.StatusForbidden)
 			return
 		}
+		a.touch(id.Key)
 		ctx := context.WithValue(r.Context(), ctxKey{}, id.Key)
 		ctx = context.WithValue(ctx, ctxAdmin{}, u.Admin)
 		all, wr := a.areas(u)
 		ctx = context.WithValue(ctx, ctxAreas{}, all)
 		ctx = context.WithValue(ctx, ctxWAreas{}, wr)
-		ctx = context.WithValue(ctx, ctxAdminOf{}, a.adminOf(name))
+		ctx = context.WithValue(ctx, ctxAdminOf{}, a.adminOf(id.Key))
 		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+	}
 }
 
 func User(ctx context.Context) string { s, _ := ctx.Value(ctxKey{}).(string); return s }

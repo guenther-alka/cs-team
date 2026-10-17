@@ -18,7 +18,7 @@ type cacheEnt struct {
 // Passwörter werden nicht aus dem Cache bedient.
 func (a *Auth) verifyCached(ctx context.Context, name, pass string) (Account, bool) {
 	u, ok := a.get(ctx, name)
-	if !ok || !validName.MatchString(name) || u.Disabled {
+	if !ok || !validAcct.MatchString(name) || u.Source == "dir" || u.Disabled {
 		return a.verify(ctx, name, pass)
 	}
 	k := sha256.Sum256(append(append(append(a.salt[:], name...), 0), pass...))

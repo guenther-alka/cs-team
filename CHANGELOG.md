@@ -1,5 +1,20 @@
 cs-team changelog (newest first)
 
+2026-10-17  0.62.0-test21 (Doku) Handbuch de/en (man_src/content_*.py, PDF 71/66 Seiten) auf den Stand gebracht: Anmeldeformular/Initialpasswort/OIDC, Rollen und Systemgruppen, Benutzerseite (Anmeldeart, 2FA, zuletzt gesehen), Gruppenbeschreibung und Benutzerliste, Nachricht-Kanaele je Rolle, Calc (durchgestrichen, Notiz, Formate, PDF), Text (Kommentar, Zusammenfuegen txt/pdf, Zusammenfassen, KI-Recherche mit Quellenstufen, Websuche, Uebersetzen), Office-Formate-Tabelle, Umgebungsvariablen CS_LOGIN_FORM/CS_OIDC*, Tastenkuerzel. README.md und README.de.md angepasst (Features, Variablen, Anmeldung und Rollen, Text-Funktionen).
+
+2026-10-17  0.62.0-test21 (Windows-Testbuild, kein Tag) Anmeldung, Admin-Rollen und Verwaltung (test20 + test21).
+                   (1) Anmeldeformular mit Sitzungs-Cookie (CS_LOGIN_FORM=1) und OIDC (Google, Microsoft mit festem Mandanten, generisch) NUR als Alternative: das Konto wird nach dem ersten Login mit Initialpasswort vom Benutzer selbst
+                   verknuepft (Authorization Code + PKCE, eigene id_token-Pruefung, Kennung = Aussteller + sub, nicht die Mail); Passwort XOR OIDC; danach gilt nur diese Kennung, ein Passwort setzt nur ein Admin zurueck. Admins und Sysadmin
+                   melden sich nie per OIDC an. (2) Initialpasswoerter: Benutzerliste je Gruppe (Zeilen "name[, mail[, passwort]]", Hochladen/Herunterladen), 30 Tage gueltig, einmalige Anzeige/CSV, nur der Hash wird gespeichert,
+                   Pflichtwechsel, optional per Mail (SMTP); "Neu konfigurieren" (neues Initialpasswort, Verknuepfung, Zwei-Faktor und App-Passwoerter werden geloescht). Lokale Namen wie name@domain.tld sind erlaubt (eindeutig, lokal,
+                   zugleich Kontakt-Mail; Verzeichnis-Realm bleibt gesperrt). (3) Rollen einheitlich: Sysadmin (Startup-Admin, immer globaler Admin) legt und aendert als einziger globale Admins (anlegen, Recht, sperren, loeschen,
+                   Passwort, Zwei-Faktor, Kontakt); globale Admins verwalten alles andere und Gruppen-Admins. Feste Systemgruppen "globaladmins" (Mitglieder = Admin-Recht, Aufnahme/Entzug nur Sysadmin) und "groupadmins"
+                   (berechnet aus den Admin-Listen, globale Admins duerfen entfernen); nicht loeschbar, nie in der Handliste. Zwei-Faktor bleibt freiwillig, Pflicht fuer Admins weiter per Einstellung. (4) Nachricht: E-Mail und externe
+                   Chat-Adresse nur fuer Admins der Gruppe, Mitglieder (wenn die Gruppe das Senden erlaubt) schreiben nur in den Gruppen-Chat. (5) Oberflaeche: Auswahl-Popup mit Filter und Laufbalken fuer Benutzer-/Gruppenfelder;
+                   Chat-Menue zeigt neue Gruppen ohne Ctrl-F5 (Abruf beim Oeffnen, bei Rueckkehr ins Fenster und minuetlich); Filter der Listen als regulaerer Ausdruck bei Sonderzeichen; Benutzer-Seite mit Anmeldeart, "zuletzt gesehen"
+                   (im Speicher je Anfrage, stuendlich in users.json), Zwei-Faktor-Anzeige und Rollen-Satz; Gruppen mit editierbarer Beschreibung (z.B. "3D Einfuehrung Prof xyz"). Tests: auth/oidc_test.go, initpw_test.go,
+                   sysgroups_test.go (Admin-Regeln, Systemgruppen, Gruppen-Beschreibung); main_test.go/routine_test.go an Sysadmin und Systemgruppen angepasst; go vet und go test ./... gruen. Neue Texte in web/lang (de/en).
+
 2026-10-17  0.62.0-test19 (Windows-Testbuild, kein Tag) CSP ohne 'unsafe-inline' fuer Skripte (Audit A-2): das Skript der Oberflaeche liegt jetzt in web/app.js (eingebettet per go:embed, Binary bleibt ein Binary), web/index.html
                    enthaelt nur noch <script src="app.js">. script-src 'self': eingeschleustes Markup kann kein Skript mehr ausfuehren (die Oberflaeche hatte keine Inline-Handler-Attribute, die Umstellung brauchte keinen Umbau
                    des Skripts). style-src bleibt 'unsafe-inline' (178 style=-Attribute). auth.go: GET /app.js ist auch bei Pflicht-Passwortwechsel und 2FA-Pflicht erlaubt (sonst laedt die Seite dort nicht). Tests: webui_test.go

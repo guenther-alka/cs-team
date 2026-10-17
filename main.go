@@ -124,7 +124,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.62.0-test19" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.62.0-test21" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -162,6 +162,8 @@ func main() {
 	setupSnapshot(os.Getenv("CS_DIR"))
 
 	a.TrustProxy = os.Getenv("CS_TRUST_PROXY") == "1"
+	auth.LoginForm = os.Getenv("CS_LOGIN_FORM") == "1" // Anmeldeformular mit Sitzungs-Cookie statt Browser-Dialog (WebDAV/CalDAV bleiben bei Basic Auth)
+	auth.OIDCFromEnv(os.Getenv, log.Printf)           // OIDC-Anbieter (CS_OIDC, CS_OIDC_BASE, CS_OIDC_<ID>_...), nur mit Anmeldeformular
 	if n := envInt("CS_MAX_FAILS_IP", 0); n > 0 { // Fehlversuche je Adresse bis zur Sperre (Schul-NAT/Proxy: höher setzen)
 		auth.MaxFailsIP = n
 	}
@@ -292,6 +294,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
 	cb.Mail, cb.MailOK = mailer.Invite, mailer.MailEnabled
+	auth.SendMail, auth.MailOK = mailer.SendOne, mailer.MailEnabled
 	cfg.Routes(mux, a.Wrap, mailer)
 	mailer.Routes(mux, a.Wrap)
 	ts := tasks.New(st)
@@ -369,8 +372,8 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	aiSvc.Routes(mux, a.Wrap)
 	web, _ := fs.Sub(webFS, "web")
-	mux.Handle("GET /lang/", a.Wrap(http.HandlerFunc(langHandler)))
-	mux.Handle("/", a.Wrap(http.FileServerFS(web)))
+	mux.Handle("GET /lang/", a.Public(http.HandlerFunc(langHandler))) // Public: ohne Anmeldung nur bei CS_LOGIN_FORM=1 (auth/session.go)
+	mux.Handle("/", a.Public(http.FileServerFS(web)))
 	return logMW(secHeaders(mux))
 }
 

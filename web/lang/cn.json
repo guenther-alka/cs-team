@@ -448,7 +448,7 @@
  "Merkliste speichern": "保存名单",
  "Modus": "模式",
  "Mitglieder wechseln (Gruppen sind Stufen: Chat, Ordner und Kalender bleiben bei der Gruppe)": "成员调动（群组是年级：聊天、文件夹和日历留在群组中）",
- "Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit)": "群组被重命名（群组是班级：成员、文件和共享随之迁移）",
+ "Gruppe wird umbenannt (Gruppen sind Klassen: Mitglieder, Dateien und Freigaben wandern mit, Kalender, Chat, Aufgaben und Groupadmins nur auf Wunsch)": "群组被重命名（群组是班级：成员、文件和共享随之迁移）",
  "Wandert zusätzlich mit:": "同时迁移：",
  "Gruppen-Admins auch in die neue Gruppe übernehmen": "同时把群组管理员给新群组",
  "Gruppe umbenennen in:": "将群组重命名为：",
