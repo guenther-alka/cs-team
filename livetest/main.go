@@ -132,6 +132,17 @@ func main() {
 	if r.Code != 200 {
 		os.Exit(2)
 	}
+	if strings.Contains(string(r.B), `"must":true`) {
+		// Das Startpasswort des Sysadmin (CS_ADMIN_PASS) muss beim ersten Login geaendert werden.
+		np := adminP + "-lt" + sfx
+		x := adm("POST", "/api/me/password", js(map[string]string{"old": adminP, "new": np}))
+		ok("Admin-Passwort beim ersten Login geaendert", x.Code == 200, x.Code, string(x.B))
+		if x.Code != 200 {
+			os.Exit(2)
+		}
+		adminP = np
+		r = adm("GET", "/api/me", "")
+	}
 	ok("Version in /api/me", strings.Contains(string(r.B), `"version":"`), string(r.B))
 	ok("Falsches Passwort abgewiesen", do(adminU, "falsch-falsch", "GET", "/api/me", nil).Code == 401)
 	r = adm("POST", "/api/users", js(map[string]any{"name": userB, "password": passB, "groups": []string{"alluser"}}))

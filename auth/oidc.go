@@ -624,6 +624,12 @@ func (a *Auth) oidcRoutes(mux *http.ServeMux) {
 			http.NotFound(w, r)
 			return
 		}
+		key := "oidcs|" + a.ip(r) // Anmeldeversuche begrenzen: jeder Aufruf legt einen Zustand an
+		if a.locked(key) {
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
+		a.failedMax(key, 30)
 		oidcBegin(w, r, p, "")
 	})
 

@@ -74,7 +74,7 @@ func oidcProvList() []*OIDCProvider {
 
 var (
 	reOIDCID     = regexp.MustCompile(`^[A-Za-z0-9._~@:/+=-]{0,300}$`)
-	reOIDCTenant = regexp.MustCompile(`^[A-Za-z0-9.-]{1,100}$`)
+	reOIDCTenant = regexp.MustCompile(`^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$`) // Mandanten-GUID: Microsoft nennt sie im id_token als Aussteller
 )
 
 // build: aus den Einstellungen die aktiven (vollstaendigen) Anbieter bilden.
@@ -155,7 +155,7 @@ func (a *Auth) oidcGuiRoutes(mux *http.ServeMux) {
 			return
 		}
 		if t := strings.ToLower(in.MSTenant); in.MSTenant != "" && (!reOIDCTenant.MatchString(in.MSTenant) || t == "common" || t == "organizations" || t == "consumers") {
-			bad("tenant: the fixed tenant id (or domain) of your organization, not common/organizations/consumers")
+			bad("tenant: the tenant id (GUID, Directory ID in the Microsoft Entra portal) of your organization, not a domain and not common/organizations/consumers")
 			return
 		}
 		err := store.Update(r.Context(), a.st, oidcGuiKey, func(cur []byte) ([]byte, error) {
