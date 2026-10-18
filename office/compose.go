@@ -159,6 +159,11 @@ func (s *Svc) finish(w http.ResponseWriter, r *http.Request, target, name, dir s
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		src := "merge"
+		if strings.HasSuffix(r.URL.Path, "/fromtext") { // Text aus der KI (Recherche, Zusammenfassung)
+			src = "ai"
+		}
+		s.Hub.Created(ctx, id, me, src, len(paras))
 		json.NewEncoder(w).Encode(map[string]string{"id": id, "type": "text", "name": name})
 	case "pdf":
 		if !auth.Can(ctx, "files") {

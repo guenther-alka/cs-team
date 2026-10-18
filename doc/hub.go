@@ -3,6 +3,7 @@ package doc
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -23,11 +24,12 @@ type Meta struct {
 	Owner string   `json:"owner"`
 	Read  []string `json:"read,omitempty"`
 	Write []string `json:"write,omitempty"`
+	RO    bool     `json:"ro,omitempty"` // schreibgeschuetzt (z. B. importierter Stand): niemand schreibt, bis Ersteller/Admin es freigibt
 }
 
 func (m *Meta) Level(user string) (read, write bool) {
 	read, write = m.level(user)
-	return read, write && auth.WriteArea(user, Area(m.Type)) // Bereich nur "lesen": nie schreiben
+	return read, write && !m.RO && auth.WriteArea(user, Area(m.Type)) // Bereich nur "lesen": nie schreiben
 }
 
 func (m *Meta) level(user string) (read, write bool) {
@@ -65,6 +67,7 @@ type live struct {
 	clients map[*client]struct{}
 	timer   *time.Timer
 	locks   map[string]lock
+	pend    map[string]*Change // vorgemerkte Bearbeitungen fuer die Aenderungsliste (changes.go)
 	dead    bool // gelöscht: keine Clients, nichts mehr schreiben
 	watch   bool // Rechteprüfung läuft (watchRights)
 }
@@ -168,6 +171,7 @@ func (l *live) apply(h *Hub, c *client, m msgIn) {
 	if !l.doc.Apply(m.K, it) {
 		return
 	}
+	l.note(c.user, m.K, it.Del)
 	b, _ := json.Marshal(msgOut{T: "item", K: m.K, Item: &it})
 	for cl := range l.clients {
 		select {
@@ -314,9 +318,13 @@ func (l *live) persist() {
 	for k, v := range l.doc.Items {
 		local.Items[k] = v
 	}
+	pend := l.takePend()
 	l.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
+	if err := appendChanges(ctx, l.st, l.id, pend); err != nil {
+		log.Printf("doc changes: %s: %v", l.id, err)
+	}
 	var merged *Doc
 	err := store.Update(ctx, l.st, snapKey(l.id), func(cur []byte) ([]byte, error) {
 		merged = NewDoc()
@@ -460,8 +468,13 @@ func (h *Hub) Snapshot(ctx context.Context, user, id string) (Meta, *Doc, error)
 
 // Create legt ein Dokument an (optional mit Startinhalt, z. B. beim Import).
 func (h *Hub) Create(ctx context.Context, owner, name, typ string, items map[string]Item) (string, error) {
+	return h.CreateMeta(ctx, Meta{Name: name, Type: typ, Owner: owner}, items)
+}
+
+// CreateMeta legt ein Dokument mit fertigen Metadaten an (z. B. schreibgeschuetzter Import eines Standes).
+func (h *Hub) CreateMeta(ctx context.Context, m Meta, items map[string]Item) (string, error) {
 	id := newID()
-	b, _ := json.Marshal(Meta{Name: name, Type: typ, Owner: owner})
+	b, _ := json.Marshal(m)
 	if _, err := h.st.Put(ctx, metaKey(id), b, "*"); err != nil {
 		return "", err
 	}

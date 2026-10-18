@@ -236,6 +236,7 @@ func (s *Svc) createRoutes(mux *http.ServeMux, wrap func(http.Handler) http.Hand
 			http.Error(w, "could not save", http.StatusInternalServerError)
 			return
 		}
+		s.Docs.Created(r.Context(), id, me, "ai", len(p.Paragraphs)+len(p.Rows))
 		log.Printf("ai create: user=%s type=%s paras=%d rows=%d", me, p.Type, len(p.Paragraphs), len(p.Rows)) // nie Inhalte
 		json.NewEncoder(w).Encode(map[string]any{"id": id, "type": p.Type, "name": p.Name})
 	})))

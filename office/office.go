@@ -296,5 +296,6 @@ func (s *Svc) importDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.Hub.Created(r.Context(), id, me, "import", len(paras)+len(cells))
 	json.NewEncoder(w).Encode(map[string]string{"id": id, "type": typ})
 }

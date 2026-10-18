@@ -1284,7 +1284,7 @@ function docSection(type){
     items:[],docs:[],info:type=='sheet'?'Alle Benutzer mit Änderungsrecht können diese Tabelle gleichzeitig bearbeiten. Die Zelle, in der gerade jemand schreibt, ist für andere nur lesbar.':'Alle Benutzer mit Änderungsrecht können diesen Text gleichzeitig bearbeiten. Der Absatz, in dem gerade jemand schreibt, ist für andere nur lesbar.',
     async load(){
       const l=(await J('GET','/api/docs'))||[];this.docs=l.filter(d=>d.type==type);
-      const row=d=>({k:d.id,label:d.name,sub:d.owner!=me.name?d.owner+(d.rw?'':' '+t('(nur lesen)')):''}),mine=this.docs.filter(d=>d.owner==me.name),oth=this.docs.filter(d=>d.owner!=me.name);
+      const row=d=>({k:d.id,label:d.name,sub:d.owner!=me.name?d.owner+(d.rw?'':' '+t('(nur lesen)')):(d.ro?t('(schreibgeschützt)'):'')}),mine=this.docs.filter(d=>d.owner==me.name),oth=this.docs.filter(d=>d.owner!=me.name);
       this.items=[];if(mine.length)this.items.push({head:t('Meine')},...mine.map(row));if(oth.length)this.items.push({head:t('Für mich freigegeben (Gruppen/alle)')},...oth.map(row));
       setList(this.items);
     },
@@ -1310,19 +1310,54 @@ function docSection(type){
       sel=id;setList(this.items);upd();
       const d=this.docs.find(x=>x.id==id);if(!d)return;
       const owner=d.owner==me.name;
-      $('#main').innerHTML='<div id="bar"><b>'+esc(d.name)+'</b> <span class="muted">'+t('Besitzer ')+esc(d.owner)+(d.rw?'':' · '+t('nur lesen'))+'</span> '+
+      $('#main').innerHTML='<div id="bar"><b>'+esc(d.name)+'</b> <span class="muted">'+t('Besitzer ')+esc(d.owner)+(d.rw?'':' · '+t('nur lesen'))+(d.ro?' ('+t('schreibgeschützt')+')':'')+'</span> '+
         ' <span class="panel" style="display:inline-block;margin:0 0 0 8px;padding:3px 8px">'+t('Export: ')+'<select id="xf">'+exportFormats(type)+'</select> '+
         '<button id="xd">'+t('Download')+'</button> <button id="xt">&rarr; Files</button></span>'+
         (owner?'<details class="panel"><summary>'+t('Teilen')+'</summary>'+sharePanel(d)+'</details>':'')+
+        ((owner||me.admin)?'<details class="panel" id="hist"><summary>'+t('Verlauf')+'</summary><div id="histb"></div></details>':'')+
         '</div>'+(d.rw?fbarHtml(type):'')+'<div id="doc"></div>';
       if(d.rw)fbarBind(type);
       if(owner)$('#ss').onclick=async()=>{if(await api('POST','/api/docs/'+encodeURIComponent(id)+'/share',shareBody())){await this.load();alert(t('gespeichert'));}};
+      if(owner||me.admin){const hh=$('#hist');if(hh)hh.ontoggle=()=>{if(hh.open)this.hist(id,d);};}
       $('#xd').onclick=async()=>{const f=$('#xf').value,u='/api/docs/'+encodeURIComponent(id)+'/export?format='+f;
         if(type=='sheet'&&f=='pdf'){const r=await fetch(u,{method:'POST',body:JSON.stringify({vals:sheetVals()})}).catch(e=>null);if(!r||!r.ok){alert(t('Export fehlgeschlagen'));return;}
           const b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(d.name||'calc')+'.pdf';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);return;}
         location.href=u;};
       $('#xt').onclick=async()=>{const f=$('#xf').value,r=await J('POST','/api/docs/'+encodeURIComponent(id)+'/tofiles?format='+f,type=='sheet'&&f=='pdf'?{vals:sheetVals()}:undefined);if(r&&r.name)alert(t('Gespeichert in Files:')+' '+r.name);};
       openDoc(id);
+    },
+    async hist(id,d){   // Verlauf (Ersteller/Admin): Schreibschutz, fruehere Staende aus ZFS-Snapshots, Aenderungsliste (nur Admin)
+      const box=$('#histb');if(!box)return;box.innerHTML='<span class="muted">'+esc(t('Verlauf wird geladen ...'))+'</span>';
+      const base='/api/docs/'+encodeURIComponent(id),dt=s=>fmtDT(new Date(s*1000).toISOString());
+      let h='<div class="row">'+esc(d.ro?t('Schreibgeschützt: niemand kann dieses Dokument bearbeiten.'):t('Dieses Dokument kann bearbeitet werden.'))+' <button id="hro">'+esc(d.ro?t('Zur Bearbeitung freigeben'):t('Schreibschutz setzen'))+'</button></div>';
+      const v=await J('GET',base+'/versions');
+      h+='<div class="row"><b>'+esc(t('Frühere Stände (ZFS-Snapshots)'))+'</b></div>';
+      if(!v||!v.supported)h+='<div class="muted">'+esc(t('Keine früheren Stände: der Speicher liegt nicht auf ZFS oder es gibt noch keine Snapshots.'))+'</div>';
+      else if(!v.versions.length)h+='<div class="muted">'+esc(t('Keine früheren Stände in den Snapshots.'))+'</div>';
+      else h+='<div class="muted">'+esc(t('Ein Stand wird als neues, schreibgeschütztes Dokument importiert. Das Original bleibt unverändert.'))+'</div><table class="ftab">'+
+        v.versions.map(x=>'<tr class="fr"><td>'+esc(dt(x.mod))+'</td><td>'+esc(fmtSize(x.size))+'</td><td class="muted">'+esc(x.snap)+'</td><td><button data-vs="'+esc(x.snap)+'" data-vt="'+x.mod+'">'+esc(t('Als neues Dokument importieren'))+'</button></td></tr>').join('')+'</table>';
+      if(me.admin){
+        const c=await J('GET',base+'/changes');
+        h+='<div class="row"><b>'+esc(t('Änderungen'))+'</b></div>';
+        if(c){
+          const s=c.summary||{},ed=Object.entries(s.editors||{}).map(([n,k])=>n+' ('+k+')').join(', '),unit=c.type=='sheet'?t('Zellen'):t('Absätze');
+          const o={ai:t('Reine KI-Recherche: von der KI angelegt und seitdem nicht von Hand geändert.'),'ai-edited':t('Von der KI angelegt, danach von Hand bearbeitet: {0}',ed),human:t('Von Hand angelegt oder importiert.'),unknown:t('Herkunft unbekannt: das Dokument ist älter als die Änderungsliste.')}[s.origin]||'';
+          const act=e=>{
+            if(e.op=='create'){const w={ai:t('Angelegt (KI)'),import:t('Angelegt (Datei-Import)'),merge:t('Angelegt (Zusammenfügen)'),snapshot:t('Angelegt (Stand aus Snapshot: {0})',e.note||''),user:t('Angelegt')};return w[e.src]||t('Angelegt');}
+            if(e.op=='readonly')return t('Schreibschutz gesetzt');
+            if(e.op=='editable')return t('Zur Bearbeitung freigegeben');
+            return t('Bearbeitet ({0}): {1} geändert, {2} gelöscht',unit,e.set||0,e.del||0)+(c.type=='sheet'&&(e.keys||[]).length?' ['+e.keys.join(', ')+']':'');
+          };
+          h+='<div class="row"><b>'+esc(o)+'</b></div><div class="muted">'+esc(t('Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.'))+'</div>'+
+            '<div style="max-height:280px;overflow:auto"><table class="ftab"><tr><th>'+esc(t('Zeit'))+'</th><th>'+esc(t('Benutzer'))+'</th><th>'+esc(t('Aktion'))+'</th></tr>'+
+            (c.changes||[]).map(e=>'<tr class="fr"><td style="white-space:nowrap">'+esc(dt(e.t0))+(e.t>e.t0+60?' – '+esc(dt(e.t)):'')+'</td><td>'+esc(e.by)+'</td><td>'+esc(act(e))+'</td></tr>').join('')+'</table></div>';
+        }
+      }
+      box.innerHTML=h;
+      $('#hro').onclick=async()=>{if(await api('POST',base+'/readonly',{ro:!d.ro})){await this.load();this.select(id);}};
+      box.querySelectorAll('button[data-vs]').forEach(b=>b.onclick=async()=>{
+        if(!await uiAsk(t('Stand vom {0} als neues Dokument importieren?',dt(+b.dataset.vt))))return;
+        const r=await J('POST',base+'/fromversion',{snap:b.dataset.vs});if(r&&r.id){await this.load();this.select(r.id);}});
     },
     async del(){
       if(!await uiAsk(t('Dokument löschen?')))return;

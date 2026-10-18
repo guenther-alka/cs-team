@@ -114,6 +114,15 @@ die eindeutige Zuordnung in der Ablage. UI: im Dokument `Export: [Format] [Downl
 `POST /api/docs/import {"owner","file","name"}` (Quelle: eigene oder mit dem Benutzer geteilte Datei; das neue
 Dokument gehört dem Benutzer).
 
+## Verlauf, Schreibschutz und frühere Stände von Calc und Text (0.63)
+
+Im Dokument das Feld **Verlauf** (Ersteller und Admins). Echte Versionierung machen die ZFS-Autosnap-Jobs des Betreibers (z.B. die letzten 20 stündlichen Snapshots mit `delzero`, `hold` für wichtige Stände); cs-team zeigt sie nur.
+
+- **Änderungsliste (nur Admins):** `GET /api/docs/<id>/changes` → Herkunft (`ai` reine KI-Arbeit, `ai-edited`, `human`, `unknown`), Ersteller, Bearbeiter und die Liste mit Zeit, Benutzer, Aktion (`create`, `edit`, `readonly`, `editable`) und Zähler `set`/`del` mit den Zellnamen, **nie dem Inhalt**. Bearbeitungen desselben Benutzers innerhalb von 10 Minuten werden zusammengefasst, höchstens 500 Einträge in `doc/<id>/changes.json`. Quellen beim Anlegen: `user`, `ai` (KI-Vorschlag, KI-Recherche), `import` (Datei), `merge`, `snapshot`.
+- **Frühere Stände:** `GET /api/docs/<id>/versions` (Ersteller/Admin) liest `.zfs/snapshot/*/doc/<id>/snapshot.json` (nur lesend, Symlinks nie verfolgt, bis 50 Stände, die 300 neuesten Snapshots, ohne Stand gleich dem aktuellen; nur bei Ordner/ZFS, nicht bei S3). `POST /api/docs/<id>/fromversion {"snap"}` legt ein **neues schreibgeschütztes** Dokument `Name_JJJJ-MM-TT_HH-MM` an (Besitzer: wer importiert, Schreibrecht im Bereich nötig); das Original bleibt.
+- **Schreibschutz:** `POST /api/docs/<id>/readonly {"ro":true|false}` (Ersteller/Admin): das Dokument ist für alle nur lesbar bzw. wieder mehrbenutzerfähig; offene Fenster folgen sofort. Der Zustand steht in den Metadaten (`ro`).
+- Test: `go test ./store ./doc`, `livetest` (79 Prüfungen), Handtest mit echtem Snapshot auf OmniOS (`livetest/snapflow`).
+
 ## Text: Zusammenfügen, Zusammenfassen, KI-Recherche (0.62)
 
 Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer) oder ein PDF in Files.

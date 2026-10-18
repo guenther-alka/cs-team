@@ -23,6 +23,10 @@ func (h *Hub) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/docs/{id}/share", f(h.share))
 	mux.Handle("DELETE /api/docs/{id}", f(h.remove))
 	mux.Handle("GET /ws/{id}", f(h.ws))
+	mux.Handle("GET /api/docs/{id}/changes", f(h.changes))          // Aenderungsliste (nur Admins)
+	mux.Handle("GET /api/docs/{id}/versions", f(h.versions))        // Staende aus ZFS-Snapshots (Ersteller/Admin)
+	mux.Handle("POST /api/docs/{id}/fromversion", f(h.importVersion)) // Stand als neues, schreibgeschuetztes Dokument
+	mux.Handle("POST /api/docs/{id}/readonly", f(h.setReadonly))     // Schreibschutz setzen/aufheben (Ersteller/Admin)
 }
 
 // Area: Berechtigungsbereich eines Dokumenttyps.
@@ -83,6 +87,7 @@ func (h *Hub) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	h.Created(r.Context(), id, m.Owner, "user", 0)
 	json.NewEncoder(w).Encode(map[string]string{"id": id})
 }
 

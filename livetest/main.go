@@ -384,6 +384,89 @@ func main() {
 		}
 	}
 
+	// ---- Dokumente: Aenderungsliste (nur Admin), Schreibschutz, Versionen aus Snapshots (0.63.0)
+	{
+		type docRow struct {
+			ID string `json:"id"`
+			RO bool   `json:"ro"`
+			RW bool   `json:"rw"`
+		}
+		rowOf := func(id string) docRow {
+			var l []docRow
+			json.Unmarshal(usr("GET", "/api/docs", nil).B, &l)
+			for _, x := range l {
+				if x.ID == id {
+					return x
+				}
+			}
+			return docRow{}
+		}
+		wsDoc := func(id string) *websocket.Conn {
+			h := http.Header{}
+			rq, _ := http.NewRequest("GET", "/", nil)
+			rq.SetBasicAuth(userB, passB2)
+			h.Set("Authorization", rq.Header.Get("Authorization"))
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(base, "http")+"/ws/"+id, &websocket.DialOptions{HTTPHeader: h})
+			if err != nil {
+				return nil
+			}
+			return c
+		}
+		r := usr("POST", "/api/docs", []byte(js(map[string]string{"name": "lt-verlauf", "type": "text"})))
+		var d struct {
+			ID string `json:"id"`
+		}
+		json.Unmarshal(r.B, &d)
+		ok("Dokument anlegen", r.Code == 200 && len(d.ID) == 16, r.Code, string(r.B))
+		if len(d.ID) == 16 {
+			dp := "/api/docs/" + d.ID
+			c := adm("GET", dp+"/changes", "")
+			ok("Aenderungsliste: Admin sieht Eintrag 'angelegt' von Hand", c.Code == 200 && strings.Contains(string(c.B), `"origin":"human"`) &&
+				strings.Contains(string(c.B), `"op":"create"`) && strings.Contains(string(c.B), `"by":"`+userB+`"`), c.Code, string(c.B))
+			ok("Aenderungsliste: der Ersteller selbst bekommt sie nicht", usr("GET", dp+"/changes", nil).Code == 404)
+			ok("Aenderungsliste: ungueltige Kennung -> 404", adm("GET", "/api/docs/..%2f..%2fx/changes", "").Code == 404)
+			cw := wsDoc(d.ID)
+			ok("Dokument: WebSocket verbinden", cw != nil)
+			if cw != nil {
+				init := wsRead(cw, 5*time.Second)
+				ok("Dokument: Ersteller darf schreiben", init != nil && init["rw"] == true, init)
+				cw.Write(context.Background(), websocket.MessageText, []byte(js(map[string]any{"t": "set", "k": "p00001", "v": "Geheimer Absatztext", "pos": 1})))
+				var c2 resp
+				for i := 0; i < 10; i++ {
+					time.Sleep(300 * time.Millisecond)
+					if c2 = adm("GET", dp+"/changes", ""); strings.Contains(string(c2.B), `"op":"edit"`) {
+						break
+					}
+				}
+				ok("Aenderungsliste: Bearbeitung mit Benutzer und Zahl, nie der Inhalt", strings.Contains(string(c2.B), `"op":"edit"`) &&
+					strings.Contains(string(c2.B), `"set":1`) && !strings.Contains(string(c2.B), "Geheimer"), string(c2.B))
+				cw.CloseNow()
+			}
+			x := usr("POST", dp+"/readonly", []byte(`{"ro":true}`))
+			ok("Schreibschutz setzen (Ersteller)", x.Code == 200, x.Code, string(x.B))
+			row := rowOf(d.ID)
+			ok("Schreibschutz: Liste zeigt ro, Ersteller hat nur Leserecht", row.ID != "" && row.RO && !row.RW, row)
+			cw = wsDoc(d.ID)
+			if cw != nil {
+				init := wsRead(cw, 5*time.Second)
+				ok("Schreibschutz: neue Verbindung ohne Schreibrecht", init != nil && init["rw"] != true, init)
+				cw.CloseNow()
+			}
+			ok("Schreibschutz in der Aenderungsliste", strings.Contains(string(adm("GET", dp+"/changes", "").B), `"op":"readonly"`))
+			x = adm("POST", dp+"/readonly", `{"ro":false}`)
+			ok("Schreibschutz aufheben (Admin)", x.Code == 200, x.Code, string(x.B))
+			row = rowOf(d.ID)
+			ok("Schreibschutz aufgehoben: wieder bearbeitbar", row.ID != "" && !row.RO && row.RW, row)
+			v := usr("GET", dp+"/versions", nil)
+			ok("Versionen: Antwort mit Liste (ohne ZFS leer)", v.Code == 200 && strings.Contains(string(v.B), `"versions":[`), v.Code, string(v.B))
+			ok("Versionen: unbekannter Snapshot -> 404", usr("POST", dp+"/fromversion", []byte(`{"snap":"gibts-nicht"}`)).Code == 404)
+			ok("Versionen: ungueltiger Snapshot-Name -> 404", usr("POST", dp+"/fromversion", []byte(`{"snap":"../x"}`)).Code == 404)
+			usr("DELETE", dp, nil)
+		}
+	}
+
 	// ---- Aufräumen
 	usr("DELETE", "/api/files/"+userB+"/big.bin", nil)
 	usr("DELETE", "/api/files/"+userB+"/ordner/klein.txt", nil)
