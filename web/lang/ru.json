@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "Установлено только чтение",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Изменено ({0}): изменено {1}, удалено {2}",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "Список никогда не хранит содержимое, только кто, что и когда изменил. Текст, вручную скопированный из ответа ИИ, не распознаётся.",
- "Zur Bearbeitung freigegeben": "Разрешено редактирование"
+ "Zur Bearbeitung freigegeben": "Разрешено редактирование",
+ "Bereitgestellt": "Предоставлено",
+ "für alle": "для всех",
+ "nur für dich": "только для вас",
+ "Bereich": "Область",
+ "Hier ist nichts bereitgestellt.": "Здесь ничего не предоставлено.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Предоставлено администрацией (только чтение). Чтобы редактировать, импортируйте файл в свои файлы; копию затем можно открыть группам, как любой свой файл.",
+ "In Meine Ablage importieren": "Импортировать в Мои файлы",
+ "Importiert als \"{0}\".": "Импортировано как \"{0}\"."
 }

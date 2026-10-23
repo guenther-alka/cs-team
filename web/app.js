@@ -2217,12 +2217,13 @@ const icoHtml=f=>{const [l,c]=icoOf(f);return '<span class="fico" style="backgro
 const dirIco='<span class="fico" style="background:#f9ab00">DIR</span>';
 S.files={
   keepSel:true,
-  items:[],own:[],shared:[],folders:[],maxMB:100,quota:0,fsel:null,path:'',tr:[],trDays:0,
+  items:[],own:[],shared:[],folders:[],maxMB:100,quota:0,fsel:null,path:'',tr:[],trDays:0,shareOn:false,sc:null,ssel:null,
   vmode:lsGet('cs.files.view','list'),sortk:'name',sortd:1,
   isG:f=>f.owner.startsWith('@'),
   async load(){
     const r=(await J('GET','/api/files'))||{own:[],shared:[]};this.own=r.own||[];this.shared=r.shared||[];this.folders=r.folders||[];this.maxMB=r.maxMB||100;this.quota=r.quota||0;this.pubMax=r.pubMax||0;this.trDays=r.trashDays||0;
     const q=await J('GET','/api/trash');this.tr=(q&&q.items)||[];
+    try{const r2=await fetch('/api/share');const sh=r2.ok?await r2.json():null;this.shareOn=!!(sh&&sh.enabled&&(sh.entries||[]).length);}catch(e){this.shareOn=false;}   // Ordner "share" (nur lesen); ohne Ordner oder ohne sichtbare Einträge kein Eintrag
     this.build();
   },
   filesOf(k){
@@ -2235,6 +2236,7 @@ S.files={
     const it=[{k:'own',label:t('Meine Ablage'),sub:String(this.real('own'))},{k:'shared',label:t('Für mich freigegeben'),sub:String(this.real('shared'))}];
     if(this.folders.length)it.push({head:t('Gruppenordner')});
     for(const fo of this.folders)it.push({k:'@'+fo.name,label:fo.name,sub:this.real('@'+fo.name)+(fo.write?'':' · '+t('nur lesen'))});
+    if(this.shareOn)it.push({k:'#share',label:t('Bereitgestellt'),sub:t('nur lesen')});
     if(this.trDays>0||this.tr.length)it.push({k:'trash',label:t('Papierkorb'),sub:String(this.tr.length)});
     this.items=it;if(sec=="files")setList(it);
   },
@@ -2248,10 +2250,10 @@ S.files={
   nm(f){return this.loc()=='shared'?f.owner+'/'+f.name:f.name;},   // Anzeigepfad (freigegeben: Besitzer als oberster Ordner)
   ownerOf(){const k=this.loc();return k.startsWith('@')?k:'';},
   canWriteLoc(){const k=this.loc();if(k=='own')return true;if(k=='shared'||k=='trash')return false;const fo=this.folders.find(x=>'@'+x.name==k);return !!(fo&&fo.write);},
-  locName(){const k=this.loc();return k=='trash'?t('Papierkorb'):k=='own'?t('Meine Ablage'):k=='shared'?t('Für mich freigegeben'):t('Gruppenordner')+' '+k.slice(1);},
+  locName(){const k=this.loc();return k=='#share'?t('Bereitgestellt'):k=='trash'?t('Papierkorb'):k=='own'?t('Meine Ablage'):k=='shared'?t('Für mich freigegeben'):t('Gruppenordner')+' '+k.slice(1);},
   onFilter(){this.draw();},
   home(){if(sel===null)sel='own';this.build();this.draw();upd();},
-  select(k){sel=k;this.path='';this.fsel=null;this.build();this.draw();upd();},
+  select(k){sel=k;this.path='';this.fsel=null;this.sc=null;this.ssel=null;this.build();this.draw();upd();},
   canAdd:()=>true,
   find(k){const i=k.indexOf('/');const o=k.slice(0,i),nm=k.slice(i+1);return this.own.concat(this.shared).find(f=>f.owner==o&&f.name==nm);},
   /* Einträge der aktuellen Ebene: Ordner zuerst, dann Dateien; mit Filter: alle Treffer aus allen Ordnern */
@@ -2283,6 +2285,7 @@ S.files={
   },
   draw(){
     if(this.loc()=='trash')return this.drawTrash();
+    if(this.loc()=='#share')return this.drawShare();
     const l=this.entries(),k=this.loc(),q=($('#flt').value||'').trim();let body='';
     const sk=e=>this.fsel==this.key(e)?' act':'';
     if(this.vmode=='grid'){
@@ -2315,6 +2318,40 @@ S.files={
     dz.ondragover=e=>{e.preventDefault();dz.classList.add('over');};dz.ondragleave=()=>dz.classList.remove('over');
     dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');if(this.canWriteLoc())this.upload(e.dataTransfer.files);};
     if(this.fsel)this.detail(this.fsel);
+  },
+  /* "Bereitgestellt": Ordner share auf dem Server (nur lesen, vom Admin per SMB befüllt); Bearbeiten = Import in die eigene Ablage */
+  shScope(e){return e.scope=='all'?t('für alle'):e.scope=='user'?t('nur für dich'):t('Gruppe')+' '+e.scope.slice(6);},
+  async drawShare(){
+    if(!this.sc||this.sc.p!==this.path){
+      const r=await fetch('/api/share?path='+encodeURIComponent(this.path));
+      if(r.status==401&&r.headers.get('X-Login-Form')=='1'){location.reload();return;}
+      if(!r.ok&&this.path){this.path='';this.sc=null;return this.drawShare();}   // Ordner nicht mehr sichtbar: zurück zur Wurzel
+      const j=r.ok?await r.json():{entries:[]};this.sc={p:this.path,e:j.entries||[]};
+    }
+    const q=($('#flt').value||'').trim().toLowerCase(),l=this.sc.e.filter(e=>!q||e.name.toLowerCase().includes(q)),rel=n=>(this.path?this.path+'/':'')+n;
+    let body='<table class="ftab"><tr><th>'+t('Name')+'</th><th>'+t('Bereich')+'</th><th>'+t('Geändert')+'</th><th>'+t('Größe')+'</th></tr>'+
+      l.map(e=>'<tr class="fr'+(this.ssel==rel(e.name)?' act':'')+'" data-sk="'+esc(rel(e.name))+'" data-sd="'+(e.dir?1:0)+'"><td>'+(e.dir?dirIco:icoHtml({name:e.name,type:''}))+esc(e.name)+'</td><td>'+esc(this.shScope(e))+'</td><td>'+esc(fmtDT(new Date(e.mod*1000).toISOString()))+'</td><td>'+(e.dir?'':fmtSize(e.size))+'</td></tr>').join('')+'</table>';
+    if(!l.length)body='<div class="muted" style="margin:16px 0">'+(q?t('Keine Treffer.'):t('Hier ist nichts bereitgestellt.'))+'</div>';
+    $('#main').innerHTML='<div class="fwrap"><div class="fmain"><div class="ftool"><span class="ttl">'+this.crumbs()+'</span></div>'+body+
+      '<div class="muted" style="margin-top:10px">'+t('Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.')+'</div></div>'+
+      '<div class="fdet" id="fdet" style="display:none"></div></div>';
+    document.querySelectorAll('#main .ttl a[data-p]').forEach(a=>a.onclick=e=>{e.preventDefault();this.path=a.dataset.p;this.ssel=null;this.sc=null;this.draw();});
+    document.querySelectorAll('#main [data-sk]').forEach(x=>x.onclick=()=>{
+      if(x.dataset.sd=='1'){this.path=x.dataset.sk;this.ssel=null;this.sc=null;$('#flt').value='';this.draw();return;}
+      this.ssel=x.dataset.sk;this.draw();});
+    const cur=this.ssel&&l.find(e=>!e.dir&&rel(e.name)==this.ssel);if(cur)this.shDetail(cur,this.ssel);
+  },
+  shDetail(e,p){
+    const d=$('#fdet'),u='/api/share/file?path='+encodeURIComponent(p);
+    d.innerHTML='<b style="word-break:break-all">'+esc(e.name)+'</b><div class="muted">'+fmtSize(e.size)+' · '+esc(fmtDT(new Date(e.mod*1000).toISOString()))+' · '+esc(this.shScope(e))+' · '+t('nur lesen')+'</div>'+
+      '<div class="row"><a href="'+u+'&dl=1"><button>'+t('Download')+'</button></a>'+(['pdf','png','jpg','jpeg','gif','webp','txt'].includes(extOf(e.name))?' <a href="'+u+'" target="_blank"><button>'+t('Öffnen')+'</button></a>':'')+' <button id="shimp">'+t('In Meine Ablage importieren')+'</button></div>';
+    d.style.display='';
+    $('#shimp').onclick=()=>this.shImport(p);
+  },
+  async shImport(p){
+    const r=await J('POST','/api/share/import?path='+encodeURIComponent(p));if(!r||!r.name)return;
+    await this.load();sel='own';this.path='';this.fsel=me.name+'/'+r.name;this.build();this.draw();upd();   // die Kopie liegt in Meine Ablage, dort lässt sie sich bearbeiten und teilen
+    alert(t('Importiert als "{0}".',r.name));
   },
   trWhere(o){return o.startsWith('@')?t('Gruppenordner')+' '+o.slice(1):t('Meine Ablage');},
   drawTrash(){

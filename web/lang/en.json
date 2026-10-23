@@ -1120,5 +1120,13 @@
  "Schreibschutz gesetzt": "Read-only set",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Edited ({0}): {1} changed, {2} deleted",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "The list never stores contents, only who changed what and when. Text copied by hand from an AI answer cannot be recognized.",
- "Zur Bearbeitung freigegeben": "Allowed for editing"
+ "Zur Bearbeitung freigegeben": "Allowed for editing",
+ "Bereitgestellt": "Provided",
+ "für alle": "for everyone",
+ "nur für dich": "only for you",
+ "Bereich": "Scope",
+ "Hier ist nichts bereitgestellt.": "Nothing is provided here.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Provided by the administration (read only). To edit, import into your own area; the copy can then be shared with groups like any of your own files.",
+ "In Meine Ablage importieren": "Import into My area",
+ "Importiert als \"{0}\".": "Imported as \"{0}\"."
 }

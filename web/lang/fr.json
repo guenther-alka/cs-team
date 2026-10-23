@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "Lecture seule définie",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Modifié ({0}) : {1} changé(s), {2} supprimé(s)",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "La liste n'enregistre jamais de contenu, seulement qui a modifié quoi et quand. Un texte copié à la main depuis une réponse d'IA n'est pas reconnaissable.",
- "Zur Bearbeitung freigegeben": "Autorisé à la modification"
+ "Zur Bearbeitung freigegeben": "Autorisé à la modification",
+ "Bereitgestellt": "Mis à disposition",
+ "für alle": "pour tous",
+ "nur für dich": "pour vous seul",
+ "Bereich": "Portée",
+ "Hier ist nichts bereitgestellt.": "Rien n'est mis à disposition ici.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Mis à disposition par l'administration (lecture seule). Pour modifier, importez le fichier dans votre espace ; la copie peut ensuite être partagée avec des groupes comme tout fichier personnel.",
+ "In Meine Ablage importieren": "Importer dans Mon espace",
+ "Importiert als \"{0}\".": "Importé sous \"{0}\"."
 }

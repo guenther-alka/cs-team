@@ -30,6 +30,7 @@ import (
 	"cs-team/files"
 	"cs-team/news"
 	"cs-team/office"
+	"cs-team/share"
 	"cs-team/store"
 	"cs-team/tasks"
 )
@@ -124,7 +125,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.63.1" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.64.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -248,6 +249,18 @@ func certReloader(certFile, keyFile string) func(*tls.ClientHelloInfo) (*tls.Cer
 	}
 }
 
+// shareRoot: Ordner der schreibgeschützten Dokumente: CS_SHARE, sonst <CS_DIR>/share (neben .csteam); leer = aus.
+// Er liegt lokal auf dem cs-team-Server und ist vom Speicher (.csteam bzw. S3) getrennt; cs-team schreibt nie hinein.
+func shareRoot() string {
+	if p := os.Getenv("CS_SHARE"); p != "" {
+		return p
+	}
+	if d := os.Getenv("CS_DIR"); d != "" {
+		return filepath.Join(d, "share")
+	}
+	return ""
+}
+
 func routes(st store.Store, a *auth.Auth) http.Handler {
 	mux := http.NewServeMux()
 	caldav := a.Wrap(auth.Need("cal", cal.Handler(st)))
@@ -266,6 +279,9 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	fsvc := &files.Svc{St: st, Max: int64(mb) << 20}
 	fsvc.Routes(mux, a.Wrap)
+	if root := shareRoot(); root != "" { // schreibgeschützter Ordner "share" (TODO G); gibt es ihn nicht, bleibt alles aus
+		(&share.Svc{Root: root, Files: fsvc}).Routes(mux, a.Wrap)
+	}
 	osvc := &office.Svc{Hub: hub, Files: fsvc}
 	osvc.Routes(mux, a.Wrap)
 	cs := chat.New(st)

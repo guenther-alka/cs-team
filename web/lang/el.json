@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "Ορίστηκε μόνο ανάγνωση",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Επεξεργάστηκε ({0}): {1} άλλαξαν, {2} διαγράφηκαν",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "Η λίστα δεν αποθηκεύει ποτέ περιεχόμενο, μόνο ποιος άλλαξε τι και πότε. Κείμενο που αντιγράφηκε χειροκίνητα από απάντηση ΤΝ δεν αναγνωρίζεται.",
- "Zur Bearbeitung freigegeben": "Επιτρέπεται η επεξεργασία"
+ "Zur Bearbeitung freigegeben": "Επιτρέπεται η επεξεργασία",
+ "Bereitgestellt": "Παρεχόμενα",
+ "für alle": "για όλους",
+ "nur für dich": "μόνο για εσάς",
+ "Bereich": "Εύρος",
+ "Hier ist nichts bereitgestellt.": "Δεν παρέχεται τίποτα εδώ.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Παρέχεται από τη διαχείριση (μόνο ανάγνωση). Για επεξεργασία, εισαγάγετέ το στον χώρο σας· το αντίγραφο μπορεί στη συνέχεια να κοινοποιηθεί σε ομάδες όπως κάθε δικό σας αρχείο.",
+ "In Meine Ablage importieren": "Εισαγωγή στον χώρο μου",
+ "Importiert als \"{0}\".": "Εισήχθη ως \"{0}\"."
 }

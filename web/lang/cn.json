@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "已设为只读",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "已编辑（{0}）：更改 {1}，删除 {2}",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "该列表从不保存内容，只记录谁在何时更改了什么。手动从 AI 回答中复制的文本无法识别。",
- "Zur Bearbeitung freigegeben": "已允许编辑"
+ "Zur Bearbeitung freigegeben": "已允许编辑",
+ "Bereitgestellt": "管理员提供",
+ "für alle": "所有人",
+ "nur für dich": "仅限您",
+ "Bereich": "范围",
+ "Hier ist nichts bereitgestellt.": "此处没有提供任何内容。",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "由管理员提供(只读)。如需编辑,请导入到您的个人空间;副本之后可像其他个人文件一样与组共享。",
+ "In Meine Ablage importieren": "导入到我的个人空间",
+ "Importiert als \"{0}\".": "已导入为 \"{0}\"。"
 }

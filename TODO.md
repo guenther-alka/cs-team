@@ -197,3 +197,28 @@ KONZEPTE ZU DEN GROSSEN THEMEN (Review 2026-10-06; nur Konzept, nichts umgesetzt
     (c) Handbuch de/en, README, howto.ai\cs-team.info: CS_LOGIN_FORM, CS_OIDC_*, Rollen/Systemgruppen, Benutzerliste, Initialpasswoerter; (d) Uebersetzungen der neuen Texte (ar, cn, es, fr, it, ru, tr; bis dahin Deutsch);
     (e) optional: Listen-Abgleich ("abgleichen" mit Vorschau), Schritt "Neue Eingangsklasse" im Jahrgangswechsel, Kanalbaum Obergruppe/Untergruppen-Chats (nur auf Wunsch), eigener Befehl "cs-team 2fa-off NAME";
     (f) Bestehende Installationen: Systemgruppen werden beim Start angelegt (Migrate); Sysadmin = CS_ADMIN_USER (EnsureSys). Vor Produktivstart Freigabe durch Gea.
+
+ G. FREIGABE-ORDNER "share" (Gea 2026-10-23, Konzept abgestimmt, Umsetzung OFFEN): Admins stellen Dokumente per SMB bereit (Explorer, viel einfacher als Browser);
+    cs-team zeigt sie nur lesend an, Bearbeiten = Import in den eigenen Bereich. Alternative zum ro-Gruppenordner (dessen Dateien liegen im cs-team-Store);
+    Gruppenordner "rw" bleiben unveraendert direkt schreibbar, share ist immer ro.
+    1. Ort: lokaler Ordner "share" im cs-team-Datenordner (neben .csteam) auf dem cs-team-Server. Gibt es ihn nicht, wird nichts angezeigt (kein Marker, keine Config, kein Setup).
+       Entfernte Mounts nicht unterstuetzt (Doku).
+    2. Sichtbarkeit nach Konvention (cs-team laeuft als root/admin, die SMB-ACL spielt fuer cs-team keine Rolle, Sichtbarkeit nur durch die Ordner):
+       share/*                 alle angemeldeten User (Gaeste nur share/*, nicht groups/users)
+       share/groups/<gruppe>/  Mitglieder der Gruppe (lokal: gruppe, AD: gruppe@domain)
+       share/users/<user>/     nur dieser User (und globale Admins); lokal: peter.pan, AD: name@domain
+       Namensabgleich ohne Gross-/Kleinschreibung (AD). Doku: Rechte nur ueber groups/ und users/, nicht per SMB-ACL auf Unterordnern von share/*.
+    3. Anzeige: "Freigegeben fuer mich" mit Herkunftslabel ("von <user>" bzw. "Bereitgestellt"); share/groups/<gruppe> zusaetzlich als schreibgeschuetzter
+       Unterordner "Bereitgestellt" im Gruppenbereich. Viewer fuer pdf/Bilder/txt, .cstext/.cscalc read-only, docx/xlsx ueber vorhandenen Import.
+       Button "In Meine Dateien importieren" (Kopie, danach unabhaengig; bei Namenskollision Suffix "name (2).ext", nichts ueberschreiben).
+       Optional spaeter: Herkunft an der Kopie merken, Hinweis "Original geaendert" per mtime (ohne DB).
+    4. Sicherheit (root!): Pfad kanonisieren, muss unter share bleiben; Symlinks nicht folgen/nicht anzeigen; keine Schreib-API fuer share; ".zfs", Namen mit
+       fuehrendem "." und "~$*" ausblenden. Tests: Ausbruch per "..", Symlink, groups/ und users/ fremder Namen, Gast, AD-Name, Gross-/Kleinschreibung.
+    5. Suche: globale Suche durchsucht nur die fuer den User sichtbaren Teilbaeume von share und zeigt die Herkunft. Nicht im DSGVO-Export (fremde Inhalte).
+    6. Umsetzung: neues Paket share/ (Liste, Lesen, Import ueber files.Put), Routen /api/share/..., web/index.html + app.js; ALLE web/lang-Dateien mit den neuen Texten
+       (Bereich "Bereitgestellt", Import-Button, Leer-Hinweis, Herkunftslabel), webui_test pruefen; Handbuch de/en + README + howto.ai\cs-team.info.
+    7. Jahrgangswechsel (Gea 2026-10-23): share/groups/<gruppe> ist an den GRUPPENNAMEN gebunden, nicht an die Personen. Die Ordner bleiben statisch bei "klasse6"
+       und wandern nie mit in "klasse7" (anders als die cs-team-Gruppendaten im Modus "Gruppe wird umbenannt"). Wer im Namen "klasse6" Mitglied ist, sieht den Ordner.
+       Kein RenameHook, kein Assistent-Schritt: Aufraeumen/Umbenennen im share macht der Admin von Hand per SMB. In Handbuch und howto.ai\cs-team.info so festhalten.
+    Stand 2026-10-23: Phase 1 umgesetzt (share/share.go, http.go, share_test.go, main.go shareRoot: CS_SHARE oder <CS_DIR>/share; go vet + go test ./... gruen;
+    Symlink-Tests auf Windows uebersprungen, auf Linux/illumos einmal laufen lassen). OFFEN: Oberflaeche ("Bereitgestellt", nicht "Freigaben"), Sprachdateien, Handbuch, cs-team.info, Version/Changelog.

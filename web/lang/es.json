@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "Solo lectura establecido",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Editado ({0}): {1} cambiados, {2} eliminados",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "La lista nunca guarda contenidos, solo quién cambió qué y cuándo. El texto copiado a mano de una respuesta de IA no se reconoce.",
- "Zur Bearbeitung freigegeben": "Permitido para edición"
+ "Zur Bearbeitung freigegeben": "Permitido para edición",
+ "Bereitgestellt": "Proporcionado",
+ "für alle": "para todos",
+ "nur für dich": "solo para ti",
+ "Bereich": "Ámbito",
+ "Hier ist nichts bereitgestellt.": "Aquí no hay nada disponible.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Proporcionado por la administración (solo lectura). Para editarlo, impórtalo a tu espacio; la copia se puede compartir con grupos como cualquier archivo propio.",
+ "In Meine Ablage importieren": "Importar a Mi espacio",
+ "Importiert als \"{0}\".": "Importado como \"{0}\"."
 }

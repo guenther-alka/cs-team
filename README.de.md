@@ -230,6 +230,23 @@ Vergangenheit). E-Mail/Webhook (SMTP und Chat-Adresse wie bei Nachricht) bei Zuw
 (stündliche Prüfung). Rechte: Gruppen-Einstellung „Aufgaben anlegen“ (jedes Mitglied/nur Admins/aus); Aufgaben ohne Gruppe darf jeder anlegen,
 sichtbar für Auftraggeber, Bearbeiter, Beteiligte und Admins. Speicherung: `tasks/<id>.json`.
 
+## Bereitgestellte Dokumente: Ordner `share` (unveröffentlicht)
+
+Admins legen Dokumente lokal auf dem cs-team-Server ab (z. B. über einen SMB-Share, viel einfacher als per Browser); cs-team zeigt sie unter
+Dateien > **Bereitgestellt** an. Ort: Startparameter `CS_SHARE`, sonst `<CS_DIR>/share` (neben `.csteam`); gibt es den Ordner nicht, ist die Funktion aus.
+Der Ordner muss lokal auf dem cs-team-Server liegen (kein entfernter Mount).
+
+- **Sichtbarkeit nur nach Ordnernamen** (cs-team läuft als root/Admin, die SMB-ACL spielt für cs-team keine Rolle; Rechte also nicht per ACL auf Unterordnern von `share/*` steuern):
+  `share/*` alle angemeldeten Benutzer (Gäste ebenfalls), `share/groups/<gruppe>/` Mitglieder dieser Gruppe, `share/users/<name>/` nur dieser Benutzer;
+  globale Admins sehen alles. Namen ohne Groß-/Kleinschreibung (AD: `name@domain`, `gruppe@domain`).
+- **Nur lesen:** anzeigen, herunterladen, öffnen (pdf, Bilder, txt). Es gibt keine Schreib- oder Lösch-Funktion für `share`.
+- **Bearbeiten = Import:** „In Meine Ablage importieren“ legt eine Kopie in der eigenen Ablage an (bei gleichem Namen `name (2).ext`, nichts wird überschrieben).
+  Die Kopie ist danach eine normale eigene Datei und kann wie jede andere für Gruppen freigegeben werden (lesen oder schreiben).
+- **Jahrgangswechsel:** `share` wird nicht umbenannt. `share/groups/<gruppe>` bleibt beim Gruppennamen (Klasse 6 bleibt bei „klasse6“ und wandert nicht nach „klasse7“);
+  Aufräumen erledigt der Admin von Hand. Eine neue Gruppe mit gleichem Namen sieht den alten Ordner.
+- **Sicherheit:** Jeder Pfad wird geprüft: kein `..`, keine Symlinks/Junctions, keine versteckten Namen (`.zfs`, `.xyz`, `~$…`), keine Windows-Tricks (Punkt oder Leerzeichen am Ende, `:`).
+- REST: `GET /api/share?path=`, `GET /api/share/file?path=[&dl=1]`, `POST /api/share/import?path=`.
+
 ## Kontingent (0.13.9)
 
 Einstellungen > Dateien: Kontingent je Benutzer und je Gruppenordner in MB (0 = unbegrenzt). Vorgabe aus `CS_QUOTA_MB`. Es gilt für Browser und

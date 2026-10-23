@@ -1122,5 +1122,13 @@
  "Schreibschutz gesetzt": "Sola lettura impostata",
  "Bearbeitet ({0}): {1} geändert, {2} gelöscht": "Modificato ({0}): {1} cambiati, {2} eliminati",
  "Die Liste speichert nie Inhalte, nur wer wann was geändert hat. Von Hand aus einer KI-Antwort kopierter Text ist nicht erkennbar.": "L'elenco non memorizza mai contenuti, solo chi ha cambiato cosa e quando. Il testo copiato a mano da una risposta IA non è riconoscibile.",
- "Zur Bearbeitung freigegeben": "Consentito per la modifica"
+ "Zur Bearbeitung freigegeben": "Consentito per la modifica",
+ "Bereitgestellt": "Messo a disposizione",
+ "für alle": "per tutti",
+ "nur für dich": "solo per te",
+ "Bereich": "Ambito",
+ "Hier ist nichts bereitgestellt.": "Qui non è stato messo a disposizione nulla.",
+ "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Messo a disposizione dall'amministrazione (sola lettura). Per modificarlo, importalo nel tuo spazio personale; la copia può poi essere condivisa con i gruppi come qualsiasi file proprio.",
+ "In Meine Ablage importieren": "Importa nel mio spazio personale",
+ "Importiert als \"{0}\".": "Importato come \"{0}\"."
 }
