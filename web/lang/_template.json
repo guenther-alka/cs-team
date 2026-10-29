@@ -1127,5 +1127,14 @@
  "Hier ist nichts bereitgestellt.": "Hier ist nichts bereitgestellt.",
  "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.",
  "In Meine Ablage importieren": "In Meine Ablage importieren",
- "Importiert als \"{0}\".": "Importiert als \"{0}\"."
+ "Importiert als \"{0}\".": "Importiert als \"{0}\".",
+ "Zurück zu cs-team (die Apps bleiben geöffnet)": "Zurück zu cs-team (die Apps bleiben geöffnet)",
+ "In neuem Fenster öffnen": "In neuem Fenster öffnen",
+ "App schließen (nicht gespeicherte Änderungen gehen verloren)": "App schließen (nicht gespeicherte Änderungen gehen verloren)",
+ "In die Zwischenablage kopieren und die App öffnen": "In die Zwischenablage kopieren und die App öffnen",
+ "Kopiert. In der App mit Strg+V einfügen.": "Kopiert. In der App mit Strg+V einfügen.",
+ "Singleuser (lokal)": "Singleuser (lokal)",
+ "Aus lokaler Datei importieren": "Aus lokaler Datei importieren",
+ "Datei von der lokalen Platte, z. B. in Wordcraft oder Gridcraft gespeichert. Der Name wird aus dem Dateinamen vorbelegt und kann geändert werden.": "Datei von der lokalen Platte, z. B. in Wordcraft oder Gridcraft gespeichert. Der Name wird aus dem Dateinamen vorbelegt und kann geändert werden.",
+ "Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.": "Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden."
 }

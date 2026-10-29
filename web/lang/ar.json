@@ -1130,5 +1130,14 @@
  "Hier ist nichts bereitgestellt.": "لا يوجد شيء متاح هنا.",
  "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "مُتاح من الإدارة (للقراءة فقط). للتعديل، استوردها إلى مساحتك الخاصة؛ ويمكن بعد ذلك مشاركة النسخة مع المجموعات مثل أي ملف خاص بك.",
  "In Meine Ablage importieren": "استيراد إلى مساحتي الخاصة",
- "Importiert als \"{0}\".": "تم الاستيراد باسم \"{0}\"."
+ "Importiert als \"{0}\".": "تم الاستيراد باسم \"{0}\".",
+ "Zurück zu cs-team (die Apps bleiben geöffnet)": "العودة إلى cs-team (تبقى التطبيقات مفتوحة)",
+ "In neuem Fenster öffnen": "فتح في نافذة جديدة",
+ "App schließen (nicht gespeicherte Änderungen gehen verloren)": "إغلاق التطبيق (تضيع التغييرات غير المحفوظة)",
+ "In die Zwischenablage kopieren und die App öffnen": "انسخ إلى الحافظة وافتح التطبيق",
+ "Kopiert. In der App mit Strg+V einfügen.": "تم النسخ. الصق في التطبيق بـ Ctrl+V.",
+ "Singleuser (lokal)": "مستخدم واحد (محلي)",
+ "Aus lokaler Datei importieren": "استيراد من ملف محلي",
+ "Datei von der lokalen Platte, z. B. in Wordcraft oder Gridcraft gespeichert. Der Name wird aus dem Dateinamen vorbelegt und kann geändert werden.": "ملف من القرص المحلي، مثلاً محفوظ في Wordcraft أو Gridcraft. يتم ملء الاسم من اسم الملف ويمكن تغييره.",
+ "Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.": "لا يدعم هذا المتصفح WebGPU: يبدأ المحرر في وضع WebGL. إذا لم يبدأ، يرجى استخدام Chrome أو Edge."
 }

@@ -145,13 +145,58 @@ function setList(items){
   }
   if(hid){const d=document.createElement('div');d.className='head';d.textContent=t('… {0} weitere – Filter benutzen',hid);el.append(d);}
   if(S_.canAdd?S_.canAdd():true){const d=document.createElement('div');d.className='item addrow';d.textContent='+ add';d.onclick=doAdd;kbItem(d);el.append(d);}
+  if(WC[sec]){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const w=document.createElement('div');w.className='item addrow wcrow';w.textContent=WC[sec].label;w.onclick=()=>openWebcraft(WC[sec].key);kbItem(w);el.append(w);}   // Webcraft-Editor unter + add
 }
+/* Menue Text/Calc/Files, unter + add: Webcraft-Editor (WordCraft, GridCraft, PDFCraft) in eigenem Browserfenster (kein iframe). Adresse: https://<dieser Host>/webcraft/<app>/ (napp-it CS cs-proxy/webserver); abweichend per localStorage cs.webcraft.base, z. B. https://host:8443/webcraft/ */
+const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'},files:{key:'pdfcraft',label:'PDFcraft Editor'}};
+function wcBase(){let b='';try{b=localStorage.getItem('cs.webcraft.base')||'';}catch(e){}if(!b)b='https://'+location.hostname+'/webcraft/';if(!b.endsWith('/'))b+='/';return b;}
+const WCN={wordcraft:'Wordcraft',gridcraft:'Gridcraft',pdfcraft:'PDFcraft'},wcOpen=[];let wcAct=null;
+let wcGpu=false;   // true = dieser Browser meldet kein WebGPU (Wordcraft/Gridcraft/PDFcraft zeichnen per WebGPU): die Apps werden dann mit ?webgl (WebGL-Modus) geladen und die Leiste zeigt einen Hinweis. Nur bei sicherem Kontext (https/localhost) pruefbar.
+function wcUrl(key){return wcBase()+key+'/'+(wcGpu?'?webgl':'');}
+(async()=>{if(!window.isSecureContext)return;try{if(!navigator.gpu||!await navigator.gpu.requestAdapter())wcGpu=true;}catch(e){wcGpu=true;}if(wcGpu&&wcAct)wcBar();})();
+function wcBar(){const b=$('#wcbar');if(!b)return;b.innerHTML='';
+  const mk=(txt,fn,on,ttl)=>{const x=document.createElement('button');x.textContent=txt;if(on)x.className='on';if(ttl)x.title=ttl;x.onclick=fn;b.append(x);return x;};
+  mk('\u2190 cs-team',wcHide,false,t('Zurück zu cs-team (die Apps bleiben geöffnet)'));
+  for(const k of wcOpen)mk(WCN[k]||k,()=>wcShow(k),k==wcAct);
+  if(wcAct){mk('\u2197',()=>window.open(wcUrl(wcAct),'webcraft_'+wcAct),false,t('In neuem Fenster öffnen'));mk('\u00d7',()=>wcClose(wcAct),false,t('App schließen (nicht gespeicherte Änderungen gehen verloren)'));}
+  if(wcMsg){const m=document.createElement('span');m.className='muted';m.textContent=wcMsg;b.append(m);}
+  if(wcAct&&wcGpu){const m=document.createElement('span');m.className='muted';m.textContent=t('Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.');b.append(m);}}
+function wcShow(key){const box=$('#wcfr');if(!box)return;
+  if(!wcOpen.includes(key)){const f=document.createElement('iframe');f.id='wcf_'+key;f.src=wcUrl(key);f.setAttribute('allow','clipboard-read; clipboard-write; fullscreen');f.title=WCN[key]||key;box.append(f);wcOpen.push(key);}
+  wcAct=key;box.querySelectorAll('iframe').forEach(f=>f.style.display=f.id=='wcf_'+key?'block':'none');document.body.classList.add('wc');wcBar();}
+function wcHide(){document.body.classList.remove('wc');wcAct=null;wcBar();wcDocBtn();}
+function wcDocBtn(){   // Knopf in der Dokument-Kopfzeile (Text/Calc): zum bereits offenen Wordcraft/Gridcraft wechseln, ohne zu kopieren; nur sichtbar, solange die App offen ist
+  const s=$('#xwo');if(!s)return;s.innerHTML='';const k=s.dataset.wc;if(!k||!wcOpen.includes(k))return;
+  const b=document.createElement('button');b.textContent=WCN[k]||k;b.onclick=()=>wcShow(k);s.append(b);}
+function wcClose(key){const f=$('#wcf_'+key);if(f)f.remove();const i=wcOpen.indexOf(key);if(i>=0)wcOpen.splice(i,1);if(wcOpen.length)wcShow(wcOpen[0]);else wcHide();}
+function wcCsvToTsv(s){   // CSV (Komma, Semikolon oder Tab; Anfuehrungszeichen) -> Tabulator-getrennt, so wie Tabellenprogramme Zellen in die Zwischenablage legen
+  if(s.charCodeAt(0)==0xFEFF)s=s.slice(1);const first=s.split(/\r?\n/)[0]||'',cnt=c=>first.split(c).length-1;
+  const dl=cnt(';')>=cnt(',')&&cnt(';')>=cnt('\t')?';':(cnt('\t')>cnt(',')?'\t':',');
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<s.length;i++){const c=s[i];
+    if(q){if(c=='"'){if(s[i+1]=='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c=='"')q=true;else if(c==dl){row.push(f);f='';}
+    else if(c=='\n'||c=='\r'){if(c=='\r'&&s[i+1]=='\n')i++;row.push(f);rows.push(row);row=[];f='';}
+    else f+=c;}
+  if(f!==''||row.length){row.push(f);rows.push(row);}
+  return rows.map(r=>r.map(x=>x.replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');}
+async function wcClip(s){try{await navigator.clipboard.writeText(s);return true;}catch(e){}
+  const a=document.createElement('textarea');a.value=s;a.style.cssText='position:fixed;left:-9999px;top:0';document.body.append(a);a.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){}a.remove();return ok;}
+let wcMsg='';
+async function wcCopy(id,type){   // cs-team-Dokument als Text (Calc: Tabulator-getrennt) in die Zwischenablage, dann die Singleuser-App zeigen; dort mit Strg+V einfuegen
+  const key=WC[type=='sheet'?'calc':'text'].key,r=await fetch('/api/docs/'+encodeURIComponent(id)+'/export?format='+(type=='sheet'?'csv':'txt')).catch(e=>null);
+  if(!r||!r.ok){alert(t('Export fehlgeschlagen'));return;}
+  let s=await r.text();if(s.charCodeAt(0)==0xFEFF)s=s.slice(1);if(type=='sheet')s=wcCsvToTsv(s);
+  if(!await wcClip(s)){alert(t('Export fehlgeschlagen'));return;}
+  wcMsg=t('Kopiert. In der App mit Strg+V einfügen.');wcShow(key);setTimeout(()=>{wcMsg='';wcBar();},12000);}
+function openWebcraft(key){wcShow(key);}
 function doAdd(){document.body.classList.add('mm');touched=true;leaveDoc();if(!S[sec].keepSel)sel=null;S[sec].add();setList(S[sec].items||[]);}
 $('#flt').oninput=()=>{if(!sec)return;if(S[sec].onFilter)S[sec].onFilter();else setList(S[sec].items||[]);};
 function leaveDoc(){cur=null;if(ws){ws.close();ws=null;}}
 function upd(){}
+$('#list').addEventListener('click',e=>{if(!e.target.closest('.wcrow'))wcHide();},true);
 async function go(s){
-  leaveDoc();sec=s;sel=null;touched=false;$('#flt').value='';document.body.classList.remove('mm');
+  leaveDoc();wcHide();sec=s;sel=null;touched=false;$('#flt').value='';document.body.classList.remove('mm');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==s));
   $('#main').className='';$('#main').innerHTML='';upd();$('#linfo').textContent=S[s].info?t(S[s].info):'';$('#tkq').style.display=s=='task'?'':'none';
   await S[s].load();
@@ -1296,6 +1341,14 @@ function docSection(type){
         '<button id="dgo">'+t('Leer anlegen')+'</button>'+
         '<div class="panel"><b>'+t('Aus Files importieren')+'</b> <span class="muted">('+exts.join(', ')+')</span><div class="row"><select id="imp"><option value="">'+t('lade ...')+'</option></select></div>'+
         '<div class="muted row">'+t('Text bzw. Zellwerte, Formeln und Formate (fett, kursiv, Farben, Listen, Kommentare) werden übernommen; Bilder, Diagramme und Makros nicht.')+'</div><button id="igo">'+t('Importieren')+'</button></div>';
+      $('#main').insertAdjacentHTML('beforeend','<div class="panel"><b>'+t('Aus lokaler Datei importieren')+'</b> <span class="muted">('+exts.join(', ')+')</span><div class="muted row">'+t('Datei von der lokalen Platte, z. B. in Wordcraft oder Gridcraft gespeichert. Der Name wird aus dem Dateinamen vorbelegt und kann geändert werden.')+'</div>'+
+        '<div class="row"><input type="file" id="lfi" accept="'+exts.join(',')+'"></div><div class="row">'+t('Name')+': <input id="lfn" maxlength="100"></div><button id="lgo">'+t('Importieren')+'</button></div>');
+      $('#lfi').onchange=()=>{const f=$('#lfi').files[0];if(f&&!$('#lfn').value)$('#lfn').value=f.name.replace(/\.[^.]*$/,'');};
+      $('#lgo').onclick=async()=>{const f=$('#lfi').files[0];if(!f)return;
+        const r=await fetch('/api/docs/importfile?file='+encodeURIComponent(f.name)+'&name='+encodeURIComponent($('#lfn').value.trim()),{method:'POST',body:f}).catch(e=>null);
+        if(r&&r.status==401&&r.headers.get('X-Login-Form')=='1'){location.reload();return;}
+        if(!r||!r.ok){alert((r?(await r.text()).trim():'')||t('Verbindung fehlgeschlagen.'));return;}
+        const j=await r.json().catch(()=>null);if(j&&j.id){await shareTo(j.id);await this.load();this.select(j.id);}};
       if(type=='text')composePanels(this);   // Zusammenfügen und Zusammenfassen als weitere Optionen neben "Neuer Text"
       $('#dgo').onclick=async()=>{const n=$('#dn').value;if(!n)return;const r=await J('POST','/api/docs',{name:n,type});if(r&&r.id){await shareTo(r.id);await this.load();this.select(r.id);}};
       const fl=(await J('GET','/api/files'))||{own:[],shared:[]};
@@ -1311,8 +1364,9 @@ function docSection(type){
       const d=this.docs.find(x=>x.id==id);if(!d)return;
       const owner=d.owner==me.name;
       $('#main').innerHTML='<div id="bar"><b>'+esc(d.name)+'</b> <span class="muted">'+t('Besitzer ')+esc(d.owner)+(d.rw?'':' · '+t('nur lesen'))+(d.ro?' ('+t('schreibgeschützt')+')':'')+'</span> '+
+        '<span id="xwo" data-wc="'+(WC[type=='sheet'?'calc':'text']?WC[type=='sheet'?'calc':'text'].key:'')+'"></span>'+
         ' <span class="panel" style="display:inline-block;margin:0 0 0 8px;padding:3px 8px">'+t('Export: ')+'<select id="xf">'+exportFormats(type)+'</select> '+
-        '<button id="xd">'+t('Download')+'</button> <button id="xt">&rarr; Files</button></span>'+
+        '<button id="xd">'+t('Download')+'</button> <button id="xt">&rarr; Files</button>'+(WC[type=='sheet'?'calc':'text']?' <button id="xw" title="'+esc(t('In die Zwischenablage kopieren und die App öffnen'))+'">&rarr; '+WCN[WC[type=='sheet'?'calc':'text'].key]+'</button>':'')+'</span>'+
         (owner?'<details class="panel"><summary>'+t('Teilen')+'</summary>'+sharePanel(d)+'</details>':'')+
         ((owner||me.admin)?'<details class="panel" id="hist"><summary>'+t('Verlauf')+'</summary><div id="histb"></div></details>':'')+
         '</div>'+(d.rw?fbarHtml(type):'')+'<div id="doc"></div>';
@@ -1323,6 +1377,8 @@ function docSection(type){
         if(type=='sheet'&&f=='pdf'){const r=await fetch(u,{method:'POST',body:JSON.stringify({vals:sheetVals()})}).catch(e=>null);if(!r||!r.ok){alert(t('Export fehlgeschlagen'));return;}
           const b=await r.blob(),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(d.name||'calc')+'.pdf';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);return;}
         location.href=u;};
+      if($('#xw'))$('#xw').onclick=()=>wcCopy(id,type);
+      wcDocBtn();
       $('#xt').onclick=async()=>{const f=$('#xf').value,r=await J('POST','/api/docs/'+encodeURIComponent(id)+'/tofiles?format='+f,type=='sheet'&&f=='pdf'?{vals:sheetVals()}:undefined);if(r&&r.name)alert(t('Gespeichert in Files:')+' '+r.name);};
       openDoc(id);
     },

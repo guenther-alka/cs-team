@@ -1130,5 +1130,14 @@
  "Hier ist nichts bereitgestellt.": "Qui non è stato messo a disposizione nulla.",
  "Von der Administration bereitgestellt (nur lesen). Zum Bearbeiten in die eigene Ablage importieren; die Kopie lässt sich danach wie jede eigene Datei für Gruppen freigeben.": "Messo a disposizione dall'amministrazione (sola lettura). Per modificarlo, importalo nel tuo spazio personale; la copia può poi essere condivisa con i gruppi come qualsiasi file proprio.",
  "In Meine Ablage importieren": "Importa nel mio spazio personale",
- "Importiert als \"{0}\".": "Importato come \"{0}\"."
+ "Importiert als \"{0}\".": "Importato come \"{0}\".",
+ "Zurück zu cs-team (die Apps bleiben geöffnet)": "Torna a cs-team (le app restano aperte)",
+ "In neuem Fenster öffnen": "Apri in una nuova finestra",
+ "App schließen (nicht gespeicherte Änderungen gehen verloren)": "Chiudi l",
+ "In die Zwischenablage kopieren und die App öffnen": "Copia negli appunti e apri l'app",
+ "Kopiert. In der App mit Strg+V einfügen.": "Copiato. Incolla nell'app con Ctrl+V.",
+ "Singleuser (lokal)": "Utente singolo (locale)",
+ "Aus lokaler Datei importieren": "Importa da file locale",
+ "Datei von der lokalen Platte, z. B. in Wordcraft oder Gridcraft gespeichert. Der Name wird aus dem Dateinamen vorbelegt und kann geändert werden.": "File dal disco locale, ad es. salvato in Wordcraft o Gridcraft. Il nome viene precompilato dal nome del file e può essere modificato.",
+ "Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.": "Questo browser non supporta WebGPU: l’editor si avvia in modalità WebGL. Se non si avvia, usa Chrome o Edge."
 }

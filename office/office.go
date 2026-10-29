@@ -38,6 +38,7 @@ func (s *Svc) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler) {
 	mux.Handle("POST /api/docs/{id}/tofiles", f(s.toFiles))
 	mux.Handle("POST /api/docs/{id}/export", f(s.export)) // Calc als PDF: der Browser schickt die angezeigten Werte (siehe pdfVals)
 	mux.Handle("POST /api/docs/import", f(s.importDoc))
+	mux.Handle("POST /api/docs/importfile", f(s.importFile)) // Datei von der lokalen Platte (Body) -> neues Dokument
 	mux.Handle("POST /api/docs/merge", f(s.merge))       // Quellen zusammenfuegen -> cs-text oder PDF (compose.go)
 	mux.Handle("POST /api/docs/fromtext", f(s.fromText)) // Text (z. B. KI-Zusammenfassung) -> cs-text oder PDF
 }
@@ -259,7 +260,6 @@ func (s *Svc) importDoc(w http.ResponseWriter, r *http.Request) {
 	if in.Owner == "" {
 		in.Owner = me
 	}
-	ext := strings.ToLower(filepath.Ext(in.File))
 	m, rc, err := s.Files.Open(r.Context(), me, in.Owner, in.File)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -275,6 +275,29 @@ func (s *Svc) importDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.createImported(w, r, in.File, b, in.Name)
+}
+
+// POST /api/docs/importfile?file=bericht.docx&name=optional   (Body: Inhalt der Datei, z. B. in WordCraft/GridCraft gespeichert)
+// Quelle: eine Datei von der lokalen Platte des Benutzers (Dateiauswahl im Browser). Ergebnis: neues Dokument im Besitz des Benutzers.
+func (s *Svc) importFile(w http.ResponseWriter, r *http.Request) {
+	file := filepath.Base(strings.TrimSpace(r.URL.Query().Get("file")))
+	if file == "" || file == "." || file == ".." || file == string(filepath.Separator) {
+		http.Error(w, "file required", http.StatusBadRequest)
+		return
+	}
+	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImport+1))
+	if err != nil || int64(len(b)) > maxImport {
+		http.Error(w, "file too large for import", http.StatusRequestEntityTooLarge)
+		return
+	}
+	s.createImported(w, r, file, b, r.URL.Query().Get("name"))
+}
+
+// createImported: Dateiinhalt (nach Endung) lesen und als neues Dokument des Benutzers anlegen (gemeinsam fuer importDoc und importFile).
+func (s *Svc) createImported(w http.ResponseWriter, r *http.Request, file string, b []byte, nameIn string) {
+	me := auth.User(r.Context())
+	ext := strings.ToLower(filepath.Ext(file))
 	typ, paras, cells, err := parseImport(ext, b)
 	if err != nil {
 		http.Error(w, "cannot read "+ext+": "+err.Error(), http.StatusBadRequest)
@@ -284,9 +307,9 @@ func (s *Svc) importDoc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no permission for "+doc.Area(typ), http.StatusForbidden)
 		return
 	}
-	name := strings.TrimSpace(in.Name)
+	name := strings.TrimSpace(nameIn)
 	if name == "" {
-		name = strings.TrimSuffix(in.File, filepath.Ext(in.File))
+		name = strings.TrimSuffix(file, filepath.Ext(file))
 	}
 	if len(name) > 100 {
 		name = name[:100]

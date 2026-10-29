@@ -1,4 +1,4 @@
-// cs-team: Multiuser CalDAV + Calc + Text auf RustFS/S3. Ein Binary, eine Abhängigkeitsliste.
+// cs-team: Multiuser CalDAV + Calc + Text auf RustFS/S3. Ein Binary, eine AbhÃ¤ngigkeitsliste.
 //
 //	cs-team                      Server starten
 //	cs-team adduser <name> <pw> [admin]  Benutzer anlegen / Passwort setzen
@@ -45,7 +45,7 @@ func env(k, def string) string {
 	return def
 }
 
-// envInt: Zahl aus der Umgebung (fehlend/ungültig = Standardwert).
+// envInt: Zahl aus der Umgebung (fehlend/ungÃ¼ltig = Standardwert).
 func envInt(k string, def int) int {
 	if n, err := strconv.Atoi(os.Getenv(k)); err == nil {
 		return n
@@ -53,7 +53,7 @@ func envInt(k string, def int) int {
 	return def
 }
 
-// envList: durch Komma oder Semikolon getrennte Liste (leere Einträge entfallen).
+// envList: durch Komma oder Semikolon getrennte Liste (leere EintrÃ¤ge entfallen).
 func envList(s string) []string {
 	var out []string
 	for _, x := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' }) {
@@ -65,19 +65,19 @@ func envList(s string) []string {
 }
 
 // envIdentity: Vorgabe der Anmeldung (Namensraum name@realm + Verzeichnis) aus den Startparametern CS_IDENTITY_*.
-// Die Einstellungen der Oberfläche haben Vorrang (chat.Settings.Identity).
+// Die Einstellungen der OberflÃ¤che haben Vorrang (chat.Settings.Identity).
 func envIdentity() auth.Identity {
 	return auth.Identity{
 		Mode:         env("CS_IDENTITY_MODE", ""),                    // "", "local", "dir" oder "mixed"
 		Realm:        env("CS_IDENTITY_REALM", ""),                   // eigener Namensraum, z.B. local.de
-		DefaultRealm: env("CS_IDENTITY_REALM_DEFAULT", ""),           // Namensraum für Namen ohne @ (Anzeige)
+		DefaultRealm: env("CS_IDENTITY_REALM_DEFAULT", ""),           // Namensraum fÃ¼r Namen ohne @ (Anzeige)
 		AdmitGroups:  envList(os.Getenv("CS_IDENTITY_ADMIT_GROUPS")), // Gruppen im Verzeichnis (leer = alle)
 		LocalGroup:   env("CS_IDENTITY_LOCAL_GROUP", ""),             // cs-team-Gruppe der Verzeichnisbenutzer
 		AllowLocal:   os.Getenv("CS_IDENTITY_ALLOW_LOCAL") == "1", // ohne Wirkung (0.55): lokale Konten sind immer erlaubt
 		CacheDays:    envInt("CS_IDENTITY_CACHE_DAYS", 0),
 		URL:          env("CS_IDENTITY_URL", ""),       // ldap://host:389 oder ldaps://host:636
 		Base:         env("CS_IDENTITY_BASE", ""),      // Suchbasis, z.B. DC=local,DC=de
-		BindDN:       env("CS_IDENTITY_BIND_DN", ""),   // Dienstkonto für die Gruppensuche
+		BindDN:       env("CS_IDENTITY_BIND_DN", ""),   // Dienstkonto fÃ¼r die Gruppensuche
 		BindPW:       os.Getenv("CS_IDENTITY_BIND_PW"), // Passwort des Dienstkontos
 		StartTLS:     os.Getenv("CS_IDENTITY_STARTTLS") == "1",
 	}
@@ -125,7 +125,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.64.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.65.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -143,7 +143,7 @@ func main() {
 	case os.Getenv("CS_MEM") == "1": // Demo/Test ohne Speicher (Daten nur im RAM)
 		st = store.NewMem()
 	case os.Getenv("CS_DIR") != "": // lokaler Ordner / ZFS-Dataset, ohne S3
-		d, err := store.NewFS(filepath.Join(os.Getenv("CS_DIR"), ".csteam")) // Daten in <CS_DIR>/.csteam (Rest des Datasets bleibt unberührt)
+		d, err := store.NewFS(filepath.Join(os.Getenv("CS_DIR"), ".csteam")) // Daten in <CS_DIR>/.csteam (Rest des Datasets bleibt unberÃ¼hrt)
 		if err != nil {
 			log.Fatal("dir: ", err)
 		}
@@ -165,14 +165,14 @@ func main() {
 	a.TrustProxy = os.Getenv("CS_TRUST_PROXY") == "1"
 	auth.LoginForm = os.Getenv("CS_LOGIN_FORM") != "0" // Anmeldeformular mit Sitzungs-Cookie (Standard; CS_LOGIN_FORM=0 = Browser-Dialog wie bisher). WebDAV/CalDAV bleiben bei Basic Auth
 	auth.OIDCFromEnv(os.Getenv, log.Printf)           // OIDC-Anbieter (CS_OIDC, CS_OIDC_BASE, CS_OIDC_<ID>_...), nur mit Anmeldeformular
-	if n := envInt("CS_MAX_FAILS_IP", 0); n > 0 { // Fehlversuche je Adresse bis zur Sperre (Schul-NAT/Proxy: höher setzen)
+	if n := envInt("CS_MAX_FAILS_IP", 0); n > 0 { // Fehlversuche je Adresse bis zur Sperre (Schul-NAT/Proxy: hÃ¶her setzen)
 		auth.MaxFailsIP = n
 	}
 	if err := a.Migrate(ctx); err != nil { // Standardgruppe "users" -> "alluser"
 		log.Println("migrate groups:", err)
 	}
 
-	// cs-team sysadmin <name>   (bestimmt das Sysadmin-Konto: lokales cs-team-Konto, immer Admin, nicht löschbar)
+	// cs-team sysadmin <name>   (bestimmt das Sysadmin-Konto: lokales cs-team-Konto, immer Admin, nicht lÃ¶schbar)
 	if len(os.Args) == 3 && os.Args[1] == "sysadmin" {
 		if err := a.SetSys(ctx, os.Args[2]); err != nil {
 			log.Fatal(err)
@@ -194,7 +194,7 @@ func main() {
 		}
 	}
 
-	if err := a.EnsureSys(ctx, os.Getenv("CS_ADMIN_USER")); err != nil { // Sysadmin-Konto: lokal, immer Admin, nicht löschbar (0.57.1)
+	if err := a.EnsureSys(ctx, os.Getenv("CS_ADMIN_USER")); err != nil { // Sysadmin-Konto: lokal, immer Admin, nicht lÃ¶schbar (0.57.1)
 		log.Println("sysadmin:", err)
 	}
 
@@ -202,7 +202,7 @@ func main() {
 
 	addr := env("CS_LISTEN", ":8080")
 	log.Println("cs-team listening on", addr)
-	// Timeouts gegen Slowloris; kein Read-/WriteTimeout, weil WebSocket, Datei-Up-/Downloads und WebDAV lange laufen dürfen.
+	// Timeouts gegen Slowloris; kein Read-/WriteTimeout, weil WebSocket, Datei-Up-/Downloads und WebDAV lange laufen dÃ¼rfen.
 	srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 	if cert := os.Getenv("CS_TLS_CERT"); cert != "" { // HTTPS mit PEM-Datei(en); Key-Datei optional, wenn im selben PEM
 		key := env("CS_TLS_KEY", cert)
@@ -226,7 +226,7 @@ func hsts(next http.Handler) http.Handler {
 	})
 }
 
-// certReloader: lädt das Zertifikat neu, wenn sich die PEM-Datei ändert (Erneuerung ohne Neustart).
+// certReloader: lÃ¤dt das Zertifikat neu, wenn sich die PEM-Datei Ã¤ndert (Erneuerung ohne Neustart).
 func certReloader(certFile, keyFile string) func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	var mu sync.Mutex
 	var cur *tls.Certificate
@@ -249,7 +249,7 @@ func certReloader(certFile, keyFile string) func(*tls.ClientHelloInfo) (*tls.Cer
 	}
 }
 
-// shareRoot: Ordner der schreibgeschützten Dokumente: CS_SHARE, sonst <CS_DIR>/share (neben .csteam); leer = aus.
+// shareRoot: Ordner der schreibgeschÃ¼tzten Dokumente: CS_SHARE, sonst <CS_DIR>/share (neben .csteam); leer = aus.
 // Er liegt lokal auf dem cs-team-Server und ist vom Speicher (.csteam bzw. S3) getrennt; cs-team schreibt nie hinein.
 func shareRoot() string {
 	if p := os.Getenv("CS_SHARE"); p != "" {
@@ -279,7 +279,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	fsvc := &files.Svc{St: st, Max: int64(mb) << 20}
 	fsvc.Routes(mux, a.Wrap)
-	if root := shareRoot(); root != "" { // schreibgeschützter Ordner "share" (TODO G); gibt es ihn nicht, bleibt alles aus
+	if root := shareRoot(); root != "" { // schreibgeschÃ¼tzter Ordner "share" (TODO G); gibt es ihn nicht, bleibt alles aus
 		(&share.Svc{Root: root, Files: fsvc}).Routes(mux, a.Wrap)
 	}
 	osvc := &office.Svc{Hub: hub, Files: fsvc}
@@ -289,9 +289,9 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		cs.MaxMB = int64(n)
 	}
 	cs.Routes(mux, a.Wrap)
-	cs.RunRetention(context.Background()) // Aufbewahrung Chat je Gruppe (stündlich)
+	cs.RunRetention(context.Background()) // Aufbewahrung Chat je Gruppe (stÃ¼ndlich)
 	envSMTP := chat.SMTP{Host: os.Getenv("CS_SMTP_HOST"), Port: os.Getenv("CS_SMTP_PORT"), User: os.Getenv("CS_SMTP_USER"), Pass: os.Getenv("CS_SMTP_PASS"), From: os.Getenv("CS_SMTP_FROM"), TLS: os.Getenv("CS_SMTP_TLS")}
-	cfg := chat.NewSettings(st, envSMTP, os.Getenv("CS_CHAT_ALLOW_PRIVATE") == "1") // Einstellungen der Oberfläche; Umgebung nur als Vorgabe
+	cfg := chat.NewSettings(st, envSMTP, os.Getenv("CS_CHAT_ALLOW_PRIVATE") == "1") // Einstellungen der OberflÃ¤che; Umgebung nur als Vorgabe
 	if n, err := strconv.ParseInt(os.Getenv("CS_QUOTA_MB"), 10, 64); err == nil && n > 0 {
 		cfg.EnvQuotaMB = n
 	}
@@ -300,13 +300,13 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		cfg.EnvTrashDays = n
 	}
 	cfg.EnvIdentity = envIdentity() // Anmeldung: Namensraum (name@realm) + Verzeichnis aus den Startparametern
-	a.SetIdentitySource(cfg)        // Oberfläche hat Vorrang; Änderungen gelten sofort (auth.Auth liest die Einstellung)
-	a.WarmDir(context.Background()) // Verzeichnisverbindung im Hintergrund offen halten (erster Aufbau ist nach Leerlauf träge)
+	a.SetIdentitySource(cfg)        // OberflÃ¤che hat Vorrang; Ã„nderungen gelten sofort (auth.Auth liest die Einstellung)
+	a.WarmDir(context.Background()) // Verzeichnisverbindung im Hintergrund offen halten (erster Aufbau ist nach Leerlauf trÃ¤ge)
 	fsvc.Quota = cfg.Quota          // Dateikontingent aus den Einstellungen
 	fsvc.TrashDays = cfg.TrashDays
-	fsvc.PubMax = cfg.PubMaxDays // öffentliche Links: längste Gültigkeit (globale Einstellung, 0 = unbegrenzt erlaubt)
-	auth.Enforce2FA = cfg.Enforce2FA // Zwei-Faktor-Pflicht für globale Admins (globale Einstellung)
-	go fsvc.RunTrash(context.Background()) // abgelaufene Einträge im Papierkorb entfernen
+	fsvc.PubMax = cfg.PubMaxDays // Ã¶ffentliche Links: lÃ¤ngste GÃ¼ltigkeit (globale Einstellung, 0 = unbegrenzt erlaubt)
+	auth.Enforce2FA = cfg.Enforce2FA // Zwei-Faktor-Pflicht fÃ¼r globale Admins (globale Einstellung)
+	go fsvc.RunTrash(context.Background()) // abgelaufene EintrÃ¤ge im Papierkorb entfernen
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
 	cb.Mail, cb.MailOK = mailer.Invite, mailer.MailEnabled
@@ -339,15 +339,15 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	}
 	auth.MessageCount = cs.MsgCount
 	auth.GroupCalMode = cb.GroupCalMode
-	auth.GroupCalState = cb.GroupCalState // Gruppen-Einstellungen zeigen/ändern die Freigabe des Gruppenkalenders
-	auth.UserHooks = []auth.UserHook{     // Benutzer löschen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
+	auth.GroupCalState = cb.GroupCalState // Gruppen-Einstellungen zeigen/Ã¤ndern die Freigabe des Gruppenkalenders
+	auth.UserHooks = []auth.UserHook{     // Benutzer lÃ¶schen (Assistent mit Snapshot): jedes Modul entfernt die Daten des Namens
 		{Name: "files", Count: fsvc.UserCount, Purge: fsvc.PurgeUser},
 		{Name: "documents", Count: hub.UserCount, Purge: hub.PurgeUser},
 		{Name: "calendar", Count: cb.UserCount, Purge: cb.PurgeUser},
 		{Name: "news", Early: true, Count: ns.Count, Purge: ns.Purge}, // vor dem Anonymisieren, sonst findet Purge die Aushaenge nicht mehr
 		{Name: "chat", Early: true, Count: cs.UserCount, Purge: cs.PurgeUser}, // 1:1-Kanaele, eigene Anhaenge, auf Wunsch die Nachrichten
 	}
-	auth.AnonHooks = []auth.AnonHook{ // Benutzer löschen mit Option "anonymize": der Name bleibt in Inhalten der Gruppen nicht stehen
+	auth.AnonHooks = []auth.AnonHook{ // Benutzer lÃ¶schen mit Option "anonymize": der Name bleibt in Inhalten der Gruppen nicht stehen
 		{Name: "chat", Count: cs.AnonCount, Anon: cs.Anon},
 		{Name: "tasks", Count: ts.AnonCount, Anon: ts.Anon},
 		{Name: "events", Count: cb.AnonCount, Anon: cb.Anon},
@@ -394,21 +394,41 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	return logMW(secHeaders(mux))
 }
 
-// secHeaders: Sicherheits-Header für alle Antworten (Clickjacking, MIME-Sniffing, Referrer, Skript-Quellen).
+// cspHost: Hostname ohne Port aus dem Host-Header, nur wenn er ausschliesslich aus Buchstaben, Ziffern, Punkt und Bindestrich besteht (sonst leer).
+func cspHost(host string) string {
+	if i := strings.LastIndex(host, ":"); i > 0 && !strings.HasSuffix(host, "]") {
+		host = host[:i]
+	}
+	if host == "" {
+		return ""
+	}
+	for _, c := range host {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '-') {
+			return ""
+		}
+	}
+	return host
+}
+
+// secHeaders: Sicherheits-Header fÃ¼r alle Antworten (Clickjacking, MIME-Sniffing, Referrer, Skript-Quellen).
 // Das Skript liegt in web/app.js (eingebettet per go:embed), deshalb script-src 'self' ohne 'unsafe-inline': eingeschleustes
-// Markup kann kein Skript ausführen. Stil bleibt 'unsafe-inline' (style=-Attribute der Oberfläche); fremde Quellen sind gesperrt.
+// Markup kann kein Skript ausfÃ¼hren. Stil bleibt 'unsafe-inline' (style=-Attribute der OberflÃ¤che); fremde Quellen sind gesperrt.
 func secHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
+		fsrc := "'self'" // Webcraft-Editoren (WordCraft/GridCraft/PDFCraft) liegen auf demselben Host unter /webcraft/ (napp-it CS, https, beliebiger Port)
+		if fh := cspHost(r.Host); fh != "" {
+			fsrc += " https://" + fh + " https://" + fh + ":*"
+		}
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "+
-			"img-src 'self' data: blob:; connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
+			"img-src 'self' data: blob:; frame-src "+fsrc+"; connect-src 'self' ws://"+r.Host+" wss://"+r.Host+"; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
 		if r.TLS != nil {
 			h.Set("Strict-Transport-Security", "max-age=15552000")
 		}
-		// API-Antworten enthalten personenbezogene Daten: nicht in Browser-/Proxy-Caches ablegen (Handler dürfen überschreiben).
+		// API-Antworten enthalten personenbezogene Daten: nicht in Browser-/Proxy-Caches ablegen (Handler dÃ¼rfen Ã¼berschreiben).
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/dav/") || strings.HasPrefix(r.URL.Path, "/webdav/") {
 			h.Set("Cache-Control", "no-store")
 		}
@@ -416,7 +436,7 @@ func secHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// setupSnapshot: vor jeder globalen Aktion (Jahrgangswechsel ...) wird nach Möglichkeit ein ZFS-Snapshot angelegt.
+// setupSnapshot: vor jeder globalen Aktion (Jahrgangswechsel ...) wird nach MÃ¶glichkeit ein ZFS-Snapshot angelegt.
 // CS_SNAPSHOT_CMD = eigener Befehl ({id} = Lauf-ID), CS_SNAPSHOT=off = ausschalten; sonst wird bei Ordner-Speicher
 // (CS_DIR) das ZFS-Dataset erkannt und "zfs snapshot <dataset>@cs-team-<id>" verwendet. Bei S3/RustFS: CS_SNAPSHOT_CMD setzen.
 // CS_SNAPSHOT_DATASET = Dataset fest vorgeben (statt Erkennung).
@@ -450,7 +470,7 @@ func setupSnapshot(dir string) {
 	log.Println("snapshot before global actions: zfs snapshot", ds+"@cs-team-<id>")
 }
 
-// zfsDataset: Dataset des Ordners. Erst "zfs list <pfad>", sonst das Dataset mit dem längsten passenden Mountpoint
+// zfsDataset: Dataset des Ordners. Erst "zfs list <pfad>", sonst das Dataset mit dem lÃ¤ngsten passenden Mountpoint
 // (funktioniert auch dort, wo zfs keine Pfade annimmt, z.B. OpenZFS on Windows).
 func zfsDataset(zfs, dir string) string {
 	okName := func(n string) bool { return n != "" && !strings.ContainsAny(n, " '\"\\$`;&|<>@") }
@@ -469,7 +489,7 @@ func zfsDataset(zfs, dir string) string {
 		}
 	}
 	if len(dir) >= 2 && dir[1] == ':' {
-		// Windows (OpenZFS on Windows): Laufwerk = Pool (Datenträgerbezeichnung), Unterordner/Junctions = Datasets
+		// Windows (OpenZFS on Windows): Laufwerk = Pool (DatentrÃ¤gerbezeichnung), Unterordner/Junctions = Datasets
 		if abs, err := filepath.Abs(dir); err == nil {
 			dir = abs
 		}
@@ -498,11 +518,11 @@ func zfsDataset(zfs, dir string) string {
 	return name
 }
 
-// volLabel: Datenträgerbezeichnung des Laufwerks (Windows; sonst leer). In Tests ersetzbar.
+// volLabel: DatentrÃ¤gerbezeichnung des Laufwerks (Windows; sonst leer). In Tests ersetzbar.
 var volLabel = volumeLabel
 
 // winDataset: ermittelt aus Windows-Pfad (D:\data\x), Laufwerksbezeichnung (= Pool) und der Dataset-Liste das
-// zuständige Dataset: längster Pfad-Präfix unterhalb des Pools, der als Dataset existiert (D:\data -> winpool/data).
+// zustÃ¤ndige Dataset: lÃ¤ngster Pfad-PrÃ¤fix unterhalb des Pools, der als Dataset existiert (D:\data -> winpool/data).
 // Passt die Bezeichnung zu keinem Pool, wird bei genau einem Pool dieser genommen.
 func winDataset(path, label string, names []string) string {
 	p := strings.ReplaceAll(path, "\\", "/")

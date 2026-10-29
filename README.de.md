@@ -110,9 +110,13 @@ Nur Go-Standardbibliothek (package `conv`). Übernommen werden Inhalt und einfac
 
 `.cstext` / `.cscalc` sind das eigene Format (JSON, `"format":"cs-team/text"` bzw. `"cs-team/calc"`) und ermöglichen
 die eindeutige Zuordnung in der Ablage. UI: im Dokument `Export: [Format] [Download] [-> Files]`, beim Anlegen
-`Aus Files importieren`. REST: `GET /api/docs/<id>/export?format=`, `POST /api/docs/<id>/tofiles?format=`,
+`Aus Files importieren` und `Aus lokaler Datei importieren` (Dateiauswahl von der lokalen Platte, z. B. in Word,
+Excel, Wordcraft oder Gridcraft gespeichert; Name aus dem Dateinamen vorbelegt, Gruppenfreigabe wie beim Anlegen;
+gleiche Formate und Prüfung wie beim Import aus Files; jeder Import legt ein neues Dokument an, nichts wird überschrieben).
+REST: `GET /api/docs/<id>/export?format=`, `POST /api/docs/<id>/tofiles?format=`,
 `POST /api/docs/import {"owner","file","name"}` (Quelle: eigene oder mit dem Benutzer geteilte Datei; das neue
-Dokument gehört dem Benutzer).
+Dokument gehört dem Benutzer), `POST /api/docs/importfile?file=<name.ext>&name=<optional>` (Body = Dateiinhalt von der lokalen Platte;
+das neue Dokument gehört dem Benutzer).
 
 ## Verlauf, Schreibschutz und frühere Stände von Calc und Text (0.63)
 
