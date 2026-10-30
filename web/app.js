@@ -48,9 +48,9 @@ function uiDlg(msg,o){return new Promise(res=>{
 // uiBox: Dialog mit frei gebautem Inhalt el (Umfrage, Dateiversionen). o.ok = Text der OK-Taste (fehlt: nur "Schließen"); o.check() darf OK ablehnen.
 function uiBox(title,el,o){o=o||{};return new Promise(res=>{
  const ov=document.createElement('div'),bx=document.createElement('div'),p=document.createElement('div'),bar=document.createElement('div'),cn=document.createElement('button');
- ov.className='uidov';bx.className='uidbx';bx.style.cssText='width:min(520px,100%);max-height:88vh;overflow:auto';bx.setAttribute('role','dialog');bx.setAttribute('aria-modal','true');
+ ov.className='uidov';bx.className='uidbx';bx.style.cssText='width:min('+(o.width||520)+'px,100%);max-height:88vh;overflow:auto'+(o.width?';resize:horizontal;max-width:96vw;min-width:min(360px,96vw)':'');bx.setAttribute('role','dialog');bx.setAttribute('aria-modal','true');
  p.className='uidm';p.style.fontWeight='600';p.textContent=title;bx.append(p,el);
- cn.textContent=o.ok?t('Abbrechen'):t('Schließen');bar.className='uidb';bar.append(cn);
+ cn.textContent=o.ok?t('Abbrechen'):t('Schließen');bar.className='uidb';bar.append(cn);bar.style.cssText='position:sticky;bottom:0;background:inherit;padding-top:8px';
  let ok=null;if(o.ok){ok=document.createElement('button');ok.className='uidok';ok.textContent=o.ok;bar.append(ok);}
  bx.append(bar);ov.append(bx);document.body.append(ov);
  const kd=e=>{if(e.key=='Escape'){e.preventDefault();e.stopPropagation();done(false);}},done=v=>{document.removeEventListener('keydown',kd,true);ov.remove();res(v);};
@@ -146,10 +146,11 @@ function setList(items){
   if(hid){const d=document.createElement('div');d.className='head';d.textContent=t('… {0} weitere – Filter benutzen',hid);el.append(d);}
   if(S_.canAdd?S_.canAdd():true){const d=document.createElement('div');d.className='item addrow';d.textContent='+ add';d.onclick=doAdd;kbItem(d);el.append(d);}
   if(WC[sec]){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const w=document.createElement('div');w.className='item addrow wcrow';w.textContent=WC[sec].label;w.onclick=()=>openWebcraft(WC[sec].key);kbItem(w);el.append(w);
-    if(sec=='files'){const box=document.createElement('div');el.append(box);wcInstalled().then(ks=>{w.remove();ks.forEach(k=>{const r=document.createElement('div');r.className='item addrow wcrow';r.textContent=wcName(k);r.onclick=()=>openWebcraft(k);kbItem(r);box.append(r);});});}}   // Webcraft-Editor unter + add; Files: alle installierten Apps, alphabetisch
+    }   // Webcraft-Editor unter + add (Text/Calc)
+  if(sec=='today'){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const box=document.createElement('div');el.append(box);wcInstalled().then(ks=>{ks.forEach(k=>{const r=document.createElement('div');r.className='item addrow wcrow';r.textContent=wcName(k);r.onclick=()=>openWebcraft(k);kbItem(r);box.append(r);});});}   // Start: alle installierten Webcraft-Apps, alphabetisch
 }
 /* Menue Text/Calc/Files, unter + add: Webcraft-Editor (WordCraft, GridCraft, PDFCraft) in eigenem Browserfenster (kein iframe). Adresse: https://<dieser Host>/webcraft/<app>/ (napp-it CS cs-proxy/webserver); abweichend per localStorage cs.webcraft.base, z. B. https://host:8443/webcraft/ */
-const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'},files:{key:'pdfcraft',label:'PDFcraft Editor'}};
+const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'}};
 function wcBase(){let b='';try{b=localStorage.getItem('cs.webcraft.base')||'';}catch(e){}if(!b)b='https://'+location.hostname+'/webcraft/';if(!b.endsWith('/'))b+='/';return b;}
 const WCN={wordcraft:'Wordcraft',gridcraft:'Gridcraft',pdfcraft:'PDFcraft'},wcOpen=[];let wcAct=null;
 let wcGpu=false;   // true = dieser Browser meldet kein WebGPU (Wordcraft/Gridcraft/PDFcraft zeichnen per WebGPU): die Apps werden dann mit ?webgl (WebGL-Modus) geladen und die Leiste zeigt einen Hinweis. Nur bei sicherem Kontext (https/localhost) pruefbar.
@@ -203,8 +204,13 @@ $('#list').addEventListener('click',e=>{if(!e.target.closest('.wcrow'))wcHide();
 async function go(s){
   leaveDoc();wcHide();sec=s;sel=null;touched=false;$('#flt').value='';document.body.classList.remove('mm');
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==s));
+  const nb=document.querySelector('#nav button[data-s="'+s+'"]');$('#ltitle').textContent=nb?[...nb.childNodes].filter(n=>n.nodeType==3).map(n=>n.textContent).join('').trim():'';   // Menuename (fett) ueber dem Filter
+  $('#flt').style.display=(s=='today'||s=='set')?'none':'';   // Start und Einstellungen: kein Filter
+  $('#list').innerHTML='';   // alte Liste sofort weg: sonst bleibt sie stehen, wenn das Laden dauert oder fehlschlaegt
   $('#main').className='';$('#main').innerHTML='';upd();$('#linfo').textContent=S[s].info?t(S[s].info):'';$('#tkq').style.display=s=='task'?'':'none';
-  await S[s].load();
+  try{await S[s].load();}catch(e){if(sec===s)$('#main').innerHTML='<div class="muted">'+esc(String(e&&e.message||e))+'</div>';upd();return;}
+  if(sec!==s)return;   // inzwischen anderes Menue gewaehlt: nur das aktuelle zeichnet die Liste
+  if(!S[s].onFilter&&Array.isArray(S[s].items))setList(S[s].items);   // verspaetetes Laden eines frueheren Menues darf die Liste nicht ueberschreiben
   if(sec===s&&!touched&&sel===null)S[s].home();   // nicht überschreiben, wenn add/sel schon benutzt wurde
   upd();
 }
@@ -222,7 +228,7 @@ const gdl=(id,l)=>'<datalist id="'+id+'">'+l.map(g=>'<option value="'+esc(g)+'">
    (Haken = aktuelle Eintraege, darunter die moeglichen). Die Kommaliste bleibt editierbar; Eintraege, die nicht in der Liste stehen
    (E-Mail-Adressen, @Untergruppen, Verzeichnisgruppen), bleiben unveraendert erhalten.
    kind: users | groups | mgroups (nur verwaltbare Gruppen) | units | members (Konten und @Gruppen) */
-const pickBtn=(id,kind,single)=>' <button type="button" class="pkb" data-pk="'+id+'" data-kind="'+kind+'"'+(single?' data-single="1"':'')+'>'+esc(t('Auswählen …'))+'</button>';
+const pickBtn=(id,kind,single,title)=>' <button type="button" class="pkb" data-pk="'+id+'" data-kind="'+kind+'"'+(single?' data-single="1"':'')+(title?' data-title="'+esc(title)+'"':'')+'>'+esc(t('Auswählen …'))+'</button>';
 async function pickItems(kind){
   if(kind=='users'||kind=='members'){if(!allUsers.length)allUsers=(await J('GET','/api/users'))||[];}
   if(kind=='groups'||kind=='mgroups'||kind=='members'){if(!allGroups.length)allGroups=(await J('GET','/api/groups'))||[];}
@@ -230,32 +236,43 @@ async function pickItems(kind){
   const u=allUsers.map(x=>x.name),g=allGroups.map(x=>x.name);
   const l=kind=='users'?u:kind=='groups'?g:kind=='mgroups'?manageable():kind=='units'?allUnits.map(x=>x.name):u.concat(g.map(x=>'@'+x));
   return [...new Set(l)].sort((a,b)=>a.localeCompare(b));}
-async function pickDlg(inp,kind,single){
+async function pickDlg(inp,kind,single,title){
   if(!inp)return;
   const all=await pickItems(kind),sep=inp.tagName=='TEXTAREA'?'\n':', ';
   const cur=inp.value.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean),known=new Set(all);
   const el=document.createElement('div'),f=document.createElement('input'),box=document.createElement('div'),info=document.createElement('div');
   f.placeholder=t('Filter …');f.style.cssText='width:100%;box-sizing:border-box';
-  box.style.cssText='margin:8px 0;max-height:46vh;overflow-y:auto;border:1px solid rgba(128,128,128,.45);border-radius:4px;padding:4px 8px';
-  info.className='muted';el.append(f,box,info);
+  box.style.cssText='margin:8px 0;max-height:max(120px,calc(88vh - 270px));overflow-y:auto;border:1px solid rgba(128,128,128,.45);border-radius:4px;padding:4px 8px';
+  info.className='muted';const ml=Math.max(8,...all.concat(cur).map(x=>x.length));
+  box.style.columnWidth=Math.min(360,Math.max(130,ml*8+44))+'px';box.style.columnCount='6';
+  let tab='';const tabbar=document.createElement('div'),selr=document.createElement('div');
+  tabbar.className='gtabs';tabbar.style.margin='6px 0';
+  if(kind=='members')[['',t('Alle')],['u',t('Benutzer')],['g',t('Gruppen')]].forEach(([k2,lab])=>{const b=document.createElement('button');b.type='button';b.textContent=lab;b.dataset.t=k2;b.onclick=()=>{tab=k2;upd();};tabbar.append(b);});
+  selr.style.cssText='display:flex;gap:18px;margin:4px 0';
+  const sa=document.createElement('input'),sal=document.createElement('label');
+  sa.type='checkbox';sal.style.cursor='pointer';sal.append(sa,document.createTextNode(' '+t('alle auswählen')));
+  sa.onchange=()=>{lines.forEach(x=>{if(x.row.style.display!='none')x.cb.checked=sa.checked;});upd();};selr.append(sal);
+  if(!single)el.append(f,...(kind=='members'?[tabbar]:[]),selr,box,info);else el.append(f,...(kind=='members'?[tabbar]:[]),box,info);
   const lines=[],mk=(name,extra)=>{
     const lb=document.createElement('label'),cb=document.createElement('input');
-    lb.style.cssText='display:block;padding:2px 0;cursor:pointer';cb.type='checkbox';cb.checked=cur.includes(name);
+    lb.style.cssText='display:block;padding:2px 0;cursor:pointer;break-inside:avoid';cb.type='checkbox';cb.checked=cur.includes(name);
     lb.append(cb,document.createTextNode(' '+name));
     cb.onchange=()=>{if(single&&cb.checked)lines.forEach(x=>{if(x.cb!=cb)x.cb.checked=false;});upd();};
     box.append(lb);lines.push({name,cb,row:lb});};
   [...cur.filter(x=>!known.has(x)),...cur.filter(x=>known.has(x)),...all.filter(x=>!cur.includes(x))].forEach(x=>mk(x));
   const none=document.createElement('div');none.className='muted';none.textContent=t('Nichts gefunden.');none.style.display='none';box.append(none);
   const upd=()=>{const q=f.value.trim().toLowerCase();let v=0;
-    lines.forEach(x=>{const sh=!q||x.name.toLowerCase().includes(q);x.row.style.display=sh?'block':'none';if(sh)v++;});
+    lines.forEach(x=>{const sh=(!q||x.name.toLowerCase().includes(q))&&(!tab||(tab=='g')==(x.name[0]=='@'));x.row.style.display=sh?'block':'none';if(sh)v++;});
     none.style.display=v?'none':'';
+    {const vis=lines.filter(x=>x.row.style.display!='none');sa.checked=vis.length>0&&vis.every(x=>x.cb.checked);}
+    tabbar.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab));
     info.textContent=t('{0} ausgewählt, {1} von {2} angezeigt',lines.filter(x=>x.cb.checked).length,v,lines.length);};
   f.oninput=upd;upd();
-  if(!await uiBox(t('Auswahl'),el,{ok:t('Auswahl übernehmen')}))return;
+  if(!await uiBox(title||t('Auswahl'),el,{ok:t('Auswahl übernehmen'),width:900}))return;
   const on=new Set(lines.filter(x=>x.cb.checked).map(x=>x.name));
   inp.value=[...cur.filter(x=>on.has(x)),...lines.filter(x=>on.has(x.name)&&!cur.includes(x.name)).map(x=>x.name)].join(sep);
   inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));inp.focus();}
-document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pkb');if(!b)return;e.preventDefault();pickDlg(document.getElementById(b.dataset.pk),b.dataset.kind,!!b.dataset.single);});
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pkb');if(!b)return;e.preventDefault();pickDlg(document.getElementById(b.dataset.pk),b.dataset.kind,!!b.dataset.single,b.dataset.title||'');});
 const contactPanel=(m,c,own,set,nt)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
   '<div class="row"><input id="cmail" style="width:320px" placeholder="'+t('E-Mail-Adresse')+'" value="'+esc(m||'')+'"></div>'+
   (own?'<div class="row"><input id="cchat" style="width:320px" placeholder="'+t('Chat-Adresse (https://…)')+'" value="'+esc(c||'')+'"></div>'
@@ -432,12 +449,12 @@ S.users={
       '<button id="ngo">'+t('Anlegen')+'</button>'+
      '<div class="panel"><b>'+t('Import (CSV)')+'</b><div class="muted">'+t('Eine Zeile je Benutzer: ')+'<code>name;passwort;gruppe1,gruppe2;mail;chat-url</code>'+t(' (Trenner ; oder Tab, # = Kommentar). Das Passwort steht nur in dieser Datei: es wird sofort gehasht, der Benutzer muss es beim ersten Login ändern. Bei vorhandenen Benutzern (Haken "aktualisieren") ersetzt die Datei die Gruppen; leeres Passwort = unverändert. Klassenwechsel: Export, Gruppen ändern, wieder importieren.')+' '+t('Optional Feld 4 und 5: E-Mail-Adresse und Chat-Adresse (leer = unverändert).')+(me.admin?'':t(' Nur eigene Gruppen.'))+'</div>'+
      '<textarea id="imp" rows="8" style="width:100%;box-sizing:border-box" placeholder="lisa;geheim123;klasse5a"></textarea>'+
-     '<div class="row"><input type="file" id="impf" accept=".csv,.txt"> '+'<label><input id="impu" type="checkbox" checked>'+t(' vorhandene aktualisieren')+'</label> '+(me.admin?'<label><input id="impc" type="checkbox">'+t(' neue Gruppen anlegen mit Vorlage')+'</label> <select id="impt"><option value="">'+t('nur Files')+'</option><option value="team">Team</option><option value="klasse">'+t('Klasse')+'</option></select> ':'')+'<button id="igo">'+t('Importieren')+'</button></div><div id="ires"></div></div>';
+     '<div class="row"><input type="file" id="impf" accept=".csv,.txt"> '+'<label><input id="impu" type="checkbox" checked>'+t(' vorhandene aktualisieren')+'</label> '+(me.admin?'<label><input id="impc" type="checkbox" checked>'+t(' neue Gruppen anlegen (Standardrechte)')+'</label> ':'')+'<button id="igo">'+t('Importieren')+'</button></div><div id="ires"></div></div>';
     $('#ngo').onclick=async()=>{const n=$('#nn').value;
       if(await api('POST','/api/users',{name:n,password:$('#np').value,groups:names($('#ng').value).filter(g=>!($('#ngu').checked&&g=='alluser')),guest:$('#ngu').checked||undefined,expires:$('#ngu').checked?$('#nge').value:undefined,mail:$('#nm').value.trim(),chat:$('#nc')?$('#nc').value.trim():''})){await this.load();this.select(n);}};
     $('#impf').onchange=async e=>{const f=e.target.files[0];if(f)$('#imp').value=await f.text();};
     $('#igo').onclick=async()=>{
-      try{const r=await fetch('/api/users/import?update='+($('#impu').checked?1:0)+(me.admin&&$('#impc')&&$('#impc').checked?'&create=1&template='+$('#impt').value:''),{method:'POST',body:$('#imp').value});
+      try{const r=await fetch('/api/users/import?update='+($('#impu').checked?1:0)+(me.admin&&$('#impc')&&$('#impc').checked?'&create=1&template=klasse':''),{method:'POST',body:$('#imp').value});
         if(!r.ok){alert((await r.text()).trim());return;}
         const j=await r.json();await this.load();
         $('#ires').innerHTML='<b>'+t('{0} angelegt, {1} aktualisiert',j.created,(j.updated||0))+'</b>'+(j.errors.length?'<pre>'+esc(j.errors.join('\n'))+'</pre>':'');
@@ -514,6 +531,7 @@ const modeBoxes=(id,v,lbl,lblw,dis)=>'<div class="row"><label><input type="check
 const modeVal=id=>$('#'+id+'-on').checked?($('#'+id+'-w').checked?'rw':'ro'):'';
 const modeBind=id=>{$('#'+id+'-w').onchange=e=>{if(e.target.checked)$('#'+id+'-on').checked=true;};$('#'+id+'-on').onchange=e=>{if(!e.target.checked)$('#'+id+'-w').checked=false;};};
 const TPL={team:{areas:['cal','calc','text','files'],read:[],folder:'rw',cal:'rw'},klasse:{areas:['files'],read:['cal','calc','text'],folder:'ro',cal:'ro'}};
+const gcw=(l,x)=>Math.max(12,Math.max(0,...l.map(n=>String(n).length))+x)+'ch';   // Spaltenbreite der Gruppenlisten nach dem laengsten Namen (weniger Spalten bei langen Namen)
 S.units={
   items:[],
   canAdd:()=>me.admin,delable:k=>me.admin&&k!='all',   // all = Standard-Organisation, nicht löschbar
@@ -531,18 +549,28 @@ S.units={
     $('#main').innerHTML='<h3>'+t('Organisation anlegen')+'</h3><div class="row"><input id="un" placeholder="'+t('name (a-z 0-9 . _ -)')+'"> <button id="ugo">'+t('Anlegen')+'</button></div>';
     $('#ugo').onclick=async()=>{const n=$('#un').value;if(await api('POST','/api/units',{name:n})){await this.load();this.select(n);}};
   },
-  showMem:true,
+  showMem:false,
   select(k){
     sel=k;setList(this.items);upd();
     const u=allUnits.find(x=>x.name==k);if(!u)return;
     const mem=u.members||[];
-    let h='<h3>'+esc(u.name)+'</h3><div class="row">'+t('Gruppen: ')+esc(u.groups.join(', ')||'-')+'</div>'+
+    let h='<h3>'+esc(u.name)+'</h3><div class="row">'+t('Gruppen: ')+(u.groups.length?'':'-')+'</div>'+(u.groups.length?'<div class="gcols" style="column-width:'+gcw(u.groups,3)+'">'+[...u.groups].sort((a,b)=>a.localeCompare(b)).map(g=>'<div>'+esc(g)+'</div>').join('')+'</div>':'')+
       (k=='all'?'<div class="muted">'+t('Standard-Organisation, nicht löschbar; enthält alle Gruppen ohne andere Zuordnung.')+'</div>':'')+
       (u.sources&&u.sources.length?'<div class="muted">'+t('Mitglieder kommen aus: ')+esc(u.sources.join(', '))+'</div>':'');
-    if(u.members)h+='<div class="panel"><b>'+t('Mitglieder')+' ('+mem.length+')</b>'+
+    let memH='';if(u.members&&k!='all')memH='<div class="panel"><b>'+t('Mitglieder')+' ('+mem.length+')</b>'+
       '<div class="row"><label><input type="checkbox" id="umv"'+(this.showMem?' checked':'')+'> '+t('Mitglieder anzeigen')+'</label></div>'+
       (this.showMem?'<div class="muted">'+esc(mem.join(', ')||'-')+'</div>':'')+'</div>';
     $('#main').innerHTML=h;
+
+    if(me.admin&&k!='all'){   // Gruppen der Organisation zuordnen (wie im Feld Organisationen der Gruppe)
+      const bx=document.createElement('div');bx.className='panel';
+      bx.innerHTML='<b>'+esc(t('Gruppen zuordnen'))+'</b><div class="gcols" style="column-width:'+gcw(allGroups.map(g=>g.name),8)+'">'+allGroups.filter(g=>!['alluser','globaladmins','groupadmins'].includes(g.name)).sort((a,b)=>a.name.localeCompare(b.name)).map(g=>'<div class="row"><label><input type="checkbox" class="ugc" value="'+esc(g.name)+'"'+((g.units||[]).includes(k)?' checked':'')+'> '+esc(g.name)+'</label></div>').join('')+'</div><div class="row"><button id="ugs">'+esc(t('Speichern'))+'</button></div>';
+      $('#main').append(bx);
+      $('#ugs').onclick=async()=>{for(const c of bx.querySelectorAll('.ugc')){const g=allGroups.find(x=>x.name==c.value),U=g.units||[],has=U.includes(k);if(c.checked==has)continue;
+        const nu=c.checked?U.filter(x=>x!='all').concat(k):U.filter(x=>x!=k);if(!await api('POST','/api/groups/'+encodeURIComponent(g.name),{units:nu}))break;}
+        await this.load();this.select(k);};
+    }
+    $('#main').insertAdjacentHTML('beforeend',memH);   // Mitglieder zuletzt, nur auf Wunsch (Haekchen)
     if($('#umv'))$('#umv').onchange=e=>{this.showMem=e.target.checked;this.select(k);};   // nur eine Ansicht, kein zweiter Aufruf
   },
   async del(){
@@ -551,9 +579,9 @@ S.units={
   }
 };
 /* Benutzerliste einer Gruppe: hochladen (Name, E-Mail, Passwort je Zeile), Initialpasswörter erzeugen und einmal anzeigen */
-function listPanel(k){return '<div class="panel"><b>'+t('Benutzerliste')+'</b><div class="muted">'+t('Eine Zeile je Benutzer: Name, E-Mail, Passwort (E-Mail und Passwort sind optional). Neue Konten bekommen ein Initialpasswort.')+'</div>'+
+function listPanel(k){return '<details class="panel"><summary><b>'+t('Gruppenkonten per Liste anlegen')+'</b></summary><div class="muted">'+t('Eine Zeile je Benutzer: Name, E-Mail, Passwort (E-Mail und Passwort sind optional). Neue Konten bekommen ein Initialpasswort.')+'</div>'+
  '<div class="row"><textarea id="ulx" rows="5" style="width:100%;box-sizing:border-box" placeholder="anna, anna@schule.example"></textarea></div>'+
- '<div class="row"><input type="file" id="ulf" accept=".txt,.csv,text/plain"> <button id="uli">'+t('Liste importieren')+'</button> <button id="ulp">'+t('Initialpasswörter erzeugen')+'</button> <a href="/api/groups/'+encodeURIComponent(k)+'/userlist">'+t('Liste herunterladen')+'</a></div><div id="ulr"></div></div>';}
+ '<div class="row"><input type="file" id="ulf" accept=".txt,.csv,text/plain"> <button id="uli">'+t('Liste importieren')+'</button> <button id="ulp">'+t('Initialpasswörter erzeugen')+'</button> <a href="/api/groups/'+encodeURIComponent(k)+'/userlist">'+t('Liste herunterladen')+'</a></div><div id="ulr"></div></details>';}
 function listBind(k,reload){
   const out=$('#ulr'),tbl=(head,rows)=>'<table class="t"><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c||'')+'</td>').join('')+'</tr>').join('')+'</table>';
   $('#ulf').onchange=async e=>{const f=e.target.files[0];if(f)$('#ulx').value=await f.text();};
@@ -579,7 +607,7 @@ S.groups={
   async load(){
     allUsers=(await J('GET','/api/users'))||[];
     allGroups=(await J('GET','/api/groups'))||[];allUnits=(await J('GET','/api/units'))||[];
-    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:(g.comment?g.comment+' · ':'')+((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+g.areas.join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.cal?' '+t('Kalender').toLowerCase()+':'+g.cal:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
+    this.items=allGroups.map(g=>({k:g.name,label:g.name,sub:(g.comment?g.comment+' · ':'')+((g.units||[]).join(',')!='all'?'['+(g.units||[]).join(',')+'] ':'')+(g.areas||[]).join(',')+((g.read||[]).length?' ('+t('lesen')+': '+g.read.join(',')+')':'')+(g.folder?' '+t('Ordner').toLowerCase()+':'+g.folder:'')+(g.cal?' '+t('Kalender').toLowerCase()+':'+g.cal:'')+(g.manage&&!me.admin?' ('+t('Gruppen-Admin')+')':'')}));
     setList(this.items);
   },
   home(){
@@ -590,7 +618,7 @@ S.groups={
   add(){
     $('#main').innerHTML='<h3>'+t('Gruppe anlegen')+'</h3><div class="row"><input id="gn" placeholder="'+t('name (a-z 0-9 . _ -)')+'"></div>'+
      '<div class="row">'+t('Vorlage: ')+'<button id="gt-team">'+t('Team / Abteilung')+'</button> <button id="gt-klasse">'+t('Klasse')+'</button> <span class="muted">'+t('füllt die Haken vor, danach frei änderbar')+'</span></div>'+
-     '<div class="row">'+t('Bereiche: ')+rightsGrid('ga',['files'],[])+'</div>'+
+     '<div class="row">'+t('Areas (Mitglieder dürfen): ')+rightsGrid('ga',['files'],[])+'</div>'+
      modeBoxes('gfo','','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben')+
      modeBoxes('gca','','Gruppenkalender anlegen','Mitglieder dürfen eintragen')+
      chatModes('gn',{},false)+
@@ -609,42 +637,53 @@ S.groups={
   select(k){
     sel=k;setList(this.items);upd();
     const g=allGroups.find(x=>x.name==k);if(!g)return;
-    let h='<h3>'+esc(g.name)+'</h3>'+(g.manage?'<div class="row"><input id="gcm" maxlength="200" style="width:420px;max-width:100%" placeholder="'+esc(t('Beschreibung, z.B. 3D Einführung Prof xyz'))+'" value="'+esc(g.comment||'')+'"> <button id="gcs">'+t('Speichern')+'</button></div>':g.comment?'<div class="muted">'+esc(g.comment)+'</div>':'')+'<div class="row">'+t('Bereiche: ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row">'+t('Gruppenkalender (Freigabe)')+': '+modeSel('gce',g.cal||'',[['','kein Gruppenkalender'],['off','nicht freigegeben (nur Verantwortliche)'],['ro','die Berechtigten lesen'],['rw','alle Berechtigten dürfen eintragen']],false)+'</div>':'')+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
-    h+='<div class="row">'+t('Organisationen: ')+(me.admin?'<input id="gun" list="dlun" value="'+esc((g.units||[]).join(', '))+'" style="width:320px">'+pickBtn('gun','units')+' <button id="gus">'+t('Speichern')+'</button>'+gdl('dlun',allUnits.map(u=>u.name)):esc((g.units||[]).join(', ')))+'</div>';
-    if(g.name=='alluser')h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">('+t('= globale Admins, Standardgruppe nicht löschbar')+')</span></div>';
-    else if(g.name=='globaladmins'||g.name=='groupadmins')h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">'+t('(= Systemgruppe, nicht löschbar)')+'</span></div>';
-    else if(me.admin)h+='<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" value="'+esc((g.admins||[]).join(', '))+'" style="width:320px">'+pickBtn('gad','users')+' <button id="gas">'+t('Speichern')+'</button></div>'+gdl('dlu',allUsers.map(u=>u.name));
-    else h+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+'</div>';
+    const P={p:'',m:'',r:'',c:''};
+    P.c+=(g.manage?'<div class="row"><input id="gcm" maxlength="200" style="width:420px;max-width:100%" placeholder="'+esc(t('Beschreibung, z.B. 3D Einführung Prof xyz'))+'" value="'+esc(g.comment||'')+'"></div>':g.comment?'<div class="muted">'+esc(g.comment)+'</div>':'');
+    P.p+='<div class="row">'+t('Areas (Mitglieder dürfen): ')+rightsGrid('ge',g.areas,g.read,!me.admin)+'</div>'+modeBoxes('gfe',g.folder||'','Gruppenordner (Files) anlegen','Mitglieder dürfen schreiben',!me.admin)+chatModes('gx',g,!me.admin)+(me.admin?'<div class="row">'+t('Gruppenkalender (Freigabe)')+': '+modeSel('gce',g.cal||'',[['','kein Gruppenkalender'],['off','nicht freigegeben (nur Verantwortliche)'],['ro','die Berechtigten lesen'],['rw','alle Berechtigten dürfen eintragen']],false)+'</div>':'')+(me.admin?'<div class="row"><button id="gs">'+t('Speichern')+'</button></div>':'');
+    P.c+='<div class="row">'+t('Organisationen: ')+(me.admin?'<input id="gun" list="dlun" value="'+esc((g.units||[]).join(', '))+'" style="width:320px">'+pickBtn('gun','units')+gdl('dlun',allUnits.map(u=>u.name)):esc((g.units||[]).join(', ')))+'</div>';
+    if(g.name=='alluser')P.c+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">('+t('= globale Admins, Standardgruppe nicht löschbar')+')</span></div>';
+    else if(g.name=='globaladmins'||g.name=='groupadmins')P.c+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+' <span class="muted">'+t('(= Systemgruppe, nicht löschbar)')+'</span></div>';
+    else if(me.admin)P.c+='<div class="row">'+t('Gruppen-Admins: ')+'<input id="gad" list="dlu" value="'+esc((g.admins||[]).join(', '))+'" style="width:320px">'+pickBtn('gad','users')+'</div>'+gdl('dlu',allUsers.map(u=>u.name));
+    else P.c+='<div class="row">'+t('Gruppen-Admins: ')+esc((g.admins||[]).join(', ')||'-')+'</div>';
     if(g.manage){
-      h+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.')+'</div>'+
+      P.m+='<div class="panel"><b>'+t('Mitglieder')+' ('+(g.members||[]).length+')</b><div class="muted">'+t('Einträge, durch Komma, Leerzeichen oder Zeilenumbruch getrennt: cs-team-Konto (anna), Untergruppe (@klasse5a) oder Verzeichnisgruppe (Domäne und Gruppenname, getrennt durch einen Rückwärts-Schrägstrich; der Kurzname allein genügt meist). Wer in der Verzeichnisgruppe oder in der Untergruppe ist, wird Mitglied. Verzeichnisgruppen darf nur ein globaler Admin eintragen. Entfernte Konten behalten mindestens eine andere Gruppe.')+'</div>'+
        '<div class="muted">'+t('"#organisation" zieht die Mitglieder aller Gruppen dieser Organisation mit (nur globale Admins).')+'</div>'+
        (g.name=='globaladmins'?'<div class="muted">'+t('Systemgruppe globaladmins: Mitglieder sind alle globalen Admins. Aufnehmen und Entfernen vergibt oder entzieht das Admin-Recht; das darf nur der Sysadmin.')+'</div>':g.name=='groupadmins'?'<div class="muted">'+t('Systemgruppe groupadmins: Mitglieder sind alle Gruppen-Admins. Aufgenommen wird in der jeweiligen Gruppe (Feld Gruppen-Admins); hier kann man Gruppen-Admins entfernen.')+'</div>':'')+
-       '<textarea id="gm" rows="10" style="width:100%;box-sizing:border-box"'+(g.name=='globaladmins'&&!me.sys?' readonly':'')+'>'+esc((g.entries||[]).join('\n'))+'</textarea><div class="row"><button id="gms"'+(g.name=='globaladmins'&&!me.sys?' disabled':'')+'>'+t('Mitglieder speichern')+'</button>'+pickBtn('gm','members')+'</div></div>';
-      if(g.name!='alluser')h+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
+       '<div id="gml" style="margin:6px 0;line-height:1.5">'+(esc((g.entries||[]).join(', '))||'<span class="muted">-</span>')+'</div><textarea id="gm" hidden>'+esc((g.entries||[]).join('\n'))+'</textarea>'+
+       (g.name=='globaladmins'&&!me.sys?'':'<div class="row">'+pickBtn('gm','members',false,k)+'</div>')+'</div>';
+      if(g.name!='alluser')P.r+='<div class="panel"><b>'+t('Wiederholer (bleiben beim Jahrgangswechsel)')+' ('+(g.stay||[]).length+')</b><div class="muted">'+t('Eine Namensliste, nur Mitglieder. Die Liste wird nach dem Jahrgangswechsel geleert.')+'</div>'+
        '<textarea id="gst" rows="3" style="width:100%;box-sizing:border-box">'+esc((g.stay||[]).join('\n'))+'</textarea><div class="row"><button id="gsts">'+t('Merkliste speichern')+'</button></div></div>';
-    }else h+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
-    if(g.manage)h+='<div class="panel"><b>'+t('KI für Mitglieder')+'</b> '+modeSel('gai',g.ai||'off',[['off','aus'],['member','ein']],false)+' <button id="gais">'+t('Speichern')+'</button>'+
+    }else P.m+='<div class="muted">'+t('Mitglieder sind nur für Admins und Gruppen-Admins dieser Gruppe sichtbar.')+'</div>';
+    if(g.manage)P.c+='<div class="panel"><b>'+t('KI für Mitglieder')+'</b> '+modeSel('gai',g.ai||'off',[['off','aus'],['member','ein']],false)+
       '<div class="muted">'+t('Der KI-Assistent darf für Mitglieder dieser Gruppe Dokumente vorschlagen; angelegt wird erst nach deren Bestätigung. Gruppen-Admins dürfen das immer. Gilt nur, wenn die KI-Dokumente in den Einstellungen freigegeben sind. Standard: aus.')+'</div></div>';
-    if(g.manage)h+='<div class="panel"><b>'+t('1:1-Nachrichten')+'</b> '+modeSel('gdm',g.dm||'off',[['off','aus'],['admin','nur Gruppen-Admin mit Mitglied'],['member','Mitglieder untereinander']],false)+' <button id="gdms">'+t('Speichern')+'</button><div class="muted">'+t('Private Unterhaltungen zwischen zwei Personen der Gruppe. Gruppen-Admins lesen sie nicht mit. Standard: aus.')+'</div></div>';
+    if(g.manage)P.c+='<div class="panel"><b>'+t('1:1-Nachrichten')+'</b> '+modeSel('gdm',g.dm||'off',[['off','aus'],['admin','nur Gruppen-Admin mit Mitglied'],['member','Mitglieder untereinander']],false)+'<div class="muted">'+t('Private Unterhaltungen zwischen zwei Personen der Gruppe. Gruppen-Admins lesen sie nicht mit. Standard: aus.')+'</div></div>';
     const sysg=k=='globaladmins'||k=='groupadmins';   // Systemgruppen: keine Benutzerliste
-    if(g.manage&&!sysg)h+=listPanel(k);
-    $('#main').innerHTML=h;
-    if(g.manage)$('#gcs').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/comment',{comment:$('#gcm').value})){await this.load();this.select(k);}};
+    if(g.manage&&!sysg)P.m+=listPanel(k);
+    if(g.manage)P.c+='<div class="row"><button id="gcf">'+t('Speichern')+'</button></div>';
+    const tabs=[['p','Rechte'],['m','Mitglieder'],...(P.r?[['r','Wiederholer']]:[]),['c','Konfiguration']];
+    if(!tabs.some(x=>x[0]==this.tab))this.tab='p';
+    $('#main').innerHTML='<div class="gtabs"><h3>'+t('Gruppe: ')+esc(g.name)+'</h3>'+tabs.map(x=>'<button type="button" data-tb="'+x[0]+'">'+t(x[1])+'</button>').join('')+'</div>'+
+      tabs.map(x=>'<div class="gtp" data-tp="'+x[0]+'">'+P[x[0]]+'</div>').join('');
+    const showTab=()=>{document.querySelectorAll('#main [data-tb]').forEach(b=>b.classList.toggle('on',b.dataset.tb==this.tab));document.querySelectorAll('#main [data-tp]').forEach(d=>d.style.display=d.dataset.tp==this.tab?'':'none');};
+    document.querySelectorAll('#main [data-tb]').forEach(b=>b.onclick=()=>{this.tab=b.dataset.tb;showTab();});showTab();
+    if(g.manage)$('#gcf').onclick=async()=>{const q='/api/groups/'+encodeURIComponent(k),B=(u,b)=>api('POST',q+u,b);
+      if(!await B('/comment',{comment:$('#gcm').value}))return;
+      if(me.admin&&$('#gun')&&!await B('',{units:names($('#gun').value)}))return;
+      if($('#gad')&&!await B('/admins',{admins:names($('#gad').value)}))return;
+      if($('#gai')&&!await B('/ai',{mode:$('#gai').value}))return;
+      if($('#gdm')&&!await B('/dm',{mode:$('#gdm').value}))return;
+      await this.load();this.select(k);alert(t('Gespeichert'));};
     if(g.manage&&!sysg)listBind(k,()=>this.load());
-    if(g.manage)$('#gais').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/ai',{mode:$('#gai').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
-    if(g.manage)$('#gdms').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/dm',{mode:$('#gdm').value})){await this.load();this.select(k);alert(t('Gespeichert'));}};
     if(me.admin){
       rightsBind('ge');modeBind('gfe');
       $('#gs').onclick=async()=>{if(!chatDaysOK('gx'))return;if(await api('POST','/api/groups/'+encodeURIComponent(k),{...rightsVals('ge'),folder:modeVal('gfe'),cal:$('#gce').value,...chatVals('gx')})){await this.load();this.select(k);}};
-      $('#gus').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k),{units:names($('#gun').value)})){await this.load();this.select(k);}};
-      if($('#gas'))$('#gas').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/admins',{admins:names($('#gad').value)})){await this.load();this.select(k);}};
     }
     if(g.manage&&$('#gsts'))$('#gsts').onclick=async()=>{if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/stay',{stay:names($('#gst').value)})){await this.load();this.select(k);alert(t('Gespeichert'));}};
-    if(g.manage)$('#gms').onclick=async()=>{
+    if(g.manage)$('#gm').onchange=async()=>{
       const nu=new Set(ment($('#gm').value)),old=new Set(g.entries||[]);
       const add=[...nu].filter(x=>!old.has(x)),remove=[...old].filter(x=>!nu.has(x));
       if(!add.length&&!remove.length)return;
-      if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/members',{add,remove})){await this.load();this.select(k);alert(t('{0} hinzugefügt, {1} entfernt',add.length,remove.length));}};
+      if(await api('POST','/api/groups/'+encodeURIComponent(k)+'/members',{add,remove})){await this.load();this.select(k);alert(t('{0} hinzugefügt, {1} entfernt',add.length,remove.length));}else{await this.load();this.select(k);}};
   },
   async del(){
     const k=sel;if(!await uiAsk(t('Gruppe {0} löschen? (Mitglieder verlieren diese Gruppe; jeder Benutzer muss mindestens eine behalten.)',k)))return;
@@ -3318,12 +3357,12 @@ function tkForm(x){
 /* ---------- Heute: Termine, Aufgaben und Neuigkeiten auf einen Blick (nur Anzeige, es wird nichts gespeichert) ---------- */
 S.today={
   items:[],info:'Termine, Aufgaben und Neuigkeiten',canAdd:()=>false,
-  async load(){this.items=[];setList(this.items);},
-  select(){},
+  async load(){this.items=[{k:'d0',label:t('Termine heute')},{k:'d1',label:t('Termine morgen')},{k:'d7',label:t('Nächste 7 Tage')},{k:'tk',label:t('Aufgaben')},{k:'nw',label:t('Neuigkeiten')}];setList(this.items);},
+  select(k){const e=$('#td_'+k);if(e)e.scrollIntoView({block:'start',behavior:'smooth'});},
   async home(){
     const m=$('#main');m.className='';
     m.innerHTML='<h3>'+esc(t('Heute'))+' <small class="muted">'+esc(new Date().toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))+(me.version?' &middot; cs-team v'+esc(me.version):'')+'</small></h3><div id="tdbox" class="muted">…</div>';
-    const d0=new Date();d0.setHours(0,0,0,0);const d2=addDays(d0,2),k0=dkey(d0),k1=dkey(addDays(d0,1));
+    const d0=new Date();d0.setHours(0,0,0,0);const d2=addDays(d0,8),k0=dkey(d0),k1=dkey(addDays(d0,1));
     const cals=(await J('GET','/api/cal'))||[],evs=[];
     await Promise.all(cals.map(async c=>{const q='?from='+encodeURIComponent(d0.toISOString())+'&to='+encodeURIComponent(d2.toISOString());
       for(const e of ((await J('GET','/api/cal/'+encodeURIComponent(c.id)+'/events'+q))||[]))evs.push({e,c});}));
@@ -3331,22 +3370,23 @@ S.today={
     const nw=(await J('GET','/api/news'))||{items:[],can:false,all:false,groups:[]};   // Aushänge (news/news.go)
     if(sec!='today'||!$('#tdbox'))return;
     const row=(a,h)=>'<div class="tdr" '+a+'>'+h+'</div>',none=()=>'<div class="muted">–</div>';
-    const box=(h,b)=>'<div class="panel"><b>'+esc(t(h))+'</b>'+b+'</div>';
+    const box=(h,b,id)=>'<div class="panel"'+(id?' id="td_'+id+'"':'')+'><b>'+esc(t(h))+'</b>'+b+'</div>';
     evs.sort((a,b)=>(a.e.allDay===b.e.allDay?0:a.e.allDay?-1:1)||String(a.e.start).localeCompare(String(b.e.start)));
     const evRow=x=>{const e=x.e,tm=e.allDay?t('ganztägig'):new Date(e.start).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit'});
       return row('data-go="cal"','<b>'+esc(tm)+'</b> '+esc(e.summary)+' <small class="muted">'+esc(x.c.name||'')+(e.location?' · '+esc(e.location):'')+'</small>');};
     const dayOf=x=>{const s=dkey(new Date(x.e.start));return s<=k0?0:s==k1?1:2;};
-    const today=evs.filter(x=>dayOf(x)==0),tomorrow=evs.filter(x=>dayOf(x)==1);
+    const today=evs.filter(x=>dayOf(x)==0),tomorrow=evs.filter(x=>dayOf(x)==1),rest=evs.filter(x=>dayOf(x)==2);
+    const evRowW=x=>evRow(x).replace('<b>','<b>'+esc(new Date(x.e.start).toLocaleDateString(LOC,{weekday:'short',day:'numeric',month:'numeric'}))+' ');
     const due=TK.tasks.filter(x=>tkLive(x)&&!x.class&&tkWhen(x)&&tkWhen(x)<=tkToday()&&(x.assignee==me.name||(!x.assignee&&x.by==me.name)));
     const free=TK.tasks.filter(x=>x.take).length,seen=TK.seen||{};
     const news=TK.tasks.filter(x=>(tkMine(x)&&x.status!='closed'&&x.last&&x.last.by!=me.name&&x.updated>(seen[x.id]||0))||(x.assignee==me.name&&tkOver(x)));
     const unread=[];for(const g of (CH.groups||[]))for(const c of (g.chans||[]))if(chUn(g.name,c.name))unread.push({g:g.name,c:c.name});
     const tk=x=>row('data-task="'+esc(x.id)+'"','<span style="color:'+tkDot(x)+'">●</span> '+esc(x.title)+' <small class="muted">'+esc(x.assignee||t('frei'))+(tkWhen(x)?' · '+tkDate(tkWhen(x)):'')+'</small>');
     $('#tdbox').className='';
-    $('#tdbox').innerHTML=box('Termine heute',today.length?today.map(evRow).join(''):none())+(tomorrow.length?box('Termine morgen',tomorrow.map(evRow).join('')):'')+
-      box('Aufgaben: fällig und überfällig',(due.length?due.map(tk).join(''):none())+(free?row('data-free="1"','<b>'+free+'</b> '+esc(t('Bitte bearbeiten'))):''))+
+    $('#tdbox').innerHTML=box('Termine heute',today.length?today.map(evRow).join(''):none(),'d0')+box('Termine morgen',tomorrow.length?tomorrow.map(evRow).join(''):none(),'d1')+box('Nächste 7 Tage',rest.length?rest.map(evRowW).join(''):none(),'d7')+
+      box('Aufgaben: fällig und überfällig',(due.length?due.map(tk).join(''):none())+(free?row('data-free="1"','<b>'+free+'</b> '+esc(t('Bitte bearbeiten'))):''),'tk')+
       box('Neuigkeiten',newsHtml(nw)+(news.length?news.map(x=>row('data-task="'+esc(x.id)+'"','<b>'+esc(x.title)+'</b> <small class="muted">'+esc(x.last?tkNote(x.last):t('überfällig'))+'</small>')).join(''):'')+
-        unread.map(u=>row('data-chat="'+esc(u.g)+'" data-ch="'+esc(u.c)+'"','💬 '+esc(u.g)+' <small class="muted">#'+esc(u.c)+' · '+esc(t('ungelesen'))+'</small>')).join('')||(news.length||nw.items.length?'':none()));
+        unread.map(u=>row('data-chat="'+esc(u.g)+'" data-ch="'+esc(u.c)+'"','💬 '+esc(u.g)+' <small class="muted">#'+esc(u.c)+' · '+esc(t('ungelesen'))+'</small>')).join('')||(news.length||nw.items.length?'':none()),'nw');
     newsBind(nw);
     $('#tdbox').onclick=async e=>{
       const r=e.target.closest('.tdr');if(!r)return;

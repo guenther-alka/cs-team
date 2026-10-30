@@ -10,6 +10,9 @@ body{font:14px system-ui,sans-serif;margin:0;height:100vh;display:flex;flex-dire
 #top b{font-size:16px;white-space:nowrap}
 #who{white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;font-size:13px}
 #nav button{white-space:nowrap}
+.gtabs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-bottom:1px solid rgba(128,128,128,.45);margin-bottom:10px}.gtabs h3{margin:0 12px 0 0}.gtabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:6px 10px;cursor:pointer;color:inherit}.gtabs button.on{font-weight:700;border-bottom-color:currentColor}
+.gcols{column-count:6;column-width:170px;column-gap:16px;max-width:1200px}.gcols>div{break-inside:avoid}
+#ltitle{font-weight:700;font-size:15px;margin:2px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #flt{width:100%;box-sizing:border-box;margin:2px 0 4px}
 #nav{display:flex;gap:2px;flex:1}
 #logout{padding:3px 10px;font:inherit;background:none;color:#cfd8e3;border:1px solid #567;border-radius:3px;cursor:pointer}
@@ -341,7 +344,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 </style></head><body>
 <div id="top"><button id="mback" title="Zurück">←</button><b id="brand">cs-team</b>
  <div id="nav" role="navigation" aria-label="cs-team">
-  <button data-s="today" data-t="Heute">Heute</button><button data-s="users" data-t="Benutzer">Benutzer</button><button data-s="groups" data-t="Gruppen">Gruppen</button><button data-s="units" data-t="Organisationen">Organisationen</button><button data-s="cal" data-t="Kalender">Kalender</button>
+  <button data-s="today" data-t="Start">Start</button><button data-s="users" data-t="Benutzer">Benutzer</button><button data-s="groups" data-t="Gruppen">Gruppen</button><button data-s="units" data-t="Organisationen">Organisationen</button><button data-s="cal" data-t="Kalender">Kalender</button>
   <button data-s="calc" data-t="Calc">Calc</button><button data-s="text" data-t="Text">Text</button><button data-s="files" data-t="Files">Files</button><button data-s="task" data-t="Aufgaben">Aufgaben</button>
   <button data-s="chat" data-t="Chat" style="display:none">Chat</button><button data-s="msg" data-t="Nachricht" style="display:none">Nachricht</button><button data-s="set" data-t="Einstellungen" style="display:none">Einstellungen</button>
  </div>
@@ -349,6 +352,7 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 </div>
 <div id="body">
  <div id="left">
+   <div id="ltitle"></div>
   <input id="flt" data-tp="Filter" placeholder="Filter" autocomplete="off">
   <div id="tkq" style="display:none"><input id="tkqi" data-tp="Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)" placeholder="Neue Aufgabe … (z. B. Elternbrief @anna !hoch morgen)" autocomplete="off" maxlength="200"><div id="tkqp"></div></div>
  <div id="list"></div>
