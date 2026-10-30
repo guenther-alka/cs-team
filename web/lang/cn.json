@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "通过列表创建小组账户",
  "Alle": "全部",
  "alle auswählen": "全选",
- "alle abwählen": "全不选"
+ "alle abwählen": "全不选",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "32 位浏览器：这些应用需要大量内存，经常无法启动（out of memory）。请使用 64 位 Firefox、Chrome 或 Edge。"
 }

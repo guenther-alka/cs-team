@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "Создать учётные записи группы из списка",
  "Alle": "Все",
  "alle auswählen": "выбрать все",
- "alle abwählen": "снять выбор со всех"
+ "alle abwählen": "снять выбор со всех",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "32-разрядный браузер: приложениям нужно много памяти, и они часто не запускаются (out of memory). Используйте 64-разрядный Firefox, Chrome или Edge."
 }

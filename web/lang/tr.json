@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "Listeden grup hesapları oluştur",
  "Alle": "Tümü",
  "alle auswählen": "tümünü seç",
- "alle abwählen": "tüm seçimi kaldır"
+ "alle abwählen": "tüm seçimi kaldır",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "32 bit tarayıcı: uygulamalar çok bellek gerektirir ve sık sık başlamaz (out of memory). Lütfen 64 bit Firefox, Chrome veya Edge kullanın."
 }

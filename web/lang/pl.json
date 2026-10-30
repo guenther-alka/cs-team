@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "Utwórz konta grupy z listy",
  "Alle": "Wszystkie",
  "alle auswählen": "zaznacz wszystko",
- "alle abwählen": "odznacz wszystko"
+ "alle abwählen": "odznacz wszystko",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "Przeglądarka 32-bitowa: aplikacje potrzebują dużo pamięci i często się nie uruchamiają (out of memory). Użyj 64-bitowego Firefoksa, Chrome lub Edge."
 }

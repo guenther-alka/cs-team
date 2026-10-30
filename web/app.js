@@ -158,6 +158,7 @@ let wcGpu=false;   // true = dieser Browser meldet kein WebGPU (Wordcraft/Gridcr
 let wcInst=null;
 function wcInstalled(){if(!wcInst)wcInst=fetch(wcBase()+'index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():Promise.reject()).then(a=>(Array.isArray(a)?a.filter(k=>/^[A-Za-z0-9_-]+$/.test(k)):[]).sort((x,y)=>wcName(x).localeCompare(wcName(y)))).catch(()=>{wcInst=null;return ['pdfcraft'];});return wcInst;}
 function wcName(k){return WCN[k]||(k.charAt(0).toUpperCase()+k.slice(1));}
+const wc32=/Windows/.test(navigator.userAgent)&&/WOW64|Win32|i686/.test(navigator.userAgent);   // 32-Bit-Browser: wenig Adressraum, die WebAssembly-Apps scheitern oft mit out of memory
 function wcUrl(key){return wcBase()+key+'/'+(wcGpu?'?webgl':'');}
 (async()=>{if(!window.isSecureContext)return;try{if(!navigator.gpu||!await navigator.gpu.requestAdapter())wcGpu=true;}catch(e){wcGpu=true;}if(wcGpu&&wcAct)wcBar();})();
 function wcBar(){const b=$('#wcbar');if(!b)return;b.innerHTML='';
@@ -166,7 +167,8 @@ function wcBar(){const b=$('#wcbar');if(!b)return;b.innerHTML='';
   for(const k of wcOpen)mk(WCN[k]||k,()=>wcShow(k),k==wcAct);
   if(wcAct){mk('\u2197',()=>window.open(wcUrl(wcAct),'webcraft_'+wcAct),false,t('In neuem Fenster öffnen'));mk('\u00d7',()=>wcClose(wcAct),false,t('App schließen (nicht gespeicherte Änderungen gehen verloren)'));}
   if(wcMsg){const m=document.createElement('span');m.className='muted';m.textContent=wcMsg;b.append(m);}
-  if(wcAct&&wcGpu){const m=document.createElement('span');m.className='muted';m.textContent=t('Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.');b.append(m);}}
+  if(wcAct&&wcGpu){const m=document.createElement('span');m.className='muted';m.textContent=t('Kein WebGPU in diesem Browser: der Editor startet im WebGL-Modus. Startet er nicht, bitte Chrome oder Edge verwenden.');b.append(m);}
+  if(wcAct&&wc32){const m=document.createElement('span');m.className='muted';m.style.color='#b45309';m.textContent=t('32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.');b.append(m);}}
 function wcShow(key){const box=$('#wcfr');if(!box)return;
   if(!wcOpen.includes(key)){const f=document.createElement('iframe');f.id='wcf_'+key;f.src=wcUrl(key);f.setAttribute('allow','clipboard-read; clipboard-write; fullscreen');f.title=WCN[key]||key;box.append(f);wcOpen.push(key);}
   wcAct=key;box.querySelectorAll('iframe').forEach(f=>f.style.display=f.id=='wcf_'+key?'block':'none');document.body.classList.add('wc');wcBar();}

@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "Δημιουργία λογαριασμών ομάδας από λίστα",
  "Alle": "Όλα",
  "alle auswählen": "επιλογή όλων",
- "alle abwählen": "αποεπιλογή όλων"
+ "alle abwählen": "αποεπιλογή όλων",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "Πρόγραμμα περιήγησης 32 bit: οι εφαρμογές χρειάζονται πολλή μνήμη και συχνά δεν ξεκινούν (out of memory). Χρησιμοποιήστε Firefox 64 bit, Chrome ή Edge."
 }

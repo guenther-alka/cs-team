@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "إنشاء حسابات المجموعة من قائمة",
  "Alle": "الكل",
  "alle auswählen": "تحديد الكل",
- "alle abwählen": "إلغاء تحديد الكل"
+ "alle abwählen": "إلغاء تحديد الكل",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "متصفح 32 بت: تحتاج التطبيقات إلى ذاكرة كبيرة وغالبًا لا تبدأ (out of memory). يُرجى استخدام Firefox 64 بت أو Chrome أو Edge."
 }

@@ -1150,5 +1150,6 @@
  "Gruppenkonten per Liste anlegen": "リストからグループのアカウントを作成",
  "Alle": "すべて",
  "alle auswählen": "すべて選択",
- "alle abwählen": "すべて選択解除"
+ "alle abwählen": "すべて選択解除",
+ "32-Bit-Browser: die Apps brauchen viel Speicher und starten oft nicht (out of memory). Bitte 64-Bit-Firefox, Chrome oder Edge verwenden.": "32ビットブラウザ：アプリは多くのメモリを必要とし、起動に失敗することがよくあります（out of memory）。64ビット版のFirefox、ChromeまたはEdgeをお使いください。"
 }
