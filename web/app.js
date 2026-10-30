@@ -145,13 +145,18 @@ function setList(items){
   }
   if(hid){const d=document.createElement('div');d.className='head';d.textContent=t('… {0} weitere – Filter benutzen',hid);el.append(d);}
   if(S_.canAdd?S_.canAdd():true){const d=document.createElement('div');d.className='item addrow';d.textContent='+ add';d.onclick=doAdd;kbItem(d);el.append(d);}
-  if(WC[sec]){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const w=document.createElement('div');w.className='item addrow wcrow';w.textContent=WC[sec].label;w.onclick=()=>openWebcraft(WC[sec].key);kbItem(w);el.append(w);}   // Webcraft-Editor unter + add
+  if(WC[sec]){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const w=document.createElement('div');w.className='item addrow wcrow';w.textContent=WC[sec].label;w.onclick=()=>openWebcraft(WC[sec].key);kbItem(w);el.append(w);
+    if(sec=='files'){const box=document.createElement('div');el.append(box);wcInstalled().then(ks=>{w.remove();ks.forEach(k=>{const r=document.createElement('div');r.className='item addrow wcrow';r.textContent=wcName(k);r.onclick=()=>openWebcraft(k);kbItem(r);box.append(r);});});}}   // Webcraft-Editor unter + add; Files: alle installierten Apps, alphabetisch
 }
 /* Menue Text/Calc/Files, unter + add: Webcraft-Editor (WordCraft, GridCraft, PDFCraft) in eigenem Browserfenster (kein iframe). Adresse: https://<dieser Host>/webcraft/<app>/ (napp-it CS cs-proxy/webserver); abweichend per localStorage cs.webcraft.base, z. B. https://host:8443/webcraft/ */
 const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'},files:{key:'pdfcraft',label:'PDFcraft Editor'}};
 function wcBase(){let b='';try{b=localStorage.getItem('cs.webcraft.base')||'';}catch(e){}if(!b)b='https://'+location.hostname+'/webcraft/';if(!b.endsWith('/'))b+='/';return b;}
 const WCN={wordcraft:'Wordcraft',gridcraft:'Gridcraft',pdfcraft:'PDFcraft'},wcOpen=[];let wcAct=null;
 let wcGpu=false;   // true = dieser Browser meldet kein WebGPU (Wordcraft/Gridcraft/PDFcraft zeichnen per WebGPU): die Apps werden dann mit ?webgl (WebGL-Modus) geladen und die Leiste zeigt einen Hinweis. Nur bei sicherem Kontext (https/localhost) pruefbar.
+/* installierte Webcraft-Apps: <base>index.json (cs-proxy >= 0.13.2, JSON-Array der Ordnernamen); ohne Antwort nur die Standard-App */
+let wcInst=null;
+function wcInstalled(){if(!wcInst)wcInst=fetch(wcBase()+'index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():Promise.reject()).then(a=>(Array.isArray(a)?a.filter(k=>/^[A-Za-z0-9_-]+$/.test(k)):[]).sort((x,y)=>wcName(x).localeCompare(wcName(y)))).catch(()=>{wcInst=null;return ['pdfcraft'];});return wcInst;}
+function wcName(k){return WCN[k]||(k.charAt(0).toUpperCase()+k.slice(1));}
 function wcUrl(key){return wcBase()+key+'/'+(wcGpu?'?webgl':'');}
 (async()=>{if(!window.isSecureContext)return;try{if(!navigator.gpu||!await navigator.gpu.requestAdapter())wcGpu=true;}catch(e){wcGpu=true;}if(wcGpu&&wcAct)wcBar();})();
 function wcBar(){const b=$('#wcbar');if(!b)return;b.innerHTML='';
