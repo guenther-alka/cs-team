@@ -10,7 +10,7 @@ napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on i
 
 **Run it standalone (CLI, config file, service):** [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md)
 
-**Manual (PDF, version 0.63):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
+**Manual (PDF, version 0.68):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
 · Detailed German notes: [README.de.md](README.de.md)
 
 ## Goal
@@ -34,6 +34,7 @@ since then added: global search, 1:1 messages and threads, mention notifications
 | Chat / Message | group chat with channels (attachments, reactions, @mentions, replies/threads, private 1:1 messages switchable per group - group admin with member or members among themselves, nobody else reads them - polls - named or anonymous, multiple choice, end time); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat: admins of a group choose group chat / e-mail / external chat address, members (if the group allows sending) write to the group chat only |
 | Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable, screen sharing) |
 | AI assistant | optional widget (Anthropic, OpenAI-compatible, Ollama): answers questions about your tasks, appointments, files and chat with your own rights, reads chosen files (text, DOCX, XLSX, PDF, images) and proposes new documents; nothing is written without your confirmation |
+| Directory / High availability | cs-team as the **central source of users, passwords and groups** (every account has a fixed numeric uid, every group a gid, optional short name and *Export* switch): built-in read-only **LDAPS server** (0.68) for Linux, FreeBSD, illumos, macOS and devices; **failover** with a replicated ZFS dataset: master / read-only standby / takeover with an epoch counter that prevents two masters (0.67); see the section below |
 | Settings | mail server (SMTP), public address (DynDNS), webhooks, video chat servers, AI provider, file quota - effective immediately |
 
 Also included: user deletion wizard with preview and snapshot, renaming a group (class) with its folders and shares,
@@ -87,10 +88,35 @@ A login form with session cookie is the default (`CS_LOGIN_FORM=0` = browser Bas
 | `CS_SHARE` | local folder with read-only documents (see below); without it `<CS_DIR>/share` is used, no folder = feature off | – |
 | `CS_TRASH_DAYS` | days deleted files stay in the trash (better set in *Settings*; 0 = no trash) | 30 |
 | `CS_LANG` / `CS_LANGDIR` | default language / own language files | `de` |
+| `CS_FAILOVER` | high availability: `master` (allow failover), `standby` (read-only copy of the replicated data) or `takeover` (start as master now, epoch + 1); needs `CS_DIR` on a replicated filesystem | off |
+| `CS_HA_NAME` / `CS_HA_ASSUME_OFF` / `CS_HA_FORCE` | name of this host in the HA group (default: host name) / treat unreachable members as off / emergency exit that skips the start checks | - |
+| `CS_LDAP` | address of the built-in read-only LDAPS server, e.g. `:636` (needs `CS_TLS_CERT`) | off |
+| `CS_LDAP_BASE` / `CS_LDAP_READER` | base DN / name of the cs-team account that may read all entries (other users see only their own entry) | `dc=csteam,dc=local` / - |
 | `CS_CONF` or `-c file` | configuration file (`KEY=VALUE`) | - |
 
 Mail (SMTP), public address, webhooks, video chat (STUN/TURN), AI provider and the file quota are configured inside cs-team (menu *Settings*, global admins only).
 The built-in video chat needs HTTPS or localhost (browser rule for camera and microphone).
+
+## Central directory (LDAP) and high availability
+
+**cs-team as LDAP server (0.68).** `CS_LDAP=:636` (with `CS_TLS_CERT`/`CS_TLS_KEY`) starts a small read-only LDAPv3 server, LDAPS only. Users are
+`uid=<name>,ou=people,<base>` (posixAccount/inetOrgPerson: uid, uidNumber, gidNumber of the group `alluser`, homeDirectory, loginShell, mail), groups are
+`cn=<group>,ou=groups,<base>` (posixGroup with flat `memberUid`; only groups with the *Export* switch, never system groups). A bind checks the cs-team password
+(lockout as for web sign-in). Only the `CS_LDAP_READER` account sees everything, other users see only their own entry, anonymous clients only the root DSE;
+writes answer *unwilling to perform*. Accounts with two-factor sign-in, an OIDC link or a directory source cannot bind. Tested with OpenLDAP `ldapsearch` on OmniOS;
+client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devices) is in manual chapter 19.
+
+**Account types:** local users with a local password (also usable as LDAP users by other clients), and local mirror accounts of a remote AD domain or a remote LDAP directory
+(the password stays in the source directory).
+
+**Failover (0.67).** The data folder lives in a ZFS dataset that is replicated to a second host **by a replication job you create and manage yourself**
+(e.g. a napp-it replication job; cs-team does not create it). Start options: `CS_FAILOVER=master`, `standby` (read-only, writes answer 503, no background jobs) or
+`takeover` (promotion, epoch + 1). The *HA group* (members and addresses) is edited in *Settings > High availability*; at start cs-team asks the other members under
+`/ha/status`, a running master re-checks every 10 s and blocks writes on a conflict. Failover that **keeps the SMB rights** works best on **OmniOS/illumos**: the Windows SID is a
+ZFS attribute, ACLs stay intact in copied or replicated ZFS filesystems, local users and SMB passwords survive the failover. Manual chapter 18, [docs/HA_SPEC.md](docs/HA_SPEC.md).
+Tested on two OmniOS hosts (planned switch with incremental replication, standby read-only, second master refused, old master refused after takeover).
+
+**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 3.8.
 
 ## Sign-in and roles
 

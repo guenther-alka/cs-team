@@ -24,6 +24,7 @@ import (
 
 	"cs-team/ai"
 	"cs-team/auth"
+	"cs-team/ha"
 	"cs-team/cal"
 	"cs-team/chat"
 	"cs-team/doc"
@@ -125,9 +126,15 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.65.3" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.68.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
+
+// haSvc: Ausfallschutz (Startoption CS_FAILOVER); haStandby = nur lesen, keine Hintergrundauftraege (docs/HA_SPEC.md)
+var (
+	haSvc     *ha.Svc
+	haStandby bool
+)
 
 func init() { auth.Version = version }
 
@@ -158,9 +165,31 @@ func main() {
 		log.Println("storage: s3 bucket", env("S3_BUCKET", "cs-team"))
 		st = s3
 	}
+	haMode, haTake, err := ha.ParseMode(os.Getenv("CS_FAILOVER"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if haMode == "standby" {
+		st = store.ReadOnly(st) // Standby: die replizierte Kopie wird nie veraendert
+		haStandby = true
+	}
+	haName := os.Getenv("CS_HA_NAME")
+	if haName == "" {
+		haName, _ = os.Hostname()
+	}
+	haSvc = ha.New(st, haMode, haName, os.Getenv("CS_HA_FORCE") == "1", os.Getenv("CS_HA_ASSUME_OFF") == "1")
+	if err := haSvc.Start(context.Background(), haTake); err != nil {
+		log.Fatal("failover: ", err)
+	}
+	if haMode != "" {
+		log.Printf("failover: %s, name %s", haMode, haName)
+		haSvc.Watch(context.Background(), 10*time.Second)
+	}
 	a := auth.New(st)
 	ctx := context.Background()
-	setupSnapshot(os.Getenv("CS_DIR"))
+	if !haStandby {
+		setupSnapshot(os.Getenv("CS_DIR"))
+	}
 
 	a.TrustProxy = os.Getenv("CS_TRUST_PROXY") == "1"
 	auth.LoginForm = os.Getenv("CS_LOGIN_FORM") != "0" // Anmeldeformular mit Sitzungs-Cookie (Standard; CS_LOGIN_FORM=0 = Browser-Dialog wie bisher). WebDAV/CalDAV bleiben bei Basic Auth
@@ -168,8 +197,13 @@ func main() {
 	if n := envInt("CS_MAX_FAILS_IP", 0); n > 0 { // Fehlversuche je Adresse bis zur Sperre (Schul-NAT/Proxy: hÃ¶her setzen)
 		auth.MaxFailsIP = n
 	}
-	if err := a.Migrate(ctx); err != nil { // Standardgruppe "users" -> "alluser"
-		log.Println("migrate groups:", err)
+	if !haStandby {
+		if err := a.Migrate(ctx); err != nil { // Standardgruppe "users" -> "alluser"
+			log.Println("migrate groups:", err)
+		}
+		if err := a.EnsureIDs(ctx); err != nil { // uid/gid fuer vorhandene Konten und Gruppen (HA_SPEC.md, Abschnitt 2)
+			log.Println("ids:", err)
+		}
 	}
 
 	// cs-team sysadmin <name>   (bestimmt das Sysadmin-Konto: lokales cs-team-Konto, immer Admin, nicht lÃ¶schbar)
@@ -188,17 +222,19 @@ func main() {
 		fmt.Println("ok:", os.Args[2])
 		return
 	}
-	if u, p := os.Getenv("CS_ADMIN_USER"), os.Getenv("CS_ADMIN_PASS"); u != "" && p != "" {
+	if u, p := os.Getenv("CS_ADMIN_USER"), os.Getenv("CS_ADMIN_PASS"); u != "" && p != "" && !haStandby {
 		if err := a.Bootstrap(ctx, u, p); err != nil {
 			log.Fatal("bootstrap: ", err)
 		}
 	}
 
-	if err := a.EnsureSys(ctx, os.Getenv("CS_ADMIN_USER")); err != nil { // Sysadmin-Konto: lokal, immer Admin, nicht lÃ¶schbar (0.57.1)
+	if haStandby {
+	} else if err := a.EnsureSys(ctx, os.Getenv("CS_ADMIN_USER")); err != nil { // Sysadmin-Konto: lokal, immer Admin, nicht lÃ¶schbar (0.57.1)
 		log.Println("sysadmin:", err)
 	}
 
 	handler := routes(st, a)
+	startLDAP(a) // LDAPS-Dienst (nur lesen), wenn CS_LDAP gesetzt ist
 
 	addr := env("CS_LISTEN", ":8080")
 	log.Println("cs-team listening on", addr)
@@ -263,6 +299,9 @@ func shareRoot() string {
 
 func routes(st store.Store, a *auth.Auth) http.Handler {
 	mux := http.NewServeMux()
+	if haSvc == nil { // Tests rufen routes ohne main auf: Ausfallschutz aus
+		haSvc = ha.New(st, "", "", false, false)
+	}
 	caldav := a.Wrap(auth.Need("cal", cal.Handler(st)))
 	mux.Handle(cal.Prefix+"/", caldav)
 	mux.Handle("/.well-known/caldav", caldav)
@@ -289,7 +328,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		cs.MaxMB = int64(n)
 	}
 	cs.Routes(mux, a.Wrap)
-	cs.RunRetention(context.Background()) // Aufbewahrung Chat je Gruppe (stÃ¼ndlich)
+	if !haStandby { cs.RunRetention(context.Background()) } // Aufbewahrung Chat je Gruppe (stÃ¼ndlich)
 	envSMTP := chat.SMTP{Host: os.Getenv("CS_SMTP_HOST"), Port: os.Getenv("CS_SMTP_PORT"), User: os.Getenv("CS_SMTP_USER"), Pass: os.Getenv("CS_SMTP_PASS"), From: os.Getenv("CS_SMTP_FROM"), TLS: os.Getenv("CS_SMTP_TLS")}
 	cfg := chat.NewSettings(st, envSMTP, os.Getenv("CS_CHAT_ALLOW_PRIVATE") == "1") // Einstellungen der OberflÃ¤che; Umgebung nur als Vorgabe
 	if n, err := strconv.ParseInt(os.Getenv("CS_QUOTA_MB"), 10, 64); err == nil && n > 0 {
@@ -306,7 +345,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	fsvc.TrashDays = cfg.TrashDays
 	fsvc.PubMax = cfg.PubMaxDays // Ã¶ffentliche Links: lÃ¤ngste GÃ¼ltigkeit (globale Einstellung, 0 = unbegrenzt erlaubt)
 	auth.Enforce2FA = cfg.Enforce2FA // Zwei-Faktor-Pflicht fÃ¼r globale Admins (globale Einstellung)
-	go fsvc.RunTrash(context.Background()) // abgelaufene EintrÃ¤ge im Papierkorb entfernen
+	if !haStandby { go fsvc.RunTrash(context.Background()) } // abgelaufene EintrÃ¤ge im Papierkorb entfernen
 	cs.Cfg = cfg                           // Videochat-Server aus den Einstellungen
 	mailer := &chat.Mailer{St: st, Chat: cs, Cfg: cfg}
 	cb.Mail, cb.MailOK = mailer.Invite, mailer.MailEnabled
@@ -327,7 +366,10 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	ns.Notify = func(user, subj, text string) { notifyUser(mailer, user, "news", subj, text) }
 	ns.Base = cfg.PublicURL
 	ns.Routes(mux, a.Wrap)
-	ts.Start(context.Background())
+	if !haStandby {
+		ts.Start(context.Background())
+	}
+	haSvc.Routes(mux, a.Wrap, func(r *http.Request) bool { return auth.IsAdmin(r.Context()) })
 	auth.RenameHooks = []auth.RenameHook{ // Jahrgangswechsel im Modus "Gruppe wird umbenannt": jedes Modul benennt seine Daten um
 		{Name: "files", Rename: fsvc.RenameGroup, Used: fsvc.FolderUsed},
 		{Name: "file shares", Rename: fsvc.RenameShares},
@@ -391,7 +433,7 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	web, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /lang/", a.Public(http.HandlerFunc(langHandler))) // Public: ohne Anmeldung nur bei CS_LOGIN_FORM=1 (auth/session.go)
 	mux.Handle("/", a.Public(http.FileServerFS(web)))
-	return logMW(secHeaders(mux))
+	return logMW(secHeaders(haSvc.Guard(mux)))
 }
 
 // cspHost: Hostname ohne Port aus dem Host-Header, nur wenn er ausschliesslich aus Buchstaben, Ziffern, Punkt und Bindestrich besteht (sonst leer).

@@ -87,6 +87,9 @@ type Group struct {
 	Comment string  `json:"comment,omitempty"` // Beschreibung der Gruppe (z.B. "3D Einfuehrung Prof xyz"), Verwalter der Gruppe aendern sie
 	DM     string   `json:"dm,omitempty"` // 1:1-Nachrichten in der Gruppe: "" = aus, "admin" = nur Gruppen-Admin und Mitglied, "member" = Mitglieder untereinander (Gruppen-Admin schaltet)
 	Folder string   `json:"folder,omitempty"` // Gruppenordner: "" keiner, "ro" Mitglieder lesen (Gruppen-Admins schreiben), "rw" Mitglieder lesen+schreiben
+	Gid    int      `json:"gid,omitempty"`    // feste numerische Kennung (ids.go)
+	Short  string   `json:"short,omitempty"`  // Kurzname fuer SMB-Gruppen (bis 8 Kleinbuchstaben/Ziffern)
+	Export bool     `json:"export,omitempty"` // Gruppe in LDAP/Betriebssystem anbieten (HA_SPEC.md)
 }
 
 func defaultGroups() map[string]Group {
@@ -470,6 +473,9 @@ func (a *Auth) mutateGroups(ctx context.Context, fn func(m map[string]Group) err
 		if err := fn(m); err != nil {
 			return nil, err
 		}
+		if err := a.assignGids(ctx, m); err != nil {
+			return nil, err
+		}
 		return json.Marshal(m)
 	})
 	a.invalidate()
@@ -618,6 +624,9 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			AI      string   `json:"ai"`
 			DM      string   `json:"dm"`
 			Comment string   `json:"comment,omitempty"`
+			Gid     int      `json:"gid,omitempty"`
+			Short   string   `json:"short,omitempty"`
+			Export  bool     `json:"export,omitempty"`
 			Members []string `json:"members,omitempty"` // nur für Admin / Gruppen-Admin der Gruppe
 			Entries []string `json:"entries,omitempty"` // Mitgliederliste zum Bearbeiten: Konten + "@untergruppe" + "#organisation" + "DOMAENE\gruppe"
 			Dir     []string `json:"dir,omitempty"`     // Verzeichnisgruppen als Mitgliederquelle (nur Verwalter)
@@ -632,6 +641,7 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		for n, g := range a.groups {
 			rw := row{Name: n, Areas: g.Areas, Read: g.Read, Folder: g.Folder, Units: unitsOf(g), Chat: chatMode(g), Msg: msgMode(g), Chans: chansMode(g), Tasks: tasksMode(g), ChatDays: g.ChatDays, AI: aiMode(g), DM: dmMode(g), Admins: append([]string{}, g.Admins...), Manage: CanManage(r.Context(), n)}
 			rw.Comment = g.Comment
+			rw.Gid, rw.Short, rw.Export = g.Gid, g.Short, g.Export
 			if n == DefaultGroup || n == GAdminGroup { // Gruppen-Admins der Standardgruppe = globale Admins (groupadmins: globale Admins legen Gruppen-Admins an)
 				rw.Admins = []string{}
 				for un, u := range a.users {
@@ -810,6 +820,8 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 			Chans  *string
 			Tasks  *string
 			ChatDays *int
+			Short  *string // Kurzname fuer SMB-Gruppen
+			Export *bool   // Gruppe in LDAP/Betriebssystem anbieten
 		}
 		if !body(w, r, &in) {
 			return
@@ -857,6 +869,18 @@ func (a *Auth) groupRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.H
 		}
 		if in.Units != nil {
 			if err := a.SetGroupUnits(r.Context(), r.PathValue("name"), *in.Units); err != nil {
+				fail_(w, err)
+				return
+			}
+		}
+		if in.Short != nil {
+			if err := a.SetGroupShort(r.Context(), r.PathValue("name"), *in.Short); err != nil {
+				fail_(w, err)
+				return
+			}
+		}
+		if in.Export != nil {
+			if err := a.SetGroupExport(r.Context(), r.PathValue("name"), *in.Export); err != nil {
 				fail_(w, err)
 				return
 			}

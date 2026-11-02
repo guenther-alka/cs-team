@@ -70,6 +70,7 @@ type Account struct {
 	Sys      bool     `json:"sys,omitempty"` // Sysadmin-Konto (0.57.1): lokal, immer Admin, nicht löschbar
 	Disabled bool     `json:"disabled,omitempty"`
 	Created  string   `json:"created,omitempty"`
+	Uid      int      `json:"uid,omitempty"`     // feste numerische Kennung (ids.go): ab 10000, nie wiederverwendet, bleibt bei Umbenennung
 	Groups   []string `json:"groups,omitempty"` // Handliste: Gruppen, die diesem Konto ausdrücklich gegeben wurden
 	Must     bool     `json:"must,omitempty"`   // Passwort muss beim nächsten Login geändert werden
 	Lang     string   `json:"lang,omitempty"`   // Oberflächensprache (leer = Browser/Serverstandard)
@@ -230,6 +231,9 @@ func (a *Auth) mutate(ctx context.Context, fn func(m map[string]Account) error) 
 			}
 		}
 		if err := fn(m); err != nil {
+			return nil, err
+		}
+		if err := a.assignUids(ctx, m); err != nil {
 			return nil, err
 		}
 		return json.Marshal(m)

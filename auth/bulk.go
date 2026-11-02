@@ -126,6 +126,11 @@ func (a *Auth) ImportBulk(ctx context.Context, d BulkDump, o BulkImportOpts) Bul
 					res.Errors = append(res.Errors, fmt.Sprintf("group %s: unknown (create not set)", n))
 					continue
 				}
+				if ex, ok := m[n]; ok {
+					g.Gid = ex.Gid // Kennung bleibt die des Zielsystems
+				} else {
+					g.Gid = 0 // neue Gruppe: Kennung vergibt das Zielsystem
+				}
 				m[n] = g
 			}
 			return nil
@@ -174,6 +179,7 @@ func (a *Auth) ImportBulk(ctx context.Context, d BulkDump, o BulkImportOpts) Bul
 					res.GenPW[n] = pw
 				}
 				u.Hash, u.Must = nh, must
+				u.Uid = ex.Uid // Kennung bleibt die des Zielsystems
 				if u.Groups == nil {
 					u.Groups = ex.Groups
 				}
@@ -199,6 +205,7 @@ func (a *Auth) ImportBulk(ctx context.Context, d BulkDump, o BulkImportOpts) Bul
 					res.GenPW[n] = pw
 				}
 				u.Hash = nh
+				u.Uid = 0 // neue Kennung vergibt das Zielsystem
 				u.Must = true
 				u.Created = now
 				m[n] = u

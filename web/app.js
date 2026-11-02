@@ -205,8 +205,9 @@ function upd(){}
 $('#list').addEventListener('click',e=>{if(!e.target.closest('.wcrow'))wcHide();},true);
 async function go(s){
   leaveDoc();wcHide();sec=s;sel=null;touched=false;$('#flt').value='';document.body.classList.remove('mm');
-  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==s));
-  const nb=document.querySelector('#nav button[data-s="'+s+'"]');$('#ltitle').textContent=nb?[...nb.childNodes].filter(n=>n.nodeType==3).map(n=>n.textContent).join('').trim():'';   // Menuename (fett) ueber dem Filter
+  const ns=s=='set'?'today':s;   // Einstellungen gehoeren zum Start-Menue
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==ns));
+  const nb=document.querySelector('#nav button[data-s="'+ns+'"]');$('#ltitle').textContent=nb?[...nb.childNodes].filter(n=>n.nodeType==3).map(n=>n.textContent).join('').trim():'';   // Menuename (fett) ueber dem Filter
   $('#flt').style.display=(s=='today'||s=='set')?'none':'';   // Start und Einstellungen: kein Filter
   $('#list').innerHTML='';   // alte Liste sofort weg: sonst bleibt sie stehen, wenn das Laden dauert oder fehlschlaegt
   $('#main').className='';$('#main').innerHTML='';upd();$('#linfo').textContent=S[s].info?t(S[s].info):'';$('#tkq').style.display=s=='task'?'':'none';
@@ -466,7 +467,7 @@ S.users={
     sel=k;setList(this.items);upd();
     const u=allUsers.find(x=>x.name==k);if(!u)return;
     if(k==me.name&&!me.admin){this.home();return;}
-    let h='<h3>'+esc(u.name)+'</h3><div class="muted">'+t('angelegt: ')+esc((u.created||'').slice(0,10))+'</div><div class="muted">'+esc(roleText(u))+'</div>'+
+    let h='<h3>'+esc(u.name)+'</h3><div class="muted">'+t('angelegt: ')+esc((u.created||'').slice(0,10))+(u.uid?' &nbsp; uid '+u.uid:'')+'</div><div class="muted">'+esc(roleText(u))+'</div>'+
      '<div class="muted">'+t('Anmeldung: ')+esc(pwText(u))+' &nbsp; '+(u.totp!==undefined||me.admin||u.name==me.name?t('Zwei-Faktor: ')+t(u.totp?'ein':'aus')+' &nbsp; ':'')+t('zuletzt gesehen: ')+esc(u.seen?new Date(u.seen).toLocaleString():t('noch nie'))+'</div>'+
      '<div class="row">'+t('Gruppen: ')+esc((u.groups||[]).join(', '))+'</div>'+
       (u.guest?'<div class="row">'+t('Gast-Konto, gültig bis')+' <input id="fge" type="date" value="'+esc(u.expires||'')+'"> <button id="fges">'+t('Frist ändern')+'</button></div>':'');
@@ -661,6 +662,10 @@ S.groups={
     if(g.manage)P.c+='<div class="panel"><b>'+t('1:1-Nachrichten')+'</b> '+modeSel('gdm',g.dm||'off',[['off','aus'],['admin','nur Gruppen-Admin mit Mitglied'],['member','Mitglieder untereinander']],false)+'<div class="muted">'+t('Private Unterhaltungen zwischen zwei Personen der Gruppe. Gruppen-Admins lesen sie nicht mit. Standard: aus.')+'</div></div>';
     const sysg=k=='globaladmins'||k=='groupadmins';   // Systemgruppen: keine Benutzerliste
     if(g.manage&&!sysg)P.m+=listPanel(k);
+    if(g.manage&&me.admin)P.c+='<div class="panel"><b>'+t('Kennung (gid): ')+(g.gid||'-')+'</b>'+
+      '<div class="row">'+t('Kurzname (SMB): ')+'<input id="gsh" maxlength="8" size="10" value="'+esc(g.short||'')+'"></div>'+
+      (sysg?'':'<div class="row"><label><input type="checkbox" id="gex"'+(g.export?' checked':'')+'> '+t('In LDAP und Betriebssystem anbieten')+'</label></div>')+
+      '<div class="muted">'+t('Die feste Nummer wird beim Anlegen vergeben und bleibt immer gleich. Der Kurzname (bis 8 Kleinbuchstaben oder Ziffern) wird für SMB-Gruppen auf Dateiservern gebraucht.')+'</div></div>';
     if(g.manage)P.c+='<div class="row"><button id="gcf">'+t('Speichern')+'</button></div>';
     const tabs=[['p','Rechte'],['m','Mitglieder'],...(P.r?[['r','Wiederholer']]:[]),['c','Konfiguration']];
     if(!tabs.some(x=>x[0]==this.tab))this.tab='p';
@@ -670,6 +675,7 @@ S.groups={
     document.querySelectorAll('#main [data-tb]').forEach(b=>b.onclick=()=>{this.tab=b.dataset.tb;showTab();});showTab();
     if(g.manage)$('#gcf').onclick=async()=>{const q='/api/groups/'+encodeURIComponent(k),B=(u,b)=>api('POST',q+u,b);
       if(!await B('/comment',{comment:$('#gcm').value}))return;
+      if(me.admin&&$('#gsh')){const b={short:$('#gsh').value.trim().toLowerCase()};if($('#gex'))b.export=$('#gex').checked;if(!await B('',b))return;}
       if(me.admin&&$('#gun')&&!await B('',{units:names($('#gun').value)}))return;
       if($('#gad')&&!await B('/admins',{admins:names($('#gad').value)}))return;
       if($('#gai')&&!await B('/ai',{mode:$('#gai').value}))return;
@@ -3359,9 +3365,10 @@ function tkForm(x){
 /* ---------- Heute: Termine, Aufgaben und Neuigkeiten auf einen Blick (nur Anzeige, es wird nichts gespeichert) ---------- */
 S.today={
   items:[],info:'Termine, Aufgaben und Neuigkeiten',canAdd:()=>false,
-  async load(){this.items=[{k:'d0',label:t('Termine heute')},{k:'d1',label:t('Termine morgen')},{k:'d7',label:t('Nächste 7 Tage')},{k:'tk',label:t('Aufgaben')},{k:'nw',label:t('Neuigkeiten')}];setList(this.items);},
-  select(k){const e=$('#td_'+k);if(e)e.scrollIntoView({block:'start',behavior:'smooth'});},
+  async load(){this.items=[{k:'cur',label:t('Aktuell')}].concat(me.admin?[{k:'set',label:t('Einstellungen')}]:[]);setList(this.items);},
+  select(k){if(k=='set'){go('set');return;}this.home();},   // Aktuell = Hauptbereich mit Heute, naechste 7 Tage, Aufgaben, Neuigkeiten
   async home(){
+    sel='cur';setList(this.items);
     const m=$('#main');m.className='';
     m.innerHTML='<h3>'+esc(t('Heute'))+' <small class="muted">'+esc(new Date().toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))+(me.version?' &middot; cs-team v'+esc(me.version):'')+'</small></h3><div id="tdbox" class="muted">…</div>';
     const d0=new Date();d0.setHours(0,0,0,0);const d2=addDays(d0,8),k0=dkey(d0),k1=dkey(addDays(d0,1));
@@ -3619,6 +3626,22 @@ function rtcPanel(r){
    '<div class="row"><textarea id="rtcstun" rows="2" style="width:380px" placeholder="stun:stun.example.org:3478">'+esc(stun)+'</textarea> '+t('STUN-Server (einer pro Zeile). Vorbelegt ist ein öffentlicher Server; er sieht nur die IP-Adressen der Teilnehmer, nicht Bild oder Ton. Leer = nur Verbindungen im selben Netz.')+'</div>'+
    '<div class="row"><textarea id="rtcturn" rows="2" style="width:380px" placeholder="turn:turn.example.org:3478">'+esc((r.turn||[]).join('\n'))+'</textarea> '+t('TURN-Server (optional, für strenge Firewalls; coturn mit use-auth-secret, cs-team vergibt zeitlich begrenzte Zugangsdaten)')+'</div>'+
    '<div class="row"><input id="rtcsec" type="password" autocomplete="new-password" style="width:380px" placeholder="'+(r.secretSet?t('Geheimnis gesetzt – leer lassen = unverändert'):t('TURN-Geheimnis (static-auth-secret)'))+'"></div></div>';}
+/* Hochverfügbarkeit / Failover (nur Anzeige + HA-Gruppe; der Modus kommt aus der Startoption CS_FAILOVER, siehe docs/HA_SPEC.md) */
+function haPanel(h){
+  const st=h.status||{mode:'off'},g=h.group||{},mem=h.members||[];
+  const mname={master:t('Master'),standby:t('Standby (nur lesen)'),off:t('Aus'),unreachable:t('nicht erreichbar')};
+  const rows=mem.map(m=>'<tr><td>'+esc(m.name)+(m.self?' ('+t('dieser Host')+')':'')+'</td><td>'+esc(m.addr)+'</td><td>'+esc(m.iface||'')+'</td><td>'+esc(mname[m.mode]||m.mode)+(m.epoch?' · '+t('Epoche')+' '+m.epoch:'')+'</td></tr>').join('');
+  const lines=(g.members||[]).map(m=>[m.name,m.addr,m.iface||''].join('; ')).join('\n');
+  const canEdit=st.mode=='master';
+  return '<div class="panel"><b>'+t('Hochverfügbarkeit / Failover')+'</b> <small class="muted">'+t('Modus')+': '+esc(mname[st.mode]||st.mode)+(st.epoch?' · '+t('Epoche')+' '+st.epoch:'')+(st.name?' · '+esc(st.name):'')+'</small>'+
+   (st.conflict?'<div class="row" style="color:#b00020"><b>'+t('Konflikt: Schreiben gesperrt')+'</b> '+esc(st.conflict)+'</div>':'')+
+   '<div class="muted row">'+t('Der Modus wird beim Start von cs-team gesetzt (CS_FAILOVER=master, standby oder takeover) und hier nur angezeigt. Hochstufen und Dienst-IP gehören ins napp-it-Menü System > Services > cs-team.')+'</div>'+
+   '<div class="row" style="border-left:3px solid #c80;padding-left:8px"><b>'+t('Hinweis')+':</b> '+t('Der ZFS-Replikationsjob Master → Standby wird nicht von cs-team angelegt. Er muss von Hand angelegt und verwaltet werden (eigener Replikationsjob; nach einem Hochstufen die Richtung umkehren).')+'</div>'+
+   (rows?'<table class="tbl" style="margin-top:6px"><tr><th>'+t('Name')+'</th><th>'+t('Adresse')+'</th><th>'+t('Schnittstelle')+'</th><th>'+t('Zustand')+'</th></tr>'+rows+'</table>':'<div class="muted row">'+t('Noch keine HA-Gruppe angelegt.')+'</div>')+
+   '<div class="row">'+t('Mitglieder (je Zeile: Name; Adresse:Port; Schnittstelle) – gleich auf allen Hosts')+'<br><textarea id="hamem" rows="3" style="width:100%;box-sizing:border-box"'+(canEdit?'':' disabled')+'>'+esc(lines)+'</textarea></div>'+
+   '<div class="row"><input id="hasvc" style="width:200px" placeholder="'+esc(t('Dienstname'))+'" value="'+esc(g.service||'')+'"'+(canEdit?'':' disabled')+'> <input id="havip" style="width:160px" placeholder="'+esc(t('Dienst-IP'))+'" value="'+esc(g.vip||'')+'"'+(canEdit?'':' disabled')+'> '+
+   '<button id="hasave" type="button"'+(canEdit?'':' disabled')+'>'+t('HA-Gruppe speichern')+'</button></div></div>';
+}
 /* OIDC-Anbieter (Google, Microsoft): Client-ID und Secret; aktiv, sobald ausgefuellt (GET/POST /api/settings/oidc). Das Secret kommt nie zurueck. */
 function oidcPanel(o){
   if(o.form===undefined)return '';
@@ -3752,9 +3775,10 @@ function aiProvBind(p){
 S.set={
   items:[{k:'cfg',label:'Einstellungen'}],cfg:{},
   canAdd:()=>false,
-  async load(){this.items=[{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};this.ais=(await J('GET','/api/ai/search-settings'))||{};this.oidc=(await J('GET','/api/settings/oidc'))||{};AIP=((await J('GET','/api/ai/providers'))||{}).presets||[];},
+  async load(){this.items=[{k:'cur',label:t('Aktuell')},{k:'cfg',label:t('Einstellungen')}];setList(this.items);this.cfg=(await J('GET','/api/settings'))||{};this.ai=(await J('GET','/api/ai/settings'))||{};this.ais=(await J('GET','/api/ai/search-settings'))||{};this.oidc=(await J('GET','/api/settings/oidc'))||{};this.ha=(await J('GET','/api/ha'))||{};AIP=((await J('GET','/api/ai/providers'))||{}).presets||[];},
   home(){this.select('cfg');},
-  select(){
+  select(k){
+    if(k=='cur'){go('today');return;}
     sel='cfg';setList(this.items);upd();$('#main').className='';
     const c=this.cfg,a=this.ai||{},v=x=>esc(c[x]||'');
     const tls=[['','Standard (nach Port)'],['starttls','STARTTLS (587)'],['ssl','SSL (465)'],['none','ohne (25)']];
@@ -3798,13 +3822,16 @@ S.set={
       '<input id="aswk" type="password" autocomplete="new-password" style="width:250px" placeholder="'+esc(t('Brave API-Schlüssel (leer = unverändert)'))+((this.ais||{}).keySet?' ✓':'')+'"> '+
       '<button id="aswt" type="button">'+t('Suchdienst testen')+'</button></div>'+
       '<div class="muted">'+t('Ergänzt die Quellensuche der KI-Recherche um das offene Web (Nachrichten, Behörden-, Firmen- und Schulseiten). Die Suchbegriffe gehen an den Dienst (Brave: api.search.brave.com; SearXNG: eure Instanz, auch im lokalen Netz; dort muss das JSON-Format erlaubt sein), Benutzerdaten nie.')+'</div></div>'+
-      idPanel(c.identity||{})+oidcPanel(this.oidc||{})+
+      idPanel(c.identity||{})+oidcPanel(this.oidc||{})+haPanel(this.ha||{})+
      '<div class="row"><button id="ssave">'+t('Speichern')+'</button> <button id="stest">'+t('Speichern + Testmail an mich')+'</button> <button id="aitest">'+t('Speichern + KI testen')+'</button></div>';
     aiProvBind('');aiProvBind('2');[0,1,2].forEach(vdBind);
     if($('#soisave')){   // OIDC-Anbieter: eigener Speichern-Knopf
       const oidcSave=async(extra)=>{const b=Object.assign({googleId:$('#soi_gid').value.trim(),googleSecret:$('#soi_gsec').value,msTenant:$('#soi_mt').value.trim(),msId:$('#soi_mid').value.trim(),msSecret:$('#soi_msec').value},extra||{});
         if(await api('POST','/api/settings/oidc',b)){this.oidc=(await J('GET','/api/settings/oidc'))||{};this.select();alert(t('Gespeichert'));}};
       $('#soisave').onclick=()=>oidcSave();$('#soigclr').onclick=()=>oidcSave({clearGoogle:true});$('#soimclr').onclick=()=>oidcSave({clearMS:true});}
+    if($('#hasave'))$('#hasave').onclick=async()=>{
+      const ms=$('#hamem').value.split('\n').map(l=>l.split(';').map(x=>x.trim())).filter(a=>a[0]&&a[1]).map(a=>({name:a[0],addr:a[1],iface:a[2]||''}));
+      if(await api('POST','/api/ha/group',{members:ms,service:$('#hasvc').value.trim(),vip:$('#havip').value.trim()})){this.ha=(await J('GET','/api/ha'))||{};this.select();alert(t('Gespeichert'));}};
     const aswSync=()=>{const p=$('#aswp').value;$('#aswu').style.display=p=='searxng'?'':'none';$('#aswk').style.display=p=='brave'?'':'none';$('#aswt').style.display=p?'':'none';};$('#aswp').onchange=aswSync;aswSync();
     $('#susage').onclick=async()=>{
       const r=await J('GET','/api/filesusage'),bx=$('#usagebox');if(!r)return;
@@ -4060,7 +4087,7 @@ async function showLogin(){
   chStart();setInterval(chRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)chRefresh();});tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
   if(me.guest){const gb=document.createElement('div');gb.id='guestbar';gb.textContent=t('Gast-Konto, gültig bis {0}',me.expires||'?');document.body.prepend(gb);}
   {const br=$('#brand'),vt='cs-team'+(me.version?' '+me.version:'');br.title=vt;
-    if(me.admin){document.querySelector('#nav button[data-s=set]').style.display='';br.style.cursor='pointer';br.title=vt+'\n'+t('Einstellungen');br.onclick=()=>go('set');}}
+    if(me.admin){br.style.cursor='pointer';br.title=vt+'\n'+t('Einstellungen');br.onclick=()=>go('set');}}
   J('GET','/api/message/groups').then(r=>{if(r&&(r.groups||[]).length)document.querySelector('#nav button[data-s=msg]').style.display='';});
   const hm=location.hash.match(/^#task\/([0-9a-z]+)$/);
   if(hm){await go('task');S.task.select(hm[1]);}else go('today');

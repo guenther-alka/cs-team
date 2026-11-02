@@ -155,6 +155,20 @@ Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer
 - Speicher: `S3_*` (RustFS/S3-Bucket) oder `CS_DIR=/pfad` (Ordner/ZFS-Dataset, Daten in `/pfad/.csteam`, ein Prozess je Ordner).
   Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
 
+## Zentrales Verzeichnis (LDAP) und Hochverfügbarkeit (0.67 / 0.68)
+
+**cs-team als LDAP-Server (0.68):** `CS_LDAP=:636` (mit `CS_TLS_CERT`/`CS_TLS_KEY`) startet einen kleinen, nur lesenden LDAPv3-Server, nur über LDAPS. Benutzer: `uid=<name>,ou=people,<base>`
+(posixAccount/inetOrgPerson mit uid, uidNumber, gidNumber der Gruppe `alluser`, homeDirectory, loginShell, mail), Gruppen: `cn=<gruppe>,ou=groups,<base>` (posixGroup mit flachen `memberUid`; nur Gruppen mit
+dem Schalter *Export*). `CS_LDAP_BASE` (Standard `dc=csteam,dc=local`), `CS_LDAP_READER` = Konto, das alles sieht; andere Benutzer sehen nur ihren eigenen Eintrag, anonym nur die Wurzel-DSE; Schreiben wird
+abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle können sich nicht per LDAP anmelden. Auf OmniOS mit OpenLDAP `ldapsearch` geprüft; Einrichtung der Clients je Betriebssystem: Handbuch Kapitel 19.
+
+**Kontoarten:** lokale Benutzer mit lokalem Passwort (auch als LDAP-Benutzer für andere Clients), lokale Spiegelkonten einer entfernten AD-Domäne und lokale Spiegelkonten eines entfernten LDAP-Verzeichnisses (das Passwort bleibt dort).
+
+**Failover (0.67):** Der Datenordner liegt in einem ZFS-Dataset, das ein **von Hand angelegter und verwalteter Replikationsjob** (z. B. napp-it) auf einen zweiten Rechner kopiert. Startoptionen `CS_FAILOVER=master|standby|takeover`
+(`CS_HA_NAME`, `CS_HA_ASSUME_OFF`, `CS_HA_FORCE`); Standby liest nur (Schreiben: 503), `takeover` stuft hoch (Epoche + 1); die HA-Gruppe steht in *Einstellungen > Hochverfügbarkeit*. Ein Failover **mit Erhalt der
+SMB-Rechte** funktioniert am besten mit **OmniOS/illumos** (Windows-SID als ZFS-Attribut, ACLs bleiben in replizierten Dateisystemen, Benutzer und SMB-Passwörter bleiben erhalten). Handbuch Kapitel 18, `docs/HA_SPEC.md`.
+Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 3.8.
+
 ## Sprachen (0.6.0)
 Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr, ar (rechts-nach-links), uk, pl, el und ja. Die Auswahl steht oben rechts und wird im
 Benutzerkonto gespeichert; ohne Auswahl gilt die Browsersprache, sonst `CS_LANG` (Standard de).

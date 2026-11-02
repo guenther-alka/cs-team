@@ -25,11 +25,11 @@ func fail_(w http.ResponseWriter, err error) {
 		code = http.StatusForbidden
 	case errors.Is(err, ErrGuest):
 		code = http.StatusBadRequest
-	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed):
+	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed), errors.Is(err, ErrShortTaken):
 		code = http.StatusConflict
 	case errors.Is(err, ErrNoUser), errors.Is(err, ErrNoGroup), errors.Is(err, ErrNoUnit):
 		code = http.StatusNotFound
-	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadDays), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed), errors.Is(err, ErrOIDCAdmin), errors.Is(err, ErrNotEligible), errors.Is(err, ErrSysGroup), errors.Is(err, ErrBadComment):
+	case errors.Is(err, ErrBadName), errors.Is(err, ErrBadPass), errors.Is(err, ErrWeakPass), errors.Is(err, ErrLastAdm), errors.Is(err, ErrSysLocal), errors.Is(err, ErrBadArea), errors.Is(err, ErrBadFolder), errors.Is(err, ErrGroupUsed), errors.Is(err, ErrLastGroup), errors.Is(err, ErrNoGroups), errors.Is(err, ErrDefaultGroup), errors.Is(err, ErrDefaultUnit), errors.Is(err, ErrBadMail), errors.Is(err, ErrBadChat), errors.Is(err, ErrBadMode), errors.Is(err, ErrBadDays), errors.Is(err, ErrBadMember), errors.Is(err, ErrMemberLoop), errors.Is(err, ErrNameUsed), errors.Is(err, ErrOIDCAdmin), errors.Is(err, ErrNotEligible), errors.Is(err, ErrSysGroup), errors.Is(err, ErrBadComment), errors.Is(err, ErrBadShort), errors.Is(err, ErrNoExport):
 		code = http.StatusBadRequest
 	}
 	http.Error(w, err.Error(), code)
@@ -158,6 +158,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			AdminOf  []string `json:"adminOf,omitempty"` // Gruppen, die das Konto als Gruppen-Admin verwaltet
 			PW       string   `json:"pw,omitempty"`      // Anmeldeart: local | oidc | init (Initialpasswort offen) | none (initpw.go)
 			Seen     string   `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, seen.go)
+			Uid      int      `json:"uid,omitempty"`     // feste numerische Kennung (ids.go)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -176,9 +177,9 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u)})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u), u.Uid})
 			case n == me:
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
+				out = append(out, row{Name: n, Uid: u.Uid, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
 				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			}
