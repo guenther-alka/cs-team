@@ -272,6 +272,43 @@ func (s *Server) rootDSE() *entry {
 	e.add("namingContexts", s.Base)
 	e.add("supportedLDAPVersion", "3")
 	e.add("vendorName", "cs-team")
+	e.add("subschemaSubentry", "cn=Subschema")
+	return e
+}
+
+// schemaEntry: leerer Schema-Eintrag; manche Clients (macOS Open Directory) lesen
+// subschemaSubentry und brechen ab, wenn er fehlt.
+func schemaEntry() *entry {
+	e := newEntry("cn=Subschema")
+	e.add("objectClass", "top", "subschema", "subentry")
+	e.add("cn", "Subschema")
+	e.add("objectClasses",
+		"( 2.5.6.0 NAME 'top' ABSTRACT MUST objectClass )",
+		"( 2.5.6.6 NAME 'person' SUP top STRUCTURAL MUST ( sn $ cn ) MAY ( userPassword $ description ) )",
+		"( 2.5.6.7 NAME 'organizationalPerson' SUP person STRUCTURAL MAY ( ou $ mail ) )",
+		"( 2.16.840.1.113730.3.2.2 NAME 'inetOrgPerson' SUP organizationalPerson STRUCTURAL MAY ( uid $ mail ) )",
+		"( 1.3.6.1.1.1.2.0 NAME 'posixAccount' SUP top AUXILIARY MUST ( cn $ uid $ uidNumber $ gidNumber $ homeDirectory ) MAY ( userPassword $ loginShell $ gecos $ description ) )",
+		"( 1.3.6.1.1.1.2.1 NAME 'shadowAccount' SUP top AUXILIARY MUST uid MAY ( userPassword $ description ) )",
+		"( 1.3.6.1.1.1.2.2 NAME 'posixGroup' SUP top STRUCTURAL MUST ( cn $ gidNumber ) MAY ( userPassword $ memberUid $ description ) )",
+		"( 2.5.6.5 NAME 'organizationalUnit' SUP top STRUCTURAL MUST ou MAY description )",
+		"( 0.9.2342.19200300.100.4.13 NAME 'domain' SUP top STRUCTURAL MUST dc MAY description )")
+	e.add("attributeTypes",
+		"( 2.5.4.0 NAME 'objectClass' EQUALITY objectIdentifierMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.38 )",
+		"( 2.5.4.3 NAME 'cn' SUP name )",
+		"( 2.5.4.4 NAME 'sn' SUP name )",
+		"( 2.5.4.41 NAME 'name' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )",
+		"( 2.5.4.11 NAME 'ou' SUP name )",
+		"( 2.5.4.13 NAME 'description' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )",
+		"( 2.5.4.35 NAME 'userPassword' EQUALITY octetStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )",
+		"( 0.9.2342.19200300.100.1.1 NAME 'uid' EQUALITY caseIgnoreMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )",
+		"( 0.9.2342.19200300.100.1.3 NAME 'mail' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )",
+		"( 0.9.2342.19200300.100.1.25 NAME 'dc' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.0 NAME 'uidNumber' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.1 NAME 'gidNumber' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.2 NAME 'gecos' EQUALITY caseIgnoreIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.3 NAME 'homeDirectory' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.4 NAME 'loginShell' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )",
+		"( 1.3.6.1.1.1.1.12 NAME 'memberUid' EQUALITY caseExactIA5Match SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 )")
 	return e
 }
 
@@ -311,6 +348,8 @@ func (s *Server) search(ctx context.Context, c net.Conn, id int, v []byte, bound
 	var list []*entry
 	if base == "" && scope == 0 { // Root DSE: fuer alle
 		list = []*entry{s.rootDSE()}
+	} else if base == "cn=subschema" && scope == 0 { // Schema-Eintrag: fuer alle
+		list = []*entry{schemaEntry()}
 	} else {
 		if bound == "" {
 			done(rInsufficient, "bind required")

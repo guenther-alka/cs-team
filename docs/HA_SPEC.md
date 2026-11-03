@@ -105,3 +105,25 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
 - Ob ZFS recv inkrementell auf ein eingehaengtes, schreibgeschuetztes Dataset laeuft, waehrend cs-team liest.
 - Ob smbadm lokale Gruppen in Gruppen kann (wird nicht gebraucht, da aufgeloest wird).
 - Gruppen mit mehr als 16 gids: NFS (AUTH_SYS) und illumos ngroups_max (Standard 16) abschneiden; Schalter "Export" je Gruppe haelt die Liste klein.
+
+
+## Livetest Failover OmniOS .189 -> .44 (November 2026)
+
+Aufbau: Replikation per zfs send/recv, Takeover auf .44, danach Tests mit Benutzern, Passwoertern, SMB-Passwoertern, Unix-Gruppen, SMB-Gruppen und SMB-Datei-ACL.
+
+**Phase A (nur Replikation + Takeover):**
+- OK: cs-team-Benutzer, -Gruppen, -Passwoerter; ACL im Dataset erhalten (zunaechst nur numerisch).
+- Fehlt auf dem Ziel: Unix-Konten/-Gruppen, SMB-Passwoerter (/var/smb/smbpasswd), SMB-Gruppen (smbgroup.db), Maschinen-SID. SMB-Anmeldung scheitert.
+
+**Phase B (manuelles Uebernehmen, validiert):**
+1. useradd -u / groupadd -g mit denselben ids wie auf dem Master.
+2. idmap-SMF-Eigenschaften config/machine_sid und config/machine_uuid setzen; idmap und smb/server neu starten.
+3. smbpasswd-Zeilen der Benutzer zusammenfuehren.
+4. SMB-Gruppen mit smbadm create + add-member neu anlegen (gleiche SID).
+- Ergebnis: Anmeldung mit alten SMB-Passwoertern OK, falsches Passwort abgelehnt, Lesen/Anlegen/Ueberschreiben gemaess ACL wie auf dem Master, ACL loesen wieder in Namen auf.
+
+**Hinweise fuer ein eingebautes `adopt`:**
+- cs-team-uid (z.B. 10001) kann von der OS-uid (z.B. 20001) abweichen; adopt muss die ids angleichen.
+- idmap und smb/server muessen neu gestartet werden.
+- Die Uhr des Standby muss stimmen (Test: .44 stand auf Maerz 2026).
+- Testumgebung wurde zurueckgebaut (.44 SID/smbpasswd wiederhergestellt, Test-Datasets entfernt).

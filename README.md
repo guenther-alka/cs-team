@@ -106,6 +106,8 @@ The built-in video chat needs HTTPS or localhost (browser rule for camera and mi
 writes answer *unwilling to perform*. Accounts with two-factor sign-in, an OIDC link or a directory source cannot bind. Tested with OpenLDAP `ldapsearch` on OmniOS;
 client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devices) is in manual chapter 19.
 
+**Client installer `cs-ldapclient` (0.68.1).** A small console program per OS (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`; also as `cs-ldapclient.zip` for a USB stick with start scripts) sets up sign-in with cs-team accounts on a client computer from a shared `ldap.cfg` (server, reader account, certificate fingerprint, group = local group rules): Windows with pGina, Linux and FreeBSD with sssd. Every cs-team user may sign in on every computer, groups only decide the local rights, the local profile/home is deleted at logout. Tested on Windows 11, Debian 12 and FreeBSD 15.1. **macOS is not supported yet** (Open Directory does not accept the server, see docs/TODO_cs-ldapclient.md). Manual chapter 20.
+
 **Account types:** local users with a local password (also usable as LDAP users by other clients), and local mirror accounts of a remote AD domain or a remote LDAP directory
 (the password stays in the source directory).
 

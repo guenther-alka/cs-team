@@ -53,6 +53,30 @@ foreach ($v in $variants) {
     $sums += "$h  cs-team-$($v.os)-$($v.arch)$ext"
     '{0,-8} {1,-6} {2,10:N0} bytes  {3}' -f $v.os, $v.arch, (Get-Item $asset).Length, $h.Substring(0, 12)
 }
+# cs-ldapclient: installer for the LDAP client login (cs-ldapclient-<os>[.exe], ldap.cfg next to it)
+# windows, linux, freebsd (macOS: not supported yet) + cs-ldapclient.zip for a USB stick (start scripts copy the program to /tmp)
+$env:CGO_ENABLED = '0'; $env:GOARCH = 'amd64'
+$lc = @(@('windows', 'cs-ldapclient-windows.exe'), @('linux', 'cs-ldapclient-linux'), @('freebsd', 'cs-ldapclient-freebsd'))
+foreach ($l in $lc) {
+  $env:GOOS = $l[0]
+  $asset = "dist\release\$($l[1])"
+  go build -trimpath -ldflags '-s -w' -o $asset ./cmd/cs-ldapclient
+  if ($LASTEXITCODE -ne 0) { throw "build failed: cs-ldapclient $($l[0])" }
+  $sums += "$((Get-FileHash $asset -Algorithm SHA256).Hash.ToLower())  $($l[1])"
+}
+$stage = 'dist\ldapclient-zip'
+if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+New-Item -ItemType Directory $stage | Out-Null
+foreach ($l in $lc) { Copy-Item "dist\release\$($l[1])" $stage }
+foreach ($f in 'start-linux.sh', 'start-freebsd.sh', 'ldap.cfg', 'README.txt') {
+  $t = [IO.File]::ReadAllText("$PWD\cmd\cs-ldapclient\pack\$f").Replace("`r`n", "`n")   # LF for the shell scripts
+  [IO.File]::WriteAllText("$PWD\$stage\$f", $t, (New-Object Text.UTF8Encoding $false))
+}
+$zip = 'dist\release\cs-ldapclient.zip'
+if (Test-Path $zip) { Remove-Item $zip }
+Compress-Archive -Path "$stage\*" -DestinationPath $zip
+$sums += "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  cs-ldapclient.zip"
+Remove-Item $stage -Recurse -Force
 Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED
 [IO.File]::WriteAllText("$PWD\dist\checksums.sha256", (($sums -join "`n") + "`n"))
 Write-Host "== $($variants.Count) variants in dist\release, checksums in dist\checksums.sha256"
