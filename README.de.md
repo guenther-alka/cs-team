@@ -159,7 +159,7 @@ Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer
 
 **cs-team als LDAP-Server (0.68):** `CS_LDAP=:636` (mit `CS_TLS_CERT`/`CS_TLS_KEY`) startet einen kleinen, nur lesenden LDAPv3-Server, nur über LDAPS. Benutzer: `uid=<name>,ou=people,<base>`
 (posixAccount/inetOrgPerson mit uid, uidNumber, gidNumber der Gruppe `alluser`, homeDirectory, loginShell, mail), Gruppen: `cn=<gruppe>,ou=groups,<base>` (posixGroup mit flachen `memberUid`; nur Gruppen mit
-dem Schalter *Export*). `CS_LDAP_BASE` (Standard `dc=csteam,dc=local`), `CS_LDAP_READER` = Konto, das alles sieht; andere Benutzer sehen nur ihren eigenen Eintrag, anonym nur die Wurzel-DSE; Schreiben wird
+dem Schalter *Export*). `CS_LDAP_BASE` (Standard `dc=csteam,dc=local`), `CS_LDAP_READER` = Konto, das alles sieht; andere Benutzer sehen nur ihren eigenen Eintrag, anonym nur die Wurzel-DSE (mit `CS_LDAP_ANON=1` auch Benutzer und Gruppen, noetig fuer macOS-Clients, nie Passwoerter); Schreiben wird
 abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle können sich nicht per LDAP anmelden. Auf OmniOS mit OpenLDAP `ldapsearch` geprüft; Einrichtung der Clients je Betriebssystem: Handbuch Kapitel 19.
 
 **Kontoarten:** lokale Benutzer mit lokalem Passwort (auch als LDAP-Benutzer für andere Clients), lokale Spiegelkonten einer entfernten AD-Domäne und lokale Spiegelkonten eines entfernten LDAP-Verzeichnisses (das Passwort bleibt dort).

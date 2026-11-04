@@ -26,12 +26,14 @@ type cl struct {
 	t  *testing.T
 }
 
-func start(t *testing.T) *cl {
+func start(t *testing.T) *cl { return startOpt(t, false) }
+
+func startOpt(t *testing.T, anon bool) *cl {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{Src: fakeSrc{}, Base: "dc=csteam,dc=local", Reader: "reader"}
+	s := &Server{Src: fakeSrc{}, Base: "dc=csteam,dc=local", Reader: "reader", AnonRead: anon}
 	go s.Serve(l)
 	t.Cleanup(func() { l.Close() })
 	c, err := net.Dial("tcp", l.Addr().String())
@@ -162,6 +164,20 @@ func TestAnonymousAndUserScope(t *testing.T) {
 	r, _ = c.search(base, 2, enc(0x87, []byte("objectClass")))
 	if len(r) != 1 || r["uid=anna,ou=people,"+base] == nil {
 		t.Fatal("a normal user must only see the own entry:", r)
+	}
+}
+
+// CS_LDAP_ANON=1 (macOS): anonymous clients may search users and groups, but never see a password.
+func TestAnonRead(t *testing.T) {
+	c := startOpt(t, true)
+	r, code := c.search(base, 2, enc(0x87, []byte("objectClass")))
+	if code != 0 || len(r) < 2 || r["uid=anna,ou=people,"+base] == nil {
+		t.Fatal("anonymous read must list the entries:", code, r)
+	}
+	for dn, e := range r {
+		if e["userpassword"] != nil {
+			t.Fatal("password attribute served for", dn)
+		}
 	}
 }
 

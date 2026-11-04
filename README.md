@@ -91,6 +91,7 @@ A login form with session cookie is the default (`CS_LOGIN_FORM=0` = browser Bas
 | `CS_FAILOVER` | high availability: `master` (allow failover), `standby` (read-only copy of the replicated data) or `takeover` (start as master now, epoch + 1); needs `CS_DIR` on a replicated filesystem | off |
 | `CS_HA_NAME` / `CS_HA_ASSUME_OFF` / `CS_HA_FORCE` | name of this host in the HA group (default: host name) / treat unreachable members as off / emergency exit that skips the start checks | - |
 | `CS_LDAP` | address of the built-in read-only LDAPS server, e.g. `:636` (needs `CS_TLS_CERT`) | off |
+| `CS_LDAP_ANON` | `1` lets anonymous LDAPS clients search users and groups (never passwords); needed for macOS clients, which cannot keep a search account | off |
 | `CS_LDAP_BASE` / `CS_LDAP_READER` | base DN / name of the cs-team account that may read all entries (other users see only their own entry) | `dc=csteam,dc=local` / - |
 | `CS_CONF` or `-c file` | configuration file (`KEY=VALUE`) | - |
 
@@ -102,11 +103,11 @@ The built-in video chat needs HTTPS or localhost (browser rule for camera and mi
 **cs-team as LDAP server (0.68).** `CS_LDAP=:636` (with `CS_TLS_CERT`/`CS_TLS_KEY`) starts a small read-only LDAPv3 server, LDAPS only. Users are
 `uid=<name>,ou=people,<base>` (posixAccount/inetOrgPerson: uid, uidNumber, gidNumber of the group `alluser`, homeDirectory, loginShell, mail), groups are
 `cn=<group>,ou=groups,<base>` (posixGroup with flat `memberUid`; only groups with the *Export* switch, never system groups). A bind checks the cs-team password
-(lockout as for web sign-in). Only the `CS_LDAP_READER` account sees everything, other users see only their own entry, anonymous clients only the root DSE;
+(lockout as for web sign-in). Only the `CS_LDAP_READER` account sees everything, other users see only their own entry, anonymous clients only the root DSE (with `CS_LDAP_ANON=1` also users and groups, for macOS);
 writes answer *unwilling to perform*. Accounts with two-factor sign-in, an OIDC link or a directory source cannot bind. Tested with OpenLDAP `ldapsearch` on OmniOS;
 client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devices) is in manual chapter 19.
 
-**Client installer `cs-ldapclient` (0.68.1).** A small console program per OS (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`; also as `cs-ldapclient.zip` for a USB stick with start scripts) sets up sign-in with cs-team accounts on a client computer from a shared `ldap.cfg` (server, reader account, certificate fingerprint, group = local group rules): Windows with pGina, Linux and FreeBSD with sssd. Every cs-team user may sign in on every computer, groups only decide the local rights, the local profile/home is deleted at logout. Tested on Windows 11, Debian 12 and FreeBSD 15.1. **macOS is not supported yet** (Open Directory does not accept the server, see docs/TODO_cs-ldapclient.md). Manual chapter 20.
+**Client installer `cs-ldapclient` (0.68.2).** A small console program per OS (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`, `-osx`, `-osx-arm64`; also as `cs-ldapclient.zip` for a USB stick with start scripts) sets up sign-in with cs-team accounts on a client computer from a shared `ldap.cfg` (server, reader account, certificate fingerprint, group = local group rules): Windows with pGina, Linux and FreeBSD with sssd, macOS with Open Directory (LDAPv3 node, home folder created at the first login). Every cs-team user may sign in on every computer, groups only decide the local rights, the local profile/home is deleted at logout. Tested on Windows 11, Debian 12, FreeBSD 15.1 and macOS 12.7 (Intel). **macOS needs the server option `CS_LDAP_ANON=1`** (no search account possible) and an approval of the server certificate at the Mac screen. Manual chapter 20.
 
 **Account types:** local users with a local password (also usable as LDAP users by other clients), and local mirror accounts of a remote AD domain or a remote LDAP directory
 (the password stays in the source directory).

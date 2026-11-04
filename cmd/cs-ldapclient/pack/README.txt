@@ -6,7 +6,7 @@ cs-ldapclient - log in to a computer with cs-team (LDAPS) accounts
    Windows : cs-ldapclient-windows.exe   (right click - run as administrator)
    Linux   : sh start-linux.sh           (works on FAT sticks, copies the program to /tmp)
    FreeBSD : sh start-freebsd.sh
-   macOS   : not supported yet.
+   macOS   : sh start-osx.command        (in Terminal at the Mac screen; the server must run with CS_LDAP_ANON=1)
 3. Menu: install / uninstall / show+change settings / test.
    Non-interactive: start-linux.sh install -y   (needs cert_sha256 in ldap.cfg)
 

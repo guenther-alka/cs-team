@@ -49,7 +49,7 @@ func startLDAP(a *auth.Auth) {
 	if err != nil {
 		log.Fatal("ldap: ", err)
 	}
-	s := &ldapd.Server{Src: ldapSrc{a}, Base: env("CS_LDAP_BASE", "dc=csteam,dc=local"), Reader: os.Getenv("CS_LDAP_READER"), Logf: log.Printf}
+	s := &ldapd.Server{Src: ldapSrc{a}, Base: env("CS_LDAP_BASE", "dc=csteam,dc=local"), Reader: os.Getenv("CS_LDAP_READER"), AnonRead: os.Getenv("CS_LDAP_ANON") == "1", Logf: log.Printf}
 	log.Printf("ldap: LDAPS on %s, base %s, reader %q", addr, s.Base, s.Reader)
 	go func() { log.Println("ldap:", s.Serve(l)) }()
 }

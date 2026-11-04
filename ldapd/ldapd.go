@@ -34,7 +34,10 @@ type Server struct {
 	Src    Source
 	Base   string // z.B. dc=csteam,dc=local
 	Reader string // cs-team-Konto, das alles lesen darf; alle anderen sehen nur den eigenen Eintrag
-	Logf   func(format string, args ...any)
+	// AnonRead: auch ohne Anmeldung duerfen Benutzer und Gruppen gelesen werden (nie Passwoerter).
+	// Fuer Clients, die kein Lesekonto speichern koennen (macOS Open Directory). Standard: aus.
+	AnonRead bool
+	Logf     func(format string, args ...any)
 
 	sem chan struct{}
 }
@@ -351,7 +354,7 @@ func (s *Server) search(ctx context.Context, c net.Conn, id int, v []byte, bound
 	} else if base == "cn=subschema" && scope == 0 { // Schema-Eintrag: fuer alle
 		list = []*entry{schemaEntry()}
 	} else {
-		if bound == "" {
+		if bound == "" && !s.AnonRead {
 			done(rInsufficient, "bind required")
 			return true
 		}
@@ -368,7 +371,7 @@ func (s *Server) search(ctx context.Context, c net.Conn, id int, v []byte, bound
 			if !inScope(e.dn, base, scope) {
 				continue
 			}
-			if bound != s.Reader && e.dn != "uid="+bound+",ou=people,"+s.Base { // nur der Lesekonto-Inhaber sieht alles
+			if !(bound == "" && s.AnonRead) && bound != s.Reader && e.dn != "uid="+bound+",ou=people,"+s.Base { // nur der Lesekonto-Inhaber sieht alles
 				continue
 			}
 			list = append(list, e)
