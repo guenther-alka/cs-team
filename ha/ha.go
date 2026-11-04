@@ -48,6 +48,7 @@ type Status struct {
 	Mode     string `json:"mode"` // off | master | standby
 	Epoch    int    `json:"epoch"`
 	Conflict string `json:"conflict,omitempty"`
+	VIP      string `json:"vip,omitempty"` // Dienst-IP: "<ip> up on <if>" oder "error: ..."
 }
 
 type Svc struct {
@@ -62,6 +63,9 @@ type Svc struct {
 	epoch    int
 	conflict string
 	client   *http.Client
+	vip      *vipPlan // Dienst-IP dieses Masters (vip.go)
+	vipOwned bool     // von cs-team gesetzt, wird beim Beenden entfernt
+	vipMsg   string
 }
 
 func New(st store.Store, mode, name string, force, assume bool) *Svc {
@@ -135,7 +139,7 @@ func (s *Svc) Status() Status {
 	if m == "" {
 		m = "off"
 	}
-	return Status{Name: s.Name, Mode: m, Epoch: s.epoch, Conflict: s.conflict}
+	return Status{Name: s.Name, Mode: m, Epoch: s.epoch, Conflict: s.conflict, VIP: s.vipText()}
 }
 
 // probe fragt ein Mitglied; ok=false heisst nicht erreichbar.
@@ -174,13 +178,16 @@ func (s *Svc) Start(ctx context.Context, takeover bool) error {
 		return nil
 	}
 	if s.Name == "" {
-		return errors.New("CS_HA_NAME fehlt (Name dieses Hosts in der HA-Gruppe)")
+		return errors.New("host name unknown: set CS_HA_NAME (name of this host in the HA group)")
+	}
+	g := s.LoadGroup(ctx)
+	if err := s.resolveName(g); err != nil {
+		return err
 	}
 	if s.Mode == "standby" {
 		s.epoch = s.loadState(ctx).Epoch
 		return nil
 	}
-	g := s.LoadGroup(ctx)
 	old := s.loadState(ctx)
 	if !s.Force {
 		for _, m := range s.others(g) {

@@ -8,17 +8,21 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	_ "time/tzdata" // Zeitzonen eingebettet (Windows und Minimalsysteme haben oft keine tzdata)
 
@@ -126,7 +130,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.68.2" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.69.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -144,6 +148,14 @@ func main() {
 		return
 	}
 	loadConf()
+	if len(os.Args) == 2 && os.Args[1] == "vipdown" { // Dienst-IP dieses Rechners wegnehmen (Windows beendet cs-team hart; auch zum Aufraeumen von Hand)
+		removed, err := ha.DownFromDir(os.Getenv("CS_DIR"))
+		if err != nil {
+			log.Fatal("vipdown: ", err)
+		}
+		fmt.Println("vipdown: removed =", removed)
+		return
+	}
 	log.Printf("cs-team %s (%s/%s, %s) starting", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 	var st store.Store
 	switch {
@@ -237,6 +249,25 @@ func main() {
 	startLDAP(a) // LDAPS-Dienst (nur lesen), wenn CS_LDAP gesetzt ist
 
 	addr := env("CS_LISTEN", ":8080")
+	if haMode == "master" { // Dienst-IP (virtuelle Adresse) setzen, beim Beenden wieder wegnehmen
+		_, port, _ := net.SplitHostPort(addr)
+		if err := haSvc.VIPUp(context.Background(), port); errors.Is(err, ha.ErrVIPInUse) {
+			log.Fatal("failover: ", err)
+		} else if err != nil {
+			log.Println("failover: service IP not set:", err)
+		} else if haSvc.VIPActive() {
+			log.Println("failover:", haSvc.Status().VIP)
+		}
+		if haSvc.VIPActive() {
+			go func() {
+				c := make(chan os.Signal, 1)
+				signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+				<-c
+				haSvc.VIPDown()
+				os.Exit(0)
+			}()
+		}
+	}
 	log.Println("cs-team listening on", addr)
 	// Timeouts gegen Slowloris; kein Read-/WriteTimeout, weil WebSocket, Datei-Up-/Downloads und WebDAV lange laufen dÃ¼rfen.
 	srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}

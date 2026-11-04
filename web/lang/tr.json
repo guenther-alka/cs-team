@@ -1164,7 +1164,7 @@
  "Epoche": "epoch",
  "Hochverfügbarkeit / Failover": "High availability / failover",
  "Konflikt: Schreiben gesperrt": "Conflict: writing blocked",
- "Der Modus wird beim Start von cs-team gesetzt (CS_FAILOVER=master, standby oder takeover) und hier nur angezeigt. Hochstufen und Dienst-IP gehören ins napp-it-Menü System > Services > cs-team.": "The mode is set when cs-team starts (CS_FAILOVER=master, standby or takeover) and is only displayed here. Promotion and service IP belong in the napp-it menu System > Services > cs-team.",
+ "Der Modus wird beim Start von cs-team gesetzt (CS_FAILOVER=master, standby oder takeover) und hier nur angezeigt. Hochstufen gehört ins napp-it-Menü System > Services > cs-team. Die Dienst-IP (z. B. 192.168.2.50, optional mit /Präfix) setzt der Master beim Start selbst und nimmt sie beim Beenden wieder weg; die Schnittstelle wird im selben Subnetz gesucht, sonst die Schnittstelle des Mitglieds.": "Mod, cs-team başlatılırken ayarlanır (CS_FAILOVER=master, standby veya takeover) ve burada yalnızca gösterilir. Yükseltme napp-it menüsünde Sistem > Services > cs-team altındadır. Hizmet IP'sini (ör. 192.168.2.50, isteğe bağlı /önek ile) master başlarken kendisi ayarlar ve kapanırken kaldırır; arayüz aynı alt ağda aranır, aksi halde üyenin arayüzü kullanılır.",
  "Der ZFS-Replikationsjob Master → Standby wird nicht von cs-team angelegt. Er muss von Hand angelegt und verwaltet werden (eigener Replikationsjob; nach einem Hochstufen die Richtung umkehren).": "The ZFS replication job master → standby is not created by cs-team. It must be created and managed manually (a separate replication job; reverse its direction after a promotion).",
  "Adresse": "Address",
  "Schnittstelle": "Interface",

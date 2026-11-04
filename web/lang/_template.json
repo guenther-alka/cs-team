@@ -1161,7 +1161,7 @@
  "Epoche": "",
  "Hochverfügbarkeit / Failover": "",
  "Konflikt: Schreiben gesperrt": "",
- "Der Modus wird beim Start von cs-team gesetzt (CS_FAILOVER=master, standby oder takeover) und hier nur angezeigt. Hochstufen und Dienst-IP gehören ins napp-it-Menü System > Services > cs-team.": "",
+ "Der Modus wird beim Start von cs-team gesetzt (CS_FAILOVER=master, standby oder takeover) und hier nur angezeigt. Hochstufen gehört ins napp-it-Menü System > Services > cs-team. Die Dienst-IP (z. B. 192.168.2.50, optional mit /Präfix) setzt der Master beim Start selbst und nimmt sie beim Beenden wieder weg; die Schnittstelle wird im selben Subnetz gesucht, sonst die Schnittstelle des Mitglieds.": "",
  "Der ZFS-Replikationsjob Master → Standby wird nicht von cs-team angelegt. Er muss von Hand angelegt und verwaltet werden (eigener Replikationsjob; nach einem Hochstufen die Richtung umkehren).": "",
  "Adresse": "",
  "Schnittstelle": "",

@@ -80,7 +80,7 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
 - Linux: ip addr add ... dev eth0, danach arping -U; ip addr del.
 - illumos und Solaris 11: ipadm create-addr -t -T static -a ... <if>/csvip (Solaris 11: -a local=...) / ipadm delete-addr.
 - FreeBSD: ifconfig <if> alias ... / -alias. macOS: sudo ifconfig <if> alias ... netmask ... / -alias.
-- Nicht unterstuetzt: Solaris 10. Auf anderen Systemen startet cs-team ohne virtuelle IP; Umschalten dann per DNS.
+- Solaris: nur Solaris 11 (napp-it kennt kein Solaris 10). Auf anderen Systemen startet cs-team ohne virtuelle IP; Umschalten dann per DNS.
 - Nur im selben Subnetz. Dienst muss auf allen Adressen lauschen; Zertifikat auf den Dienstnamen.
 
 ## 9. napp-it-Menue (System > Services > cs-team)
@@ -93,7 +93,7 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
 ## 10. Reihenfolge
 1. uid/gid, Kurzname, Export-Schalter, aufgeloeste Gruppen (erledigt in 0.66.0).
 2. Startoptionen, Standby, Epoche, Pruefungen, Anzeige in den Einstellungen (erledigt in 0.67.0, Test mit zwei Instanzen bestanden).
-3. napp-it-Menue, privilegierte Unterbefehle, Dienst-IP.
+3. napp-it-Menue, privilegierte Unterbefehle, Dienst-IP. **Dienst-IP erledigt in 0.69.0** (Master setzt sie beim Start vorlaeufig, entfernt sie beim Beenden; `cs-team vipdown`; getestet OmniOS, macOS, Windows; Linux/FreeBSD/Solaris nur als Befehl geprueft). Eigener Name wird automatisch erkannt.
 4. illumos: SMB-Passwoerter, SID, Konten (danach Linux/Samba, dann Windows).
 5. LDAPS-Dienst (Abschnitt 3), unabhaengig von 2-4. **Erledigt in 0.68.0** (eigener Minimal-LDAPv3-Server in ldapd/, Env CS_LDAP/CS_LDAP_BASE/CS_LDAP_READER, auf OmniOS mit ldapsearch geprueft; offen: ob der illumos-SMB-Kernel LDAP-Gruppen liest). Hinweis: Failover mit Erhalt der SMB-Rechte funktioniert am besten mit OmniOS (SID als ZFS-Attribut, ACLs in Replikaten).
 6. Test mit zwei virtuellen Rechnern je System.

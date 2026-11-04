@@ -89,7 +89,7 @@ A login form with session cookie is the default (`CS_LOGIN_FORM=0` = browser Bas
 | `CS_TRASH_DAYS` | days deleted files stay in the trash (better set in *Settings*; 0 = no trash) | 30 |
 | `CS_LANG` / `CS_LANGDIR` | default language / own language files | `de` |
 | `CS_FAILOVER` | high availability: `master` (allow failover), `standby` (read-only copy of the replicated data) or `takeover` (start as master now, epoch + 1); needs `CS_DIR` on a replicated filesystem | off |
-| `CS_HA_NAME` / `CS_HA_ASSUME_OFF` / `CS_HA_FORCE` | name of this host in the HA group (default: host name) / treat unreachable members as off / emergency exit that skips the start checks | - |
+| `CS_HA_NAME` / `CS_HA_ASSUME_OFF` / `CS_HA_FORCE` | name of this host in the HA group (default: found automatically from the host name) / treat unreachable members as off / emergency exit that skips the start checks | - |
 | `CS_LDAP` | address of the built-in read-only LDAPS server, e.g. `:636` (needs `CS_TLS_CERT`) | off |
 | `CS_LDAP_ANON` | `1` lets anonymous LDAPS clients search users and groups (never passwords); needed for macOS clients, which cannot keep a search account | off |
 | `CS_LDAP_BASE` / `CS_LDAP_READER` | base DN / name of the cs-team account that may read all entries (other users see only their own entry) | `dc=csteam,dc=local` / - |
@@ -114,7 +114,7 @@ client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devi
 
 **Failover (0.67).** The data folder lives in a ZFS dataset that is replicated to a second host **by a replication job you create and manage yourself**
 (e.g. a napp-it replication job; cs-team does not create it). Start options: `CS_FAILOVER=master`, `standby` (read-only, writes answer 503, no background jobs) or
-`takeover` (promotion, epoch + 1). The *HA group* (members and addresses) is edited in *Settings > High availability*; at start cs-team asks the other members under
+`takeover` (promotion, epoch + 1). The *HA group* (members and addresses, optionally a *service IP*) is edited in *Settings > High availability*; the master sets the service IP itself at start (temporary, extra address, removed at stop; Linux, FreeBSD, macOS, illumos/Solaris 11, Windows); at start cs-team asks the other members under
 `/ha/status`, a running master re-checks every 10 s and blocks writes on a conflict. Failover that **keeps the SMB rights** works best on **OmniOS/illumos**: the Windows SID is a
 ZFS attribute, ACLs stay intact in copied or replicated ZFS filesystems, local users and SMB passwords survive the failover. Manual chapter 18, [docs/HA_SPEC.md](docs/HA_SPEC.md).
 Tested on two OmniOS hosts (planned switch with incremental replication, standby read-only, second master refused, old master refused after takeover).
