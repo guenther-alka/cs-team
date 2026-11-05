@@ -318,13 +318,27 @@ func (m *Mailer) limited(user string) bool {
 	return false
 }
 
-// canSend: Mitglied der Gruppe und laut Gruppeneinstellung berechtigt (member = alle Mitglieder, admin = Gruppen-Admins).
+// canSend: darf der Benutzer an die Gruppe schreiben (Menü Nachricht)? Immer nur, wenn die Gruppeneinstellung
+// "Nachricht senden" nicht aus ist. Danach:
+//   - globale Admins: jede Gruppe, auch die Standardgruppe alluser und die Systemgruppen (ohne Mitglied zu sein);
+//   - die Standardgruppe alluser sonst nie (nur globale Admins);
+//   - Gruppen-Admins: die Gruppen, deren Admin sie sind (auch ohne Mitglied zu sein);
+//   - übrige Mitglieder: ihre Gruppen, wenn die Gruppe das Senden für jedes Mitglied erlaubt (member).
 func canSend(user, g string) bool {
 	info, ok := auth.GroupInfoOf(g)
-	if !ok || info.Msg == auth.ModeOff || !auth.IsMember(user, g) {
+	if !ok || info.Msg == auth.ModeOff {
 		return false
 	}
-	return info.Msg == auth.ModeMember || auth.IsGroupAdmin(user, g)
+	if auth.IsAdminUser(user) {
+		return true
+	}
+	if g == auth.DefaultGroup {
+		return false
+	}
+	if auth.IsGroupAdmin(user, g) {
+		return true
+	}
+	return info.Msg == auth.ModeMember && auth.IsMember(user, g)
 }
 
 // wideSend: E-Mail und externe Chat-Adresse darf nur ein Admin nutzen (globaler Admin oder Gruppen-Admin der Gruppe);
@@ -467,7 +481,7 @@ func (m *Mailer) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler
 			Wide    bool   `json:"wide"` // E-Mail und externe Chat-Adresse erlaubt (Admin), sonst nur Gruppen-Chat
 		}
 		out := []row{}
-		for _, g := range auth.GroupsOf(me) {
+		for _, g := range auth.AllGroupNames() { // canSend entscheidet je Rolle (globale Admins alle, Gruppen-Admins ihre, Mitglieder laut Einstellung)
 			if !canSend(me, g) {
 				continue
 			}
