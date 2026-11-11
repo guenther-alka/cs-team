@@ -21,6 +21,7 @@ body{font:14px system-ui,sans-serif;margin:0;height:100vh;display:flex;flex-dire
 #nav button{background:none;border:0;color:#cfd8e3;padding:12px 11px;font:inherit;cursor:pointer;border-bottom:3px solid transparent}
 #nav button:hover{color:#fff}
 #nav button.act{color:#fff;border-bottom-color:#5aa9ff}
+#brand{cursor:pointer;padding:9px 8px;border-bottom:3px solid transparent}#brand:hover{color:#fff}#brand.act{border-bottom-color:#5aa9ff}#brand .bdg{margin-left:4px}
 #body{flex:1;display:flex;min-height:0}
 #left{width:250px;border-right:1px solid #ccc;background:#f6f7f9;display:flex;flex-direction:column;flex:none}
 #left>button{margin:6px 8px;padding:6px;font:inherit;cursor:pointer}
@@ -97,9 +98,14 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 .mgrid,.wgrid,.dayl{user-select:none;-webkit-user-select:none}
 .mgrid>div[data-day]:hover,.wgrid>div[data-day]:hover,.dayl:hover{box-shadow:inset 0 0 0 1px #b6d0f7}
 .mgrid>div.dsel,.wgrid>div.dsel,.dayl.dsel{background:#dbeafe!important}
-.mgrid>div.dro,.wgrid>div.dro,.dayl.dro{outline:2px dashed #3b82f6;outline-offset:-2px}
+.mgrid>div.dro,.wgrid>div.dro,.dayl.dro,#list .item.dro{outline:2px dashed #3b82f6;outline-offset:-2px}
 #cclip{font-size:12px;color:#1e40af;margin:0 0 6px}#cclip:empty{display:none}#cclip a{margin-left:8px;color:#777;text-decoration:none}
 .more{font-size:11px;color:#666;cursor:pointer}
+.yq{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}.yqc{border:1px solid #ccd;border-radius:6px;padding:4px;min-height:60px;background:#fafbfc}.yqh{font-weight:700;margin-bottom:3px}
+.ym{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}.ymh{font-weight:600;cursor:pointer;margin-bottom:2px}.ymh:hover{text-decoration:underline}
+.ymg{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;text-align:center}.ymg b{font-weight:600;color:#888}.ymg span{cursor:pointer;line-height:1.1;padding:1px 0;border-radius:3px;min-height:26px}.ymg span:hover{background:#e6ebf1}.ymg span.today{background:#dbeafe}
+.ymg em{display:block;font-style:normal;font-weight:700;font-size:10px;letter-spacing:-1px}.ymg u{text-decoration:none}
+@media (max-width:700px){.yq{grid-template-columns:1fr 1fr}}
 .tg{max-height:68vh;overflow:auto;border:1px solid #ddd;background:#fff;user-select:none;-webkit-user-select:none}
 .tgin{display:grid;position:relative}
 .tgc,.tgd{position:sticky;top:0;z-index:6;background:#f3f4f6;height:24px;line-height:24px;font-size:12px;font-weight:600;text-align:center;border-bottom:1px solid #ccc;border-left:1px solid #ddd}
@@ -218,17 +224,18 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
 #nav .bdg{background:#e11d48;color:#fff;border-radius:9px;font-size:11px;padding:0 6px;margin-left:4px}
 /* Handy / schmale Fenster: Liste und Inhalt im Wechsel, Menü scrollt, Bedienelemente ohne Hover */
 #mback{display:none}
-@media (max-width:760px){
+@media (max-width:760px),(max-height:500px) and (pointer:coarse){
  body{height:100dvh;font-size:15px}
- #top{gap:6px;padding:0 6px}#top b{font-size:15px}
+ #top{gap:6px;padding:0 6px;height:auto;min-height:44px;flex-wrap:wrap;row-gap:0}#top b{font-size:15px}
  #who{display:none}
- #nav{overflow-x:auto;scrollbar-width:none}#nav::-webkit-scrollbar{display:none}
+ #gs{flex:1;min-width:70px;width:auto!important}
+ #nav{order:10;flex:1 0 100%;overflow-x:auto;scrollbar-width:none;border-top:1px solid #3a4b5d}#nav::-webkit-scrollbar{display:none}
  #nav button{padding:12px 10px;white-space:nowrap}
  #logout{padding:3px 6px}
  #body{position:relative}
  #left{width:100%;border-right:0}
  #main{display:none;padding:10px}
- body.mm #left,body.wc #left{display:none}body.mm #main{display:block}
+ body.mm #left,body.wc #left{display:none}body.mm #main,body.login #main{display:block}
  body.mm #mback{display:inline-block;background:none;border:1px solid #567;color:#fff;border-radius:3px;padding:3px 10px;font-size:16px;cursor:pointer}
  body.mm #top>b{display:none}
  input,select,textarea{font-size:16px!important}
@@ -342,9 +349,9 @@ iframe.prev{width:100%;height:70vh;border:1px solid #ddd}
  .uidin{background:#16191d;color:#e3e6ea}
 }
 </style></head><body>
-<div id="top"><button id="mback" title="Zurück">←</button><b id="brand">cs-team</b>
+<div id="top"><button id="mback" title="Zurück">←</button><b id="brand" role="button" tabindex="0">cs-team</b>
  <div id="nav" role="navigation" aria-label="cs-team">
-  <button data-s="today" data-t="Start">Start</button><button data-s="users" data-t="Benutzer">Benutzer</button><button data-s="groups" data-t="Gruppen">Gruppen</button><button data-s="units" data-t="Organisationen">Organisationen</button><button data-s="cal" data-t="Kalender">Kalender</button>
+  <button data-s="users" data-t="Benutzer">Benutzer</button><button data-s="groups" data-t="Gruppen">Gruppen</button><button data-s="units" data-t="Organisationen">Organisationen</button><button data-s="cal" data-t="Kalender">Kalender</button>
   <button data-s="calc" data-t="Calc">Calc</button><button data-s="text" data-t="Text">Text</button><button data-s="files" data-t="Files">Files</button><button data-s="task" data-t="Aufgaben">Aufgaben</button>
   <button data-s="chat" data-t="Chat" style="display:none">Chat</button><button data-s="msg" data-t="Nachricht" style="display:none">Nachricht</button><button data-s="set" data-t="Einstellungen" style="display:none">Einstellungen</button>
  </div>

@@ -147,6 +147,13 @@ A single calendar as a file: **Export (.ics)** in the calendar bar = `GET /api/c
 calendars and subscriptions), back into a writable calendar via **Import (.ics)** = `POST /api/cal/<id>/import`
 (matches by UID, repeated import creates no duplicates).
 
+**Android phone specifics (manual chapter 6.1):**
+- Browser: use **Firefox**. Chrome often rejects the own (self-signed) certificate (`ERR_TOO_MANY_RETRIES`).
+- Calendars (iCal/CalDAV): install **DAVx5** (free from F-Droid), URL `https://server:9004/dav/`.
+- Tick the calendars in the DAVx5 account (CalDAV) and **also switch them on in the calendar app** (e.g. Google Calendar › ☰ › tick the calendars of the DAVx5 account), otherwise they stay invisible.
+- When cs-team runs in the **local network**, DAVx5 must be **allowed** to access devices in the local network (Android 16 asks at the first connection), otherwise DAVx5 stays at "Please wait".
+- Own certificate (test): install the cs-proxy CA once, load `http://server/cs-proxy-ca.crt`, then Settings › Security › Encryption & credentials › Install a certificate › CA certificate. Not needed with Let's Encrypt.
+
 ## Build
 
 ```

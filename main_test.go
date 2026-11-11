@@ -427,6 +427,50 @@ func TestWebDAV(t *testing.T) {
 	}
 }
 
+// TestCalendarMove (0.69.2): Termin per POST .../events/{file}/move in einen anderen Kalender verschieben.
+func TestCalendarMove(t *testing.T) {
+	srv, _ := setup(t)
+	defer srv.Close()
+	for _, n := range []string{"Quelle", "Ziel"} {
+		if c, b := req(t, srv, "anna", "POST", "/api/cal", `{"name":"`+n+`"}`); c != 200 {
+			t.Fatalf("create %s: %d %s", n, c, b)
+		}
+	}
+	ev := `{"summary":"Umzug","start":"2026-10-05T16:00:00Z","end":"2026-10-05T17:00:00Z","rule":{"freq":"WEEKLY","count":3}}`
+	if c, b := req(t, srv, "anna", "POST", "/api/cal/quelle/events", ev); c != 200 {
+		t.Fatalf("add: %d %s", c, b)
+	}
+	win := "?from=2026-10-01T00:00:00Z&to=2026-11-01T00:00:00Z"
+	_, b := req(t, srv, "anna", "GET", "/api/cal/quelle/events"+win, "")
+	var evs []struct{ File, Summary string }
+	json.Unmarshal([]byte(b), &evs)
+	if len(evs) != 3 {
+		t.Fatalf("series: %s", b)
+	}
+	f := evs[0].File
+	if c, _ := req(t, srv, "bob", "POST", "/api/cal/quelle/events/"+f+"/move", `{"to":"ziel"}`); c != 404 && c != 403 {
+		t.Fatalf("bob must not move: %d", c)
+	}
+	if c, _ := req(t, srv, "anna", "POST", "/api/cal/quelle/events/"+f+"/move", `{"to":"quelle"}`); c != 400 {
+		t.Fatalf("same calendar: %d", c)
+	}
+	if c, b := req(t, srv, "anna", "POST", "/api/cal/quelle/events/"+f+"/move", `{"to":"ziel"}`); c != 200 {
+		t.Fatalf("move: %d %s", c, b)
+	}
+	if _, b := req(t, srv, "anna", "GET", "/api/cal/quelle/events"+win, ""); strings.Contains(b, "Umzug") {
+		t.Fatalf("still in source: %s", b)
+	}
+	_, b = req(t, srv, "anna", "GET", "/api/cal/ziel/events"+win, "")
+	evs = nil
+	json.Unmarshal([]byte(b), &evs)
+	if len(evs) != 3 || evs[0].Summary != "Umzug" {
+		t.Fatalf("whole series in target: %s", b)
+	}
+	if c, _ := req(t, srv, "anna", "POST", "/api/cal/quelle/events/"+f+"/move", `{"to":"ziel"}`); c != 404 {
+		t.Fatalf("moved twice: %d", c)
+	}
+}
+
 func TestCalendarAPI(t *testing.T) {
 	srv, _ := setup(t)
 	defer srv.Close()
@@ -441,7 +485,7 @@ func TestCalendarAPI(t *testing.T) {
 	if c, b := req(t, srv, "anna", "POST", "/api/cal/team-urlaub/events", ev); c != 200 {
 		t.Fatalf("add event: %d %s", c, b)
 	}
-	c, b = req(t, srv, "anna", "GET", "/api/cal/team-urlaub/events", "")
+	c, b = req(t, srv, "anna", "GET", "/api/cal/team-urlaub/events?from=2026-10-01T00:00:00Z&to=2026-11-01T00:00:00Z", "") // festes Fenster (ohne: Standardfenster um heute)
 	var evs []struct{ File, Summary, Start string }
 	json.Unmarshal([]byte(b), &evs)
 	if c != 200 || len(evs) != 1 || evs[0].Summary != "Sommerfest" || evs[0].Start != "2026-10-05T16:00:00Z" {
@@ -450,6 +494,19 @@ func TestCalendarAPI(t *testing.T) {
 	// derselbe Termin ist über CalDAV sichtbar
 	if c, b := req(t, srv, "anna", "GET", "/dav/anna/cal/team-urlaub/"+evs[0].File, ""); c != 200 || !strings.Contains(b, "SUMMARY:Sommerfest") {
 		t.Fatalf("caldav get: %d %s", c, b)
+	}
+	// Farbe (0.69.2): gültig speichern, in der Liste sehen, ungültig ablehnen, fremd verboten
+	if c, b := req(t, srv, "anna", "PUT", "/api/cal/team-urlaub", `{"color":"#A855F7"}`); c != 200 || !strings.Contains(b, `"color":"#a855f7"`) {
+		t.Fatalf("color: %d %s", c, b)
+	}
+	if c, b := req(t, srv, "anna", "GET", "/api/cal", ""); c != 200 || !strings.Contains(b, `"color":"#a855f7"`) {
+		t.Fatalf("color in list: %d %s", c, b)
+	}
+	if c, _ := req(t, srv, "anna", "PUT", "/api/cal/team-urlaub", `{"color":"red;x"}`); c != 400 {
+		t.Fatalf("bad color: %d", c)
+	}
+	if c, _ := req(t, srv, "anna", "PUT", "/api/cal/default", `{"color":"#16a34a"}`); c != 200 {
+		t.Fatalf("color default cal: %d", c)
 	}
 	if c, _ := req(t, srv, "bob", "GET", "/api/cal/team-urlaub/events", ""); c != 404 {
 		t.Fatalf("bob must not find anna's calendar: %d", c)
@@ -898,15 +955,18 @@ func TestCalendarScopes(t *testing.T) {
 	do("anna", pa, "POST", "/api/users/import", "teach;teachteach1;kl\nlisa;lisalisa1;kl\nfred;fredfred1;other\n")
 	do("anna", pa, "POST", "/api/groups/kl/admins", `{"admins":["teach"]}`)
 
-	// Anlegen: global nur Admin, Gruppenkalender nur Gruppen-Admin
+	// Anlegen: global nur Admin, Gruppenkalender jedes Mitglied und die Gruppen-Admins (0.69.2), fremde Gruppe nie
 	if c, _ := do("teach", "teachteach1", "POST", "/api/cal", `{"name":"Feiertage","scope":"global"}`); c != 403 {
 		t.Fatalf("teach global: %d", c)
 	}
 	if c, _ := do("anna", pa, "POST", "/api/cal", `{"name":"Feiertage","scope":"global"}`); c != 200 {
 		t.Fatalf("admin global: %d", c)
 	}
-	if c, _ := do("lisa", "lisalisa1", "POST", "/api/cal", `{"name":"Klasse","scope":"group","group":"kl"}`); c != 403 {
-		t.Fatalf("lisa group cal: %d", c)
+	if c, _ := do("lisa", "lisalisa1", "POST", "/api/cal", `{"name":"Lisa Projekt","scope":"group","group":"kl"}`); c != 200 {
+		t.Fatalf("member group cal: %d", c)
+	}
+	if c, _ := do("fred", "fredfred1", "POST", "/api/cal", `{"name":"Fremd2","scope":"group","group":"kl"}`); c != 403 {
+		t.Fatalf("non-member group cal: %d", c)
 	}
 	if c, _ := do("teach", "teachteach1", "POST", "/api/cal", `{"name":"Klasse","scope":"group","group":"kl","mode":"ro"}`); c != 200 {
 		t.Fatalf("teach group cal: %d", c)

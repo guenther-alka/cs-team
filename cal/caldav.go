@@ -60,6 +60,9 @@ type meta struct {
 	Description string `json:"description"`
 	Mode        string `json:"mode,omitempty"`     // globale/Gruppenkalender: "ro" nur Admins schreiben, "rw" alle Berechtigten
 	Resource    bool   `json:"resource,omitempty"` // Ressource: keine überschneidenden Termine
+	Color       string `json:"color,omitempty"`    // Anzeigefarbe "#rrggbb" (leer = automatisch aus der ID)
+	By          string `json:"by,omitempty"`       // Gruppenkalender: Ersteller (verwaltet ihn mit den Gruppen-Admins)
+	Plan        bool   `json:"plan,omitempty"`     // Plan: Einträge je Quartal (ganztägig am Quartalsanfang, Wiederholung nur jährlich), Anzeige im Jahr
 	URL         string `json:"url,omitempty"`      // Abo: ICS-Feed (Kalender ist dann nur lesbar)
 	Fetched     int64  `json:"fetched,omitempty"`  // letzter erfolgreicher Abruf
 	Tried       int64  `json:"tried,omitempty"`    // letzter Versuch
@@ -136,8 +139,8 @@ func scopeOf(owner string) (scope, group string) {
 }
 
 // access: Rechte des angemeldeten Benutzers auf einen Kalender-Besitzer.
-func access(ctx context.Context, owner, mode string) (read, write, manage bool) {
-	read, write, manage = access0(ctx, owner, mode)
+func access(ctx context.Context, owner, mode, by string) (read, write, manage bool) {
+	read, write, manage = access0(ctx, owner, mode, by)
 	if !auth.CanWrite(ctx, "cal") { // bei Bereich "nur lesen" nie ändern
 		write, manage = false, false
 	}
@@ -148,7 +151,8 @@ func access(ctx context.Context, owner, mode string) (read, write, manage bool) 
 // (nur die Verantwortlichen); "" = Altbestand ohne Angabe (wie "ro").
 func released(mode string) bool { return mode != "off" }
 
-func access0(ctx context.Context, owner, mode string) (read, write, manage bool) {
+// by: Ersteller eines Gruppenkalenders - verwaltet ihn zusammen mit den Gruppen-Admins, solange er Mitglied ist.
+func access0(ctx context.Context, owner, mode, by string) (read, write, manage bool) {
 	me := auth.User(ctx)
 	adm := auth.IsAdmin(ctx)
 	free := released(mode)
@@ -159,8 +163,9 @@ func access0(ctx context.Context, owner, mode string) (read, write, manage bool)
 		rd := adm || free // globale Kalender: alle lesen (sobald freigegeben)
 		return rd, rd && (adm || mode == "rw"), adm
 	case sc == "group":
-		mgr := auth.CanManage(ctx, g) // Gruppen-Admins verantworten ihren Gruppenkalender (auch ohne Mitgliedschaft)
-		rd := adm || mgr || (contains(auth.GroupsOf(me), g) && free)
+		member := contains(auth.GroupsOf(me), g)
+		mgr := auth.CanManage(ctx, g) || (by != "" && by == me && member) // Gruppen-Admins (auch ohne Mitgliedschaft) und der Ersteller
+		rd := adm || mgr || (member && free)
 		return rd, rd && (mgr || mode == "rw"), mgr
 	case sc == "unit":
 		// Organisation: Mitglieder ihrer Gruppen lesen; ändern dürfen globale Admins (die Organisation hat keine
@@ -198,7 +203,7 @@ func (b *Backend) open(ctx context.Context, cid string) (*calRef, error) {
 	if m.Name == "" {
 		m.Name = kal
 	}
-	r, w, mg := access(ctx, owner, m.Mode)
+	r, w, mg := access(ctx, owner, m.Mode, m.By)
 	if m.URL != "" {
 		w = false // Abo-Kalender: Termine kommen vom Feed
 	}
@@ -454,12 +459,13 @@ func (b *Backend) DeleteCalendarObject(ctx context.Context, p string) error {
 const maxDAV = 1 << 20
 
 func Handler(st store.Store) http.Handler {
-	h := &caldav.Handler{Backend: &Backend{St: st}, Prefix: Prefix}
+	be := &Backend{St: st}
+	h := &caldav.Handler{Backend: be, Prefix: Prefix}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil && r.Body != http.NoBody && r.ContentLength != 0 {
 			r.Body = http.MaxBytesReader(w, r.Body, maxDAV)
 		}
-		h.ServeHTTP(w, r)
+		be.davColor(h, w, r) // PROPFIND: Kalenderfarbe (calendar-color) ergänzen
 	})
 }
 

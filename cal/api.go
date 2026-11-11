@@ -1,6 +1,7 @@
 package cal
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -35,6 +36,8 @@ type calRow struct {
 	Manage      bool   `json:"manage"`           // darf ich den Kalender löschen
 	URL         string `json:"url,omitempty"`    // Abo-URL (nur für Verwalter sichtbar)
 	Resource    bool   `json:"resource,omitempty"`
+	Color       string `json:"color,omitempty"`   // Anzeigefarbe "#rrggbb" (leer = automatisch)
+	Plan        bool   `json:"plan,omitempty"`    // Plan-Kalender (Einträge je Quartal)
 	Sub         bool   `json:"sub,omitempty"`     // Abo-Kalender (Internet-Feed)
 	Fetched     int64  `json:"fetched,omitempty"` // Abo: letzter erfolgreicher Abruf (Unix)
 	SubErr      string `json:"suberr,omitempty"`  // Abo: Fehler des letzten Versuchs
@@ -54,6 +57,7 @@ func (b *Backend) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handle
 	mux.Handle("POST /api/cal/{kal}/events", f(b.apiAddEvent))
 	mux.Handle("PUT /api/cal/{kal}/events/{file}", f(b.apiPutEvent))
 	mux.Handle("DELETE /api/cal/{kal}/events/{file}", f(b.apiDelEvent))
+	mux.Handle("POST /api/cal/{kal}/events/{file}/move", f(b.apiMoveEvent)) // Termin in anderen Kalender verschieben
 }
 
 func (b *Backend) apiList(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +99,7 @@ func (b *Backend) apiList(w http.ResponseWriter, r *http.Request) {
 func row(c *calRef) calRow {
 	sc, g := scopeOf(c.owner)
 	rw := calRow{ID: c.cid, Name: c.m.Name, Description: c.m.Description, Scope: sc, Mode: c.m.Mode,
-		Write: c.write, Manage: c.manage && !(sc == "user" && c.kal == "default"), Sub: c.m.URL != "", Resource: c.m.Resource}
+		Write: c.write, Manage: c.manage && !(sc == "user" && c.kal == "default"), Sub: c.m.URL != "", Resource: c.m.Resource, Color: c.m.Color, Plan: c.m.Plan}
 	switch sc {
 	case "group":
 		rw.Group = g
@@ -119,7 +123,7 @@ func row(c *calRef) calRow {
 func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Name, Description, Scope, Group, Unit, Mode, URL string
-		Resource                                         bool
+		Resource, Plan                                   bool
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil || strings.TrimSpace(in.Name) == "" {
 		http.Error(w, "name required", 400)
@@ -128,6 +132,13 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 	me := auth.User(r.Context())
 	m := meta{Name: strings.TrimSpace(in.Name), Description: in.Description}
 	m.Resource = in.Resource && strings.TrimSpace(in.URL) == ""
+	if in.Plan { // Plan: nur persönlich oder Gruppe, kein Abo, keine Ressource (0.69.2)
+		if (in.Scope != "" && in.Scope != "user" && in.Scope != "group") || strings.TrimSpace(in.URL) != "" {
+			http.Error(w, "plan: personal or group calendar only, no subscription", 400)
+			return
+		}
+		m.Plan, m.Resource = true, false
+	}
 	if strings.TrimSpace(in.URL) != "" {
 		u, err := checkURL(in.URL)
 		if err != nil {
@@ -146,22 +157,15 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		owner, m.Mode = globalOwner, "ro"
 	case "group":
-		if !auth.CanManage(r.Context(), in.Group) {
-			http.Error(w, "not admin of group", 403)
+		if !mayGroupCal(r.Context(), in.Group) { // jedes Mitglied und die Gruppen-Admins (0.69.2)
+			http.Error(w, "not member of group", 403)
 			return
 		}
-		known := false
-		for _, g := range auth.AllGroupNames() {
-			if g == in.Group {
-				known = true
-				break
-			}
-		}
-		if !known {
+		if !knownGroup(in.Group) {
 			http.Error(w, "no such group", 404)
 			return
 		}
-		owner, m.Mode = "@"+in.Group, "ro"
+		owner, m.Mode, m.By = "@"+in.Group, "rw", me // Standard: alle Mitglieder tragen Termine ein
 	case "unit":
 		if !auth.IsAdmin(r.Context()) {
 			http.Error(w, "only admins create organisation calendars", 403)
@@ -211,6 +215,46 @@ func (b *Backend) apiCreate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(calRow{ID: mkCID(me, owner, id), Name: m.Name})
 }
 
+// mayGroupCal: darf der Benutzer in Gruppe g einen Kalender anlegen oder einen dorthin verschieben? Mitglieder und Gruppen-Admins.
+func mayGroupCal(ctx context.Context, g string) bool {
+	if g == "" {
+		return false
+	}
+	if auth.CanManage(ctx, g) {
+		return true
+	}
+	if g == "alluser" || g == "globaladmins" || g == "groupadmins" { // Systemgruppen: nur Admins (sonst Kalender für alle Benutzer)
+		return false
+	}
+	return contains(auth.GroupsOf(auth.User(ctx)), g)
+}
+
+func knownGroup(g string) bool {
+	for _, x := range auth.AllGroupNames() {
+		if x == g {
+			return true
+		}
+	}
+	return false
+}
+
+// validColor: "" (automatisch) oder "#rrggbb".
+func validColor(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return true
+	}
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, ch := range s[1:] {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", ch) {
+			return false
+		}
+	}
+	return true
+}
+
 func hex4() string { b := make([]byte, 3); rand.Read(b); return hex.EncodeToString(b) }
 
 // apiEdit: PUT /api/cal/{kal} - Kalender der eigenen Verantwortung bearbeiten: Name, Beschreibung, Freigabe
@@ -219,11 +263,16 @@ func hex4() string { b := make([]byte, 3); rand.Read(b); return hex.EncodeToStri
 // Feed-Ziel wird sofort abgerufen, Fehler dabei werden gemerkt (der Kalender bleibt bestehen).
 func (b *Backend) apiEdit(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Name, Description, Mode, URL *string
-		Resource                     *bool
+		Name, Description, Mode, URL, Color *string
+		Scope, Group                        *string // Umziehen: "user" (persönlich) oder "group" + Gruppe (0.69.2)
+		Resource, Plan                      *bool   // Plan: Termine <-> Plan (nur persönlich/Gruppe, kein Abo)
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in) != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	if in.Color != nil && !validColor(*in.Color) {
+		http.Error(w, `color: "#rrggbb" or ""`, http.StatusBadRequest)
 		return
 	}
 	c, err := b.open(r.Context(), r.PathValue("kal"))
@@ -231,11 +280,63 @@ func (b *Backend) apiEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	if !c.manage { // nur die Verantwortlichen: Benutzer, Gruppen-Admins, globale Admins
+	// Nur die Art (Termine/Plan) eines Gruppenkalenders darf jedes Mitglied mit Schreibrecht umschalten (0.69.2).
+	planOnly := in.Plan != nil && in.Name == nil && in.Description == nil && in.Mode == nil && in.URL == nil &&
+		in.Color == nil && in.Scope == nil && in.Group == nil && in.Resource == nil
+	if sc, _ := scopeOf(c.owner); !c.manage && !(planOnly && c.write && sc == "group") { // sonst nur die Verantwortlichen
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	me := auth.User(r.Context())
+	newOwner := c.owner
+	if in.Scope != nil {
+		switch *in.Scope {
+		case "user":
+			newOwner = me
+		case "group":
+			g := ""
+			if in.Group != nil {
+				g = strings.TrimSpace(*in.Group)
+			}
+			if !mayGroupCal(r.Context(), g) {
+				http.Error(w, "not member of group", http.StatusForbidden)
+				return
+			}
+			if !knownGroup(g) {
+				http.Error(w, "no such group", http.StatusNotFound)
+				return
+			}
+			newOwner = "@" + g
+		default:
+			http.Error(w, `scope: "user" or "group"`, http.StatusBadRequest)
+			return
+		}
+		if newOwner != c.owner {
+			sc, _ := scopeOf(c.owner)
+			if sc != "user" && sc != "group" {
+				http.Error(w, "only personal and group calendars can be moved", http.StatusBadRequest)
+				return
+			}
+			if (sc == "user" && c.kal == "default") || (sc == "group" && c.kal == "gruppe") {
+				http.Error(w, "this calendar cannot be moved", http.StatusBadRequest) // Standardkalender / Kalender der Gruppen-Einstellungen
+				return
+			}
+		}
+	}
 	m, newSub := c.m, ""
+	if newOwner != c.owner { // Art wechselt: Ersteller und Freigabe passend setzen
+		if strings.HasPrefix(newOwner, "@") {
+			m.By = me
+			if m.URL == "" && (m.Mode == "" || in.Mode == nil) {
+				m.Mode = "rw" // Gruppe: alle Mitglieder tragen Termine ein
+			}
+		} else {
+			m.By = ""
+			if m.URL == "" {
+				m.Mode = ""
+			}
+		}
+	}
 	if in.Mode != nil {
 		mode := strings.ToLower(strings.TrimSpace(*in.Mode))
 		if mode == "none" { // "none" und "off" sind gleichbedeutend: nicht freigegeben
@@ -265,6 +366,19 @@ func (b *Backend) apiEdit(w http.ResponseWriter, r *http.Request) {
 	if in.Resource != nil && m.URL == "" {
 		m.Resource = *in.Resource
 	}
+	if in.Color != nil { // Anzeigefarbe gilt für alle, die den Kalender sehen (leer = automatisch)
+		m.Color = strings.ToLower(strings.TrimSpace(*in.Color))
+	}
+	if in.Plan != nil && *in.Plan != m.Plan { // Art umschalten: vorhandene Einträge bleiben, wie sie sind
+		if sc, _ := scopeOf(newOwner); *in.Plan && (m.URL != "" || (sc != "user" && sc != "group")) {
+			http.Error(w, "plan: personal or group calendar only, no subscription", http.StatusBadRequest)
+			return
+		}
+		m.Plan = *in.Plan
+		if m.Plan {
+			m.Resource = false
+		}
+	}
 	if in.URL != nil {
 		u := strings.TrimSpace(*in.URL)
 		if u == "" { // Abo beenden: Feed-URL und die geholten Termine entfernen
@@ -289,18 +403,29 @@ func (b *Backend) apiEdit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mb, _ := json.Marshal(m)
-	if _, err := b.St.Put(r.Context(), key(c.owner, c.kal, "_meta.json"), mb, ""); err != nil {
+	owner, kal := c.owner, c.kal
+	if newOwner != c.owner { // Kalender samt Terminen umziehen; die ID bleibt, wenn sie am Ziel frei ist
+		nk := c.kal
+		if _, _, err := b.St.Get(r.Context(), key(newOwner, nk, "_meta.json")); err == nil || (newOwner == me && nk == "default") {
+			nk += hex4()
+		}
+		if err := b.moveAll(r.Context(), c.owner, c.kal, newOwner, nk, mb); err != nil {
+			http.Error(w, "move: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		owner, kal = newOwner, nk
+	} else if _, err := b.St.Put(r.Context(), key(c.owner, c.kal, "_meta.json"), mb, ""); err != nil {
 		http.Error(w, "save", http.StatusInternalServerError)
 		return
 	}
 	subErr := ""
 	if newSub != "" {
-		if err := b.refresh(r.Context(), c.owner, c.kal, m); err != nil {
-			b.subFailed(r.Context(), c.owner, c.kal, m, err) // Zustand merken, der Kalender bleibt bestehen
+		if err := b.refresh(r.Context(), owner, kal, m); err != nil {
+			b.subFailed(r.Context(), owner, kal, m, err) // Zustand merken, der Kalender bleibt bestehen
 			subErr = feedErr(err)
 		}
 	}
-	c, err = b.open(r.Context(), r.PathValue("kal")) // Rechte und Zustand nach dem Speichern neu bewerten
+	c, err = b.open(r.Context(), mkCID(me, owner, kal)) // Rechte und Zustand nach dem Speichern neu bewerten
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return

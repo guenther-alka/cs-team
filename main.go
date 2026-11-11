@@ -130,7 +130,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.69.1" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.69.2" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -333,9 +333,10 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	if haSvc == nil { // Tests rufen routes ohne main auf: Ausfallschutz aus
 		haSvc = ha.New(st, "", "", false, false)
 	}
-	caldav := a.Wrap(auth.Need("cal", cal.Handler(st)))
+	caldav := davLog(a.Wrap(auth.Need("cal", cal.Handler(st))))
 	mux.Handle(cal.Prefix+"/", caldav)
-	mux.Handle("/.well-known/caldav", caldav)
+	// RFC 6764: /.well-known/caldav leitet auf die CalDAV-Basis um (DAVx5, Apple, Thunderbird folgen der Umleitung, 0.69.2)
+	mux.Handle("/.well-known/caldav", http.RedirectHandler(cal.Prefix+"/", http.StatusMovedPermanently))
 	a.Routes(mux)
 	cb := &cal.Backend{St: st}
 	cb.Routes(mux, a.Wrap)
@@ -504,6 +505,10 @@ func secHeaders(next http.Handler) http.Handler {
 		// API-Antworten enthalten personenbezogene Daten: nicht in Browser-/Proxy-Caches ablegen (Handler dÃ¼rfen Ã¼berschreiben).
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/dav/") || strings.HasPrefix(r.URL.Path, "/webdav/") {
 			h.Set("Cache-Control", "no-store")
+		}
+		if r.Method == "PROPFIND" && r.URL.Path == "/" { // CalDAV-Client mit Basis-URL ohne Pfad: zur CalDAV-Basis (0.69.2)
+			http.Redirect(w, r, "/dav/", http.StatusMovedPermanently)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})

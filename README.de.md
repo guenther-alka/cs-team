@@ -237,6 +237,13 @@ Webhook-Formate: Slack (`{"text"}`), Discord (`{"content"}`), Telegram (`text=`)
 
 Bis 760 px Breite zeigt cs-team Liste und Inhalt nacheinander (Pfeil links oben = zurueck). Ohne Installation im Browser nutzbar; Calc ist per Touch eingeschraenkt.
 
+Besonderheiten Android (Handbuch Kapitel 6.1):
+- Browser: **Firefox** verwenden. Chrome lehnt das eigene (selbst signierte) Zertifikat oft ab (`ERR_TOO_MANY_RETRIES`).
+- Kalender (iCal/CalDAV): **DAVx5** installieren (F-Droid kostenlos), URL `https://server:9004/dav/`.
+- Die Kalender im DAVx5-Konto (CalDAV) anhaken und **zusätzlich in der Kalender-App einschalten** (z.B. Google Kalender › ☰ › Kalender des DAVx5-Kontos anhaken), sonst bleiben sie unsichtbar.
+- Läuft cs-team im **lokalen Netz**, muss DAVx5 der Zugriff auf Geräte im lokalen Netzwerk **erlaubt** werden (Android 16 fragt beim ersten Verbinden), sonst bleibt DAVx5 bei „Bitte warten“.
+- Eigenes Zertifikat (Test): die CA von cs-proxy einmal installieren, `http://server/cs-proxy-ca.crt` laden, dann Einstellungen › Sicherheit › Verschlüsselung & Anmeldedaten › Zertifikat installieren › CA-Zertifikat. Mit Let's Encrypt entfällt das.
+
 ## Aufgaben (0.9.0)
 
 Hauptmenü **Aufgaben**: Ticketsystem light. Eine Aufgabe hat Auftraggeber, optional eine Gruppe, einen Bearbeiter (leer = „Bitte bearbeiten“,

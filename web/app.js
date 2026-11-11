@@ -60,6 +60,25 @@ function uiBox(title,el,o){o=o||{};return new Promise(res=>{
 const uiAsk=m=>uiDlg(m,{cancel:1});
 const uiPrompt=(m,d,pw)=>uiDlg(m,{cancel:1,input:d===undefined?'':d,pw:pw});
 const uiAlert=m=>uiDlg(m,{});
+// colorDlg: Farbwahl (Palette, beliebige Farbe, "automatisch" = auto). Ergebnis "#rrggbb", "" (automatisch) oder null (Abbruch).
+// pl (optional, true/false): zusätzlich Art Termine/Plan wählen; Ergebnis dann {c:Farbe, p:Plan} statt der Farbe.
+async function colorDlg(title,cur,note,auto,pl){
+ let v=cur||'',pv=!!pl;const el=document.createElement('div'),row=document.createElement('div'),pick=document.createElement('input');
+ if(pl!==undefined){const ar=document.createElement('div');ar.className='row';ar.append(t('Art: '));
+  for(const [val,lb] of [[false,t('Termine')],[true,t('Plan (Quartale, Anzeige im Jahr)')]]){const l=document.createElement('label');l.style.marginRight='12px';const r=document.createElement('input');r.type='radio';r.name='cdpl';r.checked=val==pv;r.onchange=()=>{pv=val;};l.append(r,' '+lb);ar.append(l);}
+  el.append(ar);}
+ row.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;align-items:center';
+ const sw=[];const mark=()=>{sw.forEach(b=>{b.style.outline=b.dataset.c==v?'3px solid #222':'none';b.style.outlineOffset='1px';});};
+ for(const c of ['',...PALETTE]){const b=document.createElement('button');b.type='button';b.dataset.c=c;
+  b.style.cssText='width:'+(c?'28px':'auto')+';height:28px;border-radius:6px;border:1px solid #888;cursor:pointer;background:'+(c||auto||'#ccc')+(c?'':';color:#fff;padding:0 8px');
+  b.textContent=c?'':t('automatisch');b.title=c||t('automatisch');b.onclick=()=>{v=c;if(c)pick.value=c;mark();};sw.push(b);row.append(b);}
+ pick.type='color';pick.value=v||auto||PALETTE[0];pick.title=t('Farbe wählen');pick.style.cssText='width:44px;height:30px;padding:0;border:none;background:none;cursor:pointer';
+ pick.oninput=()=>{v=pick.value.toLowerCase();mark();};row.append(pick);el.append(row);
+ if(note){const n=document.createElement('div');n.className='muted';n.textContent=note;el.append(n);}
+ mark();
+ if(!await uiBox(title,el,{ok:t('Speichern')}))return null;
+ return pl===undefined?v:{c:v,p:pv};
+}
 // alert() zeigt nur noch einen Hinweis unten (Klick = schliessen, verschwindet von selbst).
 function uiToast(m){let c=document.getElementById('uitoasts');if(!c){c=document.createElement('div');c.id='uitoasts';c.setAttribute('role','status');c.setAttribute('aria-live','polite');document.body.appendChild(c);}
  const d=document.createElement('div');d.className='uitoast';d.textContent=String(m);c.appendChild(d);const x=()=>d.remove();d.onclick=x;setTimeout(x,Math.min(15000,4000+String(m).length*40));}
@@ -141,13 +160,17 @@ function setList(items){
     d.append(l);
     if(S_.delable&&S_.delable(it.k)){const x=document.createElement('button');x.className='xdel';x.title=t('löschen');x.textContent='[x]';
       x.onclick=e=>{e.stopPropagation();sel=it.k;S[sec].del();};d.append(x);}
-    d.onclick=()=>{if(!String(it.k).startsWith('f:'))document.body.classList.add('mm');S[sec].select(it.k);};kbItem(d);if(it.k===sel)d.setAttribute('aria-current','true');el.append(d);
+    d.onclick=e=>{if(!String(it.k).startsWith('f:'))document.body.classList.add('mm');S[sec].select(it.k);if(e.detail==2&&S_.dbl)S_.dbl(it.k);};   // Doppelklick: der erste Klick baut die Liste neu, darum zählt detail==2 (zweiter Klick)
+    if(S_.dbl)d.ondblclick=()=>S_.dbl(it.k);
+    if(S_.dropOn){d.ondragover=e=>{if(S_.dropOn(it.k,true)){e.preventDefault();e.dataTransfer.dropEffect='move';d.classList.add('dro');}};   // Kalender: Termin auf anderen Kalender ziehen
+      d.ondragleave=e=>{if(!d.contains(e.relatedTarget))d.classList.remove('dro');};d.ondrop=e=>{e.preventDefault();d.classList.remove('dro');S_.dropOn(it.k,false);};}
+    kbItem(d);if(it.k===sel)d.setAttribute('aria-current','true');el.append(d);
   }
   if(hid){const d=document.createElement('div');d.className='head';d.textContent=t('… {0} weitere – Filter benutzen',hid);el.append(d);}
   if(S_.canAdd?S_.canAdd():true){const d=document.createElement('div');d.className='item addrow';d.textContent='+ add';d.onclick=doAdd;kbItem(d);el.append(d);}
   if(WC[sec]){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const w=document.createElement('div');w.className='item addrow wcrow';w.textContent=WC[sec].label;w.onclick=()=>openWebcraft(WC[sec].key);kbItem(w);el.append(w);
     }   // Webcraft-Editor unter + add (Text/Calc)
-  if(sec=='today'){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const box=document.createElement('div');el.append(box);wcInstalled().then(ks=>{ks.forEach(k=>{const r=document.createElement('div');r.className='item addrow wcrow';r.textContent=wcName(k);r.onclick=()=>openWebcraft(k);kbItem(r);box.append(r);});});}   // Start: alle installierten Webcraft-Apps, alphabetisch
+  if(sec=='today'||sec=='set'){const h=document.createElement('div');h.className='head';h.style.marginTop='18px';h.textContent=t('Singleuser (lokal)');el.append(h);const box=document.createElement('div');el.append(box);wcInstalled().then(ks=>{ks.forEach(k=>{const r=document.createElement('div');r.className='item addrow wcrow';r.textContent=wcName(k);r.onclick=()=>openWebcraft(k);kbItem(r);box.append(r);});});}   // Start: alle installierten Webcraft-Apps, alphabetisch
 }
 /* Menue Text/Calc/Files, unter + add: Webcraft-Editor (WordCraft, GridCraft, PDFCraft) in eigenem Browserfenster (kein iframe). Adresse: https://<dieser Host>/webcraft/<app>/ (napp-it CS cs-proxy/webserver); abweichend per localStorage cs.webcraft.base, z. B. https://host:8443/webcraft/ */
 const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'}};
@@ -205,9 +228,9 @@ function upd(){}
 $('#list').addEventListener('click',e=>{if(!e.target.closest('.wcrow'))wcHide();},true);
 async function go(s){
   leaveDoc();wcHide();sec=s;sel=null;touched=false;$('#flt').value='';document.body.classList.remove('mm');
-  const ns=s=='set'?'today':s;   // Einstellungen gehoeren zum Start-Menue
-  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==ns));
-  const nb=document.querySelector('#nav button[data-s="'+ns+'"]');$('#ltitle').textContent=nb?[...nb.childNodes].filter(n=>n.nodeType==3).map(n=>n.textContent).join('').trim():'';   // Menuename (fett) ueber dem Filter
+  const home=s=='set'||s=='today';   // Hauptmenue "cs-team" (Logo): Aktuell, Einstellungen, Singleuser-Apps (0.69.2, ersetzt "Start")
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('act',b.dataset.s==s));$('#brand').classList.toggle('act',home);
+  const nb=document.querySelector('#nav button[data-s="'+s+'"]');$('#ltitle').textContent=home?'cs-team':nb?[...nb.childNodes].filter(n=>n.nodeType==3).map(n=>n.textContent).join('').trim():'';   // Menuename (fett) ueber dem Filter
   $('#flt').style.display=(s=='today'||s=='set')?'none':'';   // Start und Einstellungen: kein Filter
   $('#list').innerHTML='';   // alte Liste sofort weg: sonst bleibt sie stehen, wenn das Laden dauert oder fehlschlaegt
   $('#main').className='';$('#main').innerHTML='';upd();$('#linfo').textContent=S[s].info?t(S[s].info):'';$('#tkq').style.display=s=='task'?'':'none';
@@ -884,7 +907,44 @@ const sod=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
 const hhmm=d=>pad2(d.getHours())+':'+pad2(d.getMinutes());
 S.cal={
   items:[],cals:[],ev:{},range:null,_evs:[],note:'',rng:null,selDay:null,curKey:'',clip:null,drag:null,hover:null,vis:lsGet('cs.cal.vis',{}),view:lsGet('cs.cal.view','month'),anchor:new Date(),
-  colorOf(c){let h=0;for(const ch of c.id)h=(h*31+ch.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];},
+  cols:lsGet('cs.cal.col',{}),   // persönliche Farben (nur dieser Browser) für Kalender, die andere verwalten
+  autoColor(c){let h=0;for(const ch of c.id)h=(h*31+ch.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];},
+  colorOf(c){return this.cols[c.id]||c.color||this.autoColor(c);},
+  canColor(c){return !!(c.manage||(c.scope=='user'&&c.id=='default'));},   // Farbe am Kalender speichern (gilt für alle)
+  /* Doppelklick in der linken Liste: Farbe wählen. Verantwortliche speichern sie am Kalender, sonst nur für diesen Browser. */
+  async dbl(k){
+    if(Date.now()-(this._dblT||0)<800)return;this._dblT=Date.now();
+    const c=this.cals.find(x=>x.id==k);if(!c)return;
+    const own=this.canColor(c),pa=this.planable(c);
+    let v=await colorDlg(pa?t('Kalender {0}',c.name):t('Farbe für {0}',c.name),own?(c.color||''):(this.cols[c.id]||''),own?t('Die Farbe gilt für alle, die den Kalender sehen.'):t('Diese Farbe gilt nur für dich in diesem Browser (den Kalender verwalten andere).'),this.autoColor(c),pa?!!c.plan:undefined);
+    if(v===null)return;
+    let pl;if(pa){pl=v.p;v=v.c;}
+    if(own){const b={color:v};if(pa&&pl!=!!c.plan)b.plan=pl;
+      if(!await J('PUT','/api/cal/'+encodeURIComponent(k),b))return;delete this.cols[k];lsSet('cs.cal.col',this.cols);await this.load();
+      if(b.plan!==undefined){this.select(k);return;}}   // Art gewechselt: Plan -> Jahr, Termine -> Monat
+    else{if(v)this.cols[k]=v;else delete this.cols[k];lsSet('cs.cal.col',this.cols);
+      if(pa&&pl!=!!c.plan){if(!await J('PUT','/api/cal/'+encodeURIComponent(k),{plan:pl}))return;await this.load();this.select(k);return;}   // Mitglied: nur die Art
+      this.buildList();}
+    this.draw();
+  },
+  planable(c){return !c.sub&&((c.manage&&c.scope=='user')||(c.scope=='group'&&(c.manage||c.write)));},   // Art Termine/Plan umschaltbar (Gruppe: jedes Mitglied mit Schreibrecht)
+  movable(c){return !c.sub&&((c.scope=='user'&&c.id!='default')||(c.scope=='group'&&!c.id.endsWith('~gruppe')));},   // Art im Formular wechselbar
+  calGroups(){const sys=['alluser','globaladmins','groupadmins'],s=new Set([...(me.adminOf||[]),...(me.groups||[]).filter(g=>!sys.includes(g))]);if(me.admin)allGroups.forEach(g=>s.add(g.name));return [...s].sort();},   // Gruppen für Gruppenkalender
+  /* Termin aus dem Hauptbereich auf einen Kalender der linken Liste ziehen: nach Bestätigung dorthin verschieben (ganze Serie) */
+  calLabel(c){return (c.scope=='group'?c.group+': ':c.scope=='unit'?t('Organisation')+' '+c.unit+': ':c.scope=='global'?t('global')+': ':'')+c.name;},
+  dropOn(k,test){
+    const d=this.drag;if(!d||!d.x)return false;
+    const to=this.cals.find(c=>c.id==k),fr=d.x.c;
+    if(!to||!to.write||to.sub||!fr.write||fr.sub||to.id==fr.id)return false;
+    if(test)return true;
+    this.drag=null;document.querySelectorAll('#main .dro').forEach(c=>c.classList.remove('dro'));
+    this.moveCal(d.x,to);return true;
+  },
+  async moveCal(x,to){
+    if(!await uiAsk(t('Termin "{0}" verschieben an: {1}?',x.e.summary,this.calLabel(to))+(x.e.rec?' '+t('Die ganze Serie wird verschoben.'):'')))return;
+    const r=await J('POST','/api/cal/'+encodeURIComponent(x.c.id)+'/events/'+encodeURIComponent(x.e.file)+'/move',{to:to.id});
+    if(r){this.note=t('Verschoben an: {0}',this.calLabel(to));$('#cdet').innerHTML='';this.range=null;await this.load();this.paint();}
+  },
   isVis(id){return this.vis[id]!==false;},
   async load(){
     this.cals=(await J('GET','/api/cal'))||[];
@@ -897,6 +957,7 @@ S.cal={
     if(v=='month'){const f=new Date(a.getFullYear(),a.getMonth(),1);s=addDays(f,-((f.getDay()+6)%7));e=addDays(s,42);}
     else if(v=='week'){s=addDays(sod(a),-((a.getDay()+6)%7));e=addDays(s,7);}
     else if(v=='day'){s=sod(a);e=addDays(s,1);}
+    else if(v=='year'){s=new Date(a.getFullYear(),0,1);e=new Date(a.getFullYear()+1,0,1);}
     else{s=sod(new Date());e=addDays(s,60);}
     return [s,e];
   },
@@ -913,7 +974,7 @@ S.cal={
     for(const c of this.cals){
       const head=c.sub?t('Abos (nur lesen)'):c.scope=='global'?t('Globale Kalender'):c.scope=='unit'?t('Organisation')+' '+(c.unit||''):c.scope=='group'?t('Gruppe')+' '+(c.group||''):t('Meine Kalender');
       if(head!==last){it.push({head});last=head;}
-      const note=c.mode=='off'?t('(nicht freigegeben)'):c.sub?t('(Abo)'):c.resource?t('(Ressource)'):c.write?'':t('(nur lesen)');
+      const note=c.mode=='off'?t('(nicht freigegeben)'):c.sub?t('(Abo)'):c.plan?t('(Plan)'):c.resource?t('(Ressource)'):c.write?'':t('(nur lesen)');
       it.push({k:c.id,label:c.name,color:this.colorOf(c),chk:this.isVis(c.id),sub:note});
     }
     this.items=it;if(sec=="cal")setList(it);
@@ -922,7 +983,8 @@ S.cal={
   home(){this.draw();},
   canAdd:()=>true,
   delable(k){const c=this.cals.find(x=>x.id==k);return !!(c&&c.manage);},
-  select(k){sel=k;this.buildList();upd();this.draw();},
+  select(k){sel=k;const c=this.cals.find(x=>x.id==k);if(c){const v=c.plan?'year':'month';if(v!=this.view){this.view=v;lsSet('cs.cal.view',v);}}   // Plan -> Jahr, normaler Kalender -> Monat
+    this.buildList();upd();this.draw();},
   /* --- Termine aller sichtbaren Kalender als {s,en,allDay,...} --- */
   events(){
     const out=[];
@@ -933,7 +995,7 @@ S.cal={
         let s,en;
         if(e.allDay){const a=new Date(e.start),b=e.end?new Date(e.end):null;s=new Date(a.getUTCFullYear(),a.getUTCMonth(),a.getUTCDate());en=b?new Date(b.getUTCFullYear(),b.getUTCMonth(),b.getUTCDate()):addDays(s,1);}
         else{s=new Date(e.start);en=e.end?new Date(e.end):new Date(+s+3600e3);}
-        out.push({c,e,s,en,allDay:!!e.allDay,color:this.colorOf(c),id:out.length});
+        out.push({c,e,s,en,allDay:!!e.allDay,plan:!!c.plan,color:this.colorOf(c),id:out.length});
       }
     }
     out.sort((a,b)=>(b.allDay-a.allDay)||(a.s-b.s));
@@ -980,8 +1042,21 @@ S.cal={
   async draw(){if(!this.covered())await this.loadEvents();this.paint();},
   paint(){
     const a=this.anchor,v=this.view;let title='',body='';
-    const evs=this._evs=this.events(),today=dkey(new Date());
-    if(v=='month'){
+    const all=this._evs=this.events(),today=dkey(new Date()),evs=v=='year'?all:all.filter(x=>!x.plan);   // Plan-Einträge nur in der Jahresansicht
+    if(v=='year'){
+      const y=a.getFullYear(),pl=all.filter(x=>x.plan),nm=all.filter(x=>!x.plan);title=String(y);
+      body='<div class="yq">'+[0,1,2,3].map(q=>{const qs=new Date(y,q*3,1),qe=new Date(y,q*3+3,1),l=pl.filter(x=>x.s>=qs&&x.s<qe);
+        return '<div class="yqc" data-q="'+q+'"><div class="yqh">Q'+(q+1)+' <small class="muted">'+MONTHS[q*3].slice(0,3)+' – '+MONTHS[q*3+2].slice(0,3)+'</small></div>'+l.map(x=>this.chip(x)).join('')+'</div>';}).join('')+'</div>';
+      body+='<div class="ym">';
+      for(let m=0;m<12;m++){
+        const f=new Date(y,m,1),off=(f.getDay()+6)%7,n=new Date(y,m+1,0).getDate();
+        body+='<div class="ymm"><div class="ymh" data-ym="'+m+'">'+MONTHS[m]+'</div><div class="ymg">'+WD.map(d=>'<b>'+d.slice(0,2)+'</b>').join('')+'<i></i>'.repeat(off);
+        for(let d=1;d<=n;d++){const dd=new Date(y,m,d),cs=[...new Set(this.onDay(nm,dd).map(x=>x.color))].slice(0,4);
+          body+='<span data-yd="'+dkey(dd)+'" class="'+(dkey(dd)==today?'today':'')+'" title="'+esc(this.onDay(nm,dd).map(x=>x.e.summary).join(', '))+'">'+d+(cs.length?'<em>'+cs.map(c=>'<u style="color:'+c+'">x</u>').join('')+'</em>':'')+'</span>';}
+        body+='</div></div>';
+      }
+      body+='</div>';
+    }else if(v=='month'){
       title=MONTHS[a.getMonth()]+' '+a.getFullYear();
       const first=new Date(a.getFullYear(),a.getMonth(),1),off=(first.getDay()+6)%7,start=addDays(first,-off);
       body='<div class="mgrid">'+WD.map(d=>'<div class="dh">'+d+'</div>').join('');
@@ -1005,13 +1080,13 @@ S.cal={
     const og=document.getElementById('tg');if(og)this.tgs=og.scrollTop;
     const vb=(k,l)=>'<button data-v="'+k+'" class="'+(v==k?'on':'')+'">'+l+'</button>';
     $('#main').innerHTML='<div class="ctool"><button id="ctd">'+t('Heute')+'</button><button id="cpv">&lsaquo;</button><button id="cnx">&rsaquo;</button><span class="ttl">'+esc(title)+'</span>'+
-      vb('day',t('Tag'))+vb('week',t('Woche'))+vb('month',t('Monat'))+vb('agenda',t('Agenda'))+' <button id="cnew">'+t('+ Neuer Termin')+'</button></div><div id="cclip"></div>'+body+
+      vb('day',t('Tag'))+vb('week',t('Woche'))+vb('month',t('Monat'))+vb('year',t('Jahr'))+vb('agenda',t('Agenda'))+' <button id="cnew">'+t('+ Neuer Termin')+'</button></div><div id="cclip"></div>'+body+
       this.bar()+'<div class="muted" style="margin-top:8px">'+t('Kalender links ein-/ausblenden. CalDAV (Thunderbird, iOS, DAVx5): ')+'<code>'+esc(location.origin)+'/dav/</code></div><div id="cdet">'+(this.note?'<div class="panel">'+esc(this.note)+'</div>':'')+'</div>';
     this.note='';
     {const tg=$('#tg');if(tg)tg.scrollTop=this.tgs!=null?this.tgs:7*48;}
     this.barBind();
     $('#ctd').onclick=()=>{this.anchor=new Date();this.draw();};
-    const step=n=>{const x=new Date(this.anchor);if(v=='month')x.setMonth(x.getMonth()+n);else if(v=='week')x.setDate(x.getDate()+7*n);else x.setDate(x.getDate()+n);this.anchor=x;this.draw();};
+    const step=n=>{const x=new Date(this.anchor);if(v=='year'){x.setDate(1);x.setFullYear(x.getFullYear()+n);}else if(v=='month')x.setMonth(x.getMonth()+n);else if(v=='week')x.setDate(x.getDate()+7*n);else x.setDate(x.getDate()+n);this.anchor=x;this.draw();};
     $('#cpv').onclick=()=>step(-1);$('#cnx').onclick=()=>step(1);
     document.querySelectorAll('#main button[data-v]').forEach(b=>b.onclick=()=>{this.view=b.dataset.v;lsSet('cs.cal.view',this.view);this.draw();});
     document.querySelectorAll('#main [data-d]').forEach(x=>x.onclick=()=>{const p=x.dataset.d.split('-');this.anchor=new Date(+p[0],+p[1]-1,+p[2]);this.view='day';this.draw();});
@@ -1055,6 +1130,11 @@ S.cal={
       c.ondragleave=ev=>{if(!c.contains(ev.relatedTarget))c.classList.remove('dro');};
       c.ondrop=ev=>{ev.preventDefault();c.classList.remove('dro');const d=this.drag;this.drag=null;if(d)this.moveEv(d.x,this.dayDiff(d.from,c.dataset.day));};
     });
+    if(v=='year'){   // Jahr: Tag/Monat -> Monatsansicht; Doppelklick ins Quartal -> neuer Plan-Eintrag
+      document.querySelectorAll('#main [data-yd]').forEach(x=>x.onclick=()=>{this.anchor=this.pd(x.dataset.yd);this.view='month';lsSet('cs.cal.view','month');this.draw();});
+      document.querySelectorAll('#main [data-ym]').forEach(x=>x.onclick=()=>{this.anchor=new Date(a.getFullYear(),+x.dataset.ym,1);this.view='month';lsSet('cs.cal.view','month');this.draw();});
+      document.querySelectorAll('#main .yqc').forEach(c=>{c.ondblclick=ev=>{if(ev.target.closest('.ev'))return;this.form(null,{plan:{y:a.getFullYear(),q:+c.dataset.q}});};lpress(c,c.ondblclick);});
+    }
     document.querySelectorAll('#main .tkcal').forEach(c=>{c.onclick=ev=>{ev.stopPropagation();(async()=>{await go('task');S.task.select(c.dataset.task);})();};});
     this.markSel();
     $('#cnew').onclick=()=>this.newEvent();
@@ -1162,7 +1242,7 @@ S.cal={
   alarmText(m){
     if(m==null)return '';
     if(m<=0)return t('zum Beginn');
-    const k={5:'5 Minuten vorher',10:'10 Minuten vorher',15:'15 Minuten vorher',30:'30 Minuten vorher',60:'1 Stunde vorher',120:'2 Stunden vorher',1440:'1 Tag vorher',2880:'2 Tage vorher',10080:'1 Woche vorher'}[m];
+    const k={5:'5 Minuten vorher',10:'10 Minuten vorher',15:'15 Minuten vorher',30:'30 Minuten vorher',60:'1 Stunde vorher',120:'2 Stunden vorher',1440:'1 Tag vorher',2880:'2 Tage vorher',10080:'1 Woche vorher',20160:'2 Wochen vorher',40320:'4 Wochen vorher',129600:'3 Monate vorher'}[m];
     return k?t(k):t('{0} Minuten vorher',m);
   },
   attText(a){const st={ACCEPTED:t('zugesagt'),DECLINED:t('abgesagt'),TENTATIVE:t('vielleicht')}[a.status]||t('offen');return esc(a.name||a.mail)+(a.name&&a.mail?' &lt;'+esc(a.mail)+'&gt;':'')+' <span class="muted">('+st+')</span>';},
@@ -1173,6 +1253,7 @@ S.cal={
     let x='<div class="row muted" id="cbar">'+t('Kalender: ')+'<b>'+esc(c.name)+'</b>';
     if(c.scope!='user'&&!c.sub)x+=' &nbsp; <span>'+(c.mode=='off'?'<span style="color:#c0392b">'+t('nicht freigegeben')+'</span>':t('Freigabe: ')+(c.mode=='rw'?t('alle Berechtigten dürfen eintragen'):t('die Berechtigten lesen')))+'</span>';
     x+=' &nbsp; <a href="/api/cal/'+encodeURIComponent(c.id)+'/export.ics" download>'+t('Exportieren (.ics)')+'</a>';
+    if(this.planable(c))x+=' &nbsp; '+t('Art: ')+'<select id="cbpl"><option value="0"'+(c.plan?'':' selected')+'>'+t('Termine')+'</option><option value="1"'+(c.plan?' selected':'')+'>'+t('Plan (Quartale, Anzeige im Jahr)')+'</option></select>';   // Termine <-> Plan
     if(c.manage)x+=' &nbsp; <button id="cbed" type="button">'+t('Bearbeiten')+'</button>';
     if(c.write&&!c.sub)x+=' &nbsp; <button id="cimp" type="button">'+t('Importieren (.ics)')+'</button><input id="cimpf" type="file" accept=".ics,text/calendar" style="display:none">';
     if(c.sub){
@@ -1199,12 +1280,16 @@ S.cal={
     }
     const ed=$('#cbed');
     if(ed)ed.onclick=()=>this.edit(c.id);
+    const pl=$('#cbpl');
+    if(pl)pl.onchange=async()=>{if(await J('PUT','/api/cal/'+encodeURIComponent(c.id),{plan:pl.value=='1'})){await this.load();this.select(c.id);}else pl.value=c.plan?'1':'0';};
     const rf=$('#crf');
     if(rf)rf.onclick=async()=>{rf.disabled=true;await api('POST','/api/cal/'+encodeURIComponent(c.id)+'/refresh');this.range=null;await this.load();this.paint();};
   },
   ruleText(r){
     if(!r)return '';
-    const f={DAILY:t('täglich'),WEEKLY:t('wöchentlich'),MONTHLY:t('monatlich'),YEARLY:t('jährlich')}[r.freq]||r.freq;
+    if(r.freq=='MONTHLY'&&(r.interval==6||r.interval==3))r=Object.assign({},r,{freq:r.interval==6?'H':'Q',interval:1});
+    else if(r.freq=='YEARLY'&&r.interval==2)r=Object.assign({},r,{freq:'Y2',interval:1});
+    const f={DAILY:t('täglich'),WEEKLY:t('wöchentlich'),MONTHLY:t('monatlich'),YEARLY:t('jährlich'),Y2:t('alle 2 Jahre'),H:t('halbjährlich'),Q:t('vierteljährlich')}[r.freq]||r.freq;
     let x=f+((r.interval||1)>1?', '+t('Intervall {0}',r.interval):'');
     if(r.count)x+=', '+t('{0} Termine',r.count);
     if(r.until)x+=', '+t('bis {0}',r.until);
@@ -1215,7 +1300,7 @@ S.cal={
     if(!x)return;
     const c=x.c,e=x.e,cid=c.id,rec=!!e.rec;
     $('#cdet').innerHTML='<div class="panel"><b>'+(rec?'↻ ':'')+esc(e.summary)+'</b><div class="muted">'+esc(c.name)+(c.scope=='group'?' ('+t('Gruppe')+' '+esc(c.group)+')':c.scope=='unit'?' ('+t('Organisation')+' '+esc(c.unit)+')':c.scope=='global'?' ('+t('global')+')':'')+'</div>'+
-      '<div>'+(e.allDay?t('ganztägig ')+esc(x.s.toLocaleDateString(LOC,{dateStyle:'medium'}))+(+addDays(x.en,-1)>+x.s?' – '+esc(addDays(x.en,-1).toLocaleDateString(LOC,{dateStyle:'medium'})):''):esc(fmtDT(x.s))+(e.end?' – '+esc(fmtDT(x.en)):''))+'</div>'+
+      '<div>'+(c.plan?'Q'+(Math.floor(x.s.getMonth()/3)+1)+' '+x.s.getFullYear():e.allDay?t('ganztägig ')+esc(x.s.toLocaleDateString(LOC,{dateStyle:'medium'}))+(+addDays(x.en,-1)>+x.s?' – '+esc(addDays(x.en,-1).toLocaleDateString(LOC,{dateStyle:'medium'})):''):esc(fmtDT(x.s))+(e.end?' – '+esc(fmtDT(x.en)):''))+'</div>'+
       (e.location?'<div>'+t('Ort: ')+esc(e.location)+'</div>':'')+(e.desc?'<div style="white-space:pre-wrap">'+esc(e.desc)+'</div>':'')+
       (rec&&e.rule?'<div class="muted">'+t('Serie: ')+esc(this.ruleText(e.rule))+(e.ovr?' · '+t('einzeln geändert'):'')+'</div>':'')+
       (e.alarm!=null?'<div>'+t('Erinnerung: ')+esc(this.alarmText(e.alarm))+'</div>':'')+
@@ -1237,7 +1322,9 @@ S.cal={
     const w=this.cals.filter(c=>c.write);
     if(!w.length){alert(t('Kein beschreibbarer Kalender'));return;}
     const ed=!!x,e=x?x.e:null,rec=!!(e&&e.rec),r=e&&e.rule?e.rule:null;
-    const cur=ed?x.c:(w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0]);
+    const cur=ed?x.c:pre&&pre.plan?w.find(c=>c.plan):(w.find(c=>c.id==sel)||w.find(c=>c.scope=='user'&&c.id=='default')||w[0]);
+    if(!cur){alert(t('Kein beschreibbarer Kalender'));return;}
+    const pq=ed&&x.c.plan?{y:x.s.getFullYear(),q:Math.floor(x.s.getMonth()/3)}:pre&&pre.plan?pre.plan:{y:this.anchor.getFullYear(),q:Math.floor(this.anchor.getMonth()/3)};   // Plan: Jahr + Quartal
     let a=new Date(pre&&pre.day?pre.day:this.anchor),b0;
     if(ed){a=new Date(x.s);b0=new Date(x.en);}
     else if(pre&&pre.t0!=null){a=new Date(pre.day);a.setHours(0,pre.t0,0,0);b0=new Date(pre.day);b0.setHours(0,pre.t1,0,0);}
@@ -1246,23 +1333,24 @@ S.cal={
     const ad0=ed?!!x.allDay:!!(pre&&pre.from),loc=d=>dkey(d)+'T'+hhmm(d);
     const v0=ad0?dkey(a):loc(a),e0=ad0?dkey(addDays(b0,-1)):loc(b0);
     const opt=(v,l,sel)=>'<option value="'+v+'"'+(sel?' selected':'')+'>'+l+'</option>';
-    const fr=r?r.freq:'';
+    const fr0=r?r.freq:'',fr=ed&&x.c.plan&&r&&fr0=='MONTHLY'&&(r.interval==6||r.interval==3)?(r.interval==6?'H':'Q'):ed&&x.c.plan&&r&&fr0=='YEARLY'&&r.interval==2?'Y2':fr0;   // Plan: halb-/vierteljährlich, alle 2 Jahre
     const rulable=!r||r.simple;   // komplexe Regeln (BYDAY ...) bleiben unverändert
-    const al0=(e&&e.alarm!=null)?e.alarm:-1,alList=[0,5,10,15,30,60,120,1440,2880,10080];
+    const al0=(e&&e.alarm!=null)?e.alarm:-1,alList=[0,5,10,15,30,60,120,1440,2880,10080,20160,40320,129600];
     if(al0>=0&&!alList.includes(al0)){alList.push(al0);alList.sort((p,q)=>p-q);}
     const alOpts=opt(-1,t('keine'),al0<0)+alList.map(m=>opt(m,this.alarmText(m),m==al0)).join('');
     const att0=((e&&e.att)||[]).map(a=>a.name||a.mail).join(', ');
     $('#cdet').innerHTML='<div class="panel"><b>'+(ed?t('Termin bearbeiten'):t('Neuer Termin'))+'</b>'+
       '<div class="row"><input id="es" placeholder="'+t('Titel')+'" style="width:260px" value="'+esc(ed?e.summary:'')+'"> <input id="el" placeholder="'+t('Ort')+'" value="'+esc(ed?e.location||'':'')+'"></div>'+
       '<div class="row"><textarea id="ed" rows="2" placeholder="'+t('Beschreibung')+'" style="width:380px">'+esc(ed?e.desc||'':'')+'</textarea></div>'+
-      '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='unit'?t('Organisation')+' '+c.unit+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
-      '<div class="row">'+t('von ')+'<input id="eb" type="'+(ad0?'date':'datetime-local')+'" value="'+v0+'"> '+t('bis')+' <input id="ee" type="'+(ad0?'date':'datetime-local')+'" value="'+e0+'"></div>'+
+      '<div class="row">'+t('Kalender: ')+'<select id="ec"'+(ed?' disabled':'')+'>'+w.map(c=>'<option value="'+esc(c.id)+'"'+(c.id==cur.id?' selected':'')+'>'+esc((c.scope=='group'?c.group+': ':c.scope=='unit'?t('Organisation')+' '+c.unit+': ':c.scope=='global'?t('global')+': ':'')+c.name)+'</option>').join('')+'</select> <label id="eadl"><input id="ead" type="checkbox"'+(ad0?' checked':'')+'> '+t('ganztägig')+'</label></div>'+
+      '<div class="row" id="eqr">'+t('Quartal: ')+'<input id="eqy" type="number" min="2000" max="2100" style="width:80px" value="'+pq.y+'"> <select id="eqq">'+[0,1,2,3].map(q=>opt(q,'Q'+(q+1),q==pq.q)).join('')+'</select></div>'+
+      '<div class="row" id="evb">'+t('von ')+'<input id="eb" type="'+(ad0?'date':'datetime-local')+'" value="'+v0+'"> '+t('bis')+' <input id="ee" type="'+(ad0?'date':'datetime-local')+'" value="'+e0+'"></div>'+
       (rec?'<div class="row"><label><input type="radio" name="esc" value="one" checked> '+t('Nur dieser Termin')+'</label> &nbsp; <label><input type="radio" name="esc" value="following"> '+t('Dieser und folgende')+'</label> &nbsp; <label><input type="radio" name="esc" value="all"> '+t('Alle Termine der Serie')+'</label></div>':'')+
       (ed&&e.att&&e.att.length?'<div class="row muted">'+t('Teilnehmer: ')+e.att.map(a=>this.attText(a)).join(', ')+(e.org?' · '+t('Organisator: ')+esc(e.org):'')+'</div>':'')+
       '<div class="row">'+t('Erinnerung: ')+'<select id="eal">'+alOpts+'</select></div>'+
       '<div class="row" id="eatw">'+t('Teilnehmer: ')+'<input id="eat" style="width:380px" placeholder="'+t('Benutzername oder E-Mail, durch Komma getrennt')+'" value="'+esc(att0)+'">'+pickBtn('eat','users')+'<div class="muted">'+t('Teilnehmer erhalten eine Einladung per E-Mail (wenn der Mailversand eingerichtet ist). Zu- und Absagen werden nicht ausgewertet.')+'</div></div>'+
-      '<div class="row" id="erw">'+t('Wiederholung: ')+'<select id="erp"'+(rulable?'':' disabled')+'>'+opt('',t('keine'),!fr)+opt('DAILY',t('täglich'),fr=='DAILY')+opt('WEEKLY',t('wöchentlich'),fr=='WEEKLY')+opt('MONTHLY',t('monatlich'),fr=='MONTHLY')+opt('YEARLY',t('jährlich'),fr=='YEARLY')+(rulable?'':opt('X',esc(this.ruleText(r)),true))+'</select> '+
-       '<span id="erx" style="display:none">'+t('Intervall')+' <input id="eri" type="number" min="1" max="99" style="width:55px" value="'+((r&&r.interval)||1)+'"> '+t('Ende')+': <select id="ere">'+opt('n',t('nie'),!(r&&(r.count||r.until)))+opt('c',t('nach Anzahl'),!!(r&&r.count))+opt('u',t('am Datum'),!!(r&&r.until&&!r.count))+'</select> '+
+      '<div class="row" id="erw">'+t('Wiederholung: ')+'<select id="erp"'+(rulable?'':' disabled')+'>'+opt('',t('keine'),!fr)+opt('DAILY',t('täglich'),fr=='DAILY')+opt('WEEKLY',t('wöchentlich'),fr=='WEEKLY')+opt('MONTHLY',t('monatlich'),fr=='MONTHLY')+opt('YEARLY',t('jährlich'),fr=='YEARLY')+opt('Y2',t('alle 2 Jahre'),fr=='Y2')+opt('H',t('halbjährlich'),fr=='H')+opt('Q',t('vierteljährlich'),fr=='Q')+(rulable?'':opt('X',esc(this.ruleText(r)),true))+'</select> '+
+       '<span id="erx" style="display:none"><span id="eriw">'+t('Intervall')+' <input id="eri" type="number" min="1" max="99" style="width:55px" value="'+((r&&r.interval)||1)+'"></span> '+t('Ende')+': <select id="ere">'+opt('n',t('nie'),!(r&&(r.count||r.until)))+opt('c',t('nach Anzahl'),!!(r&&r.count))+opt('u',t('am Datum'),!!(r&&r.until&&!r.count))+'</select> '+
        '<input id="erc" type="number" min="1" max="999" style="width:70px" value="'+((r&&r.count)||10)+'"> <input id="eru" type="date" value="'+((r&&r.until)||'')+'"></span></div>'+
       (rec?'<div class="muted" id="ern">'+t('Änderung der ganzen Serie: Ändern Sie Beginn oder Wiederholung, entfallen zuvor einzeln geänderte oder gelöschte Termine der Serie.')+'</div>':'')+
       '<div class="row"><button id="ego">'+t('Speichern')+'</button> <button id="ecx">'+t('Abbrechen')+'</button>'+(ed?' <button id="edl">'+t('Löschen')+'</button>':'')+'</div></div>';
@@ -1272,13 +1360,23 @@ S.cal={
       const one=rec&&scope()=='one';
       $('#erw').style.display=one?'none':'';$('#eatw').style.display=one?'none':'';
       const rv=$('#erp').value;$('#erx').style.display=(rv&&rv!='X')?'':'none';
+      const pc=this.cals.find(c=>c.id==(ed?cur.id:$('#ec').value));$('#eriw').style.display=(rv=='H'||rv=='Q'||rv=='Y2'||(pc&&pc.plan))?'none':'';   // Plan: festes Intervall
       const em=$('#ere').value;$('#erc').style.display=em=='c'?'':'none';$('#eru').style.display=em=='u'?'':'none';
       if($('#ern'))$('#ern').style.display=rec&&scope()=='all'?'':'none';
     };
     ['erp','ere'].forEach(i=>$('#'+i).onchange=syncRule);
     document.querySelectorAll('input[name=esc]').forEach(q=>q.onchange=syncRule);syncRule();
+    const planOn=()=>{const pc=this.cals.find(c=>c.id==(ed?cur.id:$('#ec').value));return !!(pc&&pc.plan);};
+    const planMode=()=>{const on=planOn();$('#eqr').style.display=on?'':'none';['evb','eadl'].forEach(i=>$('#'+i).style.display=on?'none':'');
+      const pv=['','YEARLY','Y2','H','Q'],po=['Y2','H','Q'];[...$('#erp').options].forEach(o=>{o.hidden=on?!pv.includes(o.value)&&o.value!='X':po.includes(o.value);});   // Plan: jährlich, alle 2 Jahre, halb-, vierteljährlich
+      if(on&&!pv.includes($('#erp').value)&&!$('#erp').disabled)$('#erp').value='YEARLY';
+      if(!on&&po.includes($('#erp').value))$('#erp').value=$('#erp').value=='Y2'?'YEARLY':'MONTHLY';
+      const al=document.querySelector('input[name=esc][value=all]');if(al&&on){al.checked=true;al.closest('.row').style.display='none';}   // Plan: Änderung gilt immer dem ganzen Eintrag
+      syncRule();};
+    $('#ec').onchange=planMode;planMode();
     $('#ead').onchange=ev=>{const on=ev.target.checked,dd=on?'date':'datetime-local';$('#eb').type=dd;$('#ee').type=dd;
       const ld=addDays(b0,-1);$('#eb').value=on?dkey(a):loc(a);$('#ee').value=on?dkey(ld>a?ld:a):loc(b0);};
+    $('#eb').onchange=()=>{const v=$('#eb').value,e2=$('#ee');if(v&&e2.value&&e2.value<v)e2.value=v;};   // Beginn hinter das Ende gelegt: Ende = Beginn (gleiches Format, Textvergleich reicht)
     $('#ecx').onclick=()=>{$('#cdet').innerHTML='';};
     if(ed)$('#edl').onclick=async()=>{
       const sc=rec?scope():'all';
@@ -1287,6 +1385,8 @@ S.cal={
       if(await api('DELETE','/api/cal/'+encodeURIComponent(cur.id)+'/events/'+encodeURIComponent(e.file)+q)){$('#cdet').innerHTML='';await this.load();this.paint();}
     };
     $('#ego').onclick=async()=>{
+      if(planOn()){const y=+$('#eqy').value||pq.y,q=+$('#eqq').value;   // Plan: nur Jahr + Quartal (der Server rastet zusätzlich ein)
+        $('#ead').checked=true;$('#eb').type=$('#ee').type='date';$('#eb').value=y+'-'+pad2(q*3+1)+'-01';$('#ee').value=dkey(new Date(y,q*3+3,0));}   // ganztägig über das Quartal
       const adn=$('#ead').checked,b=$('#eb').value,en=$('#ee').value;if(!b||!$('#es').value.trim()){alert(t('Titel und Beginn angeben'));return;}
       const body={summary:$('#es').value,location:$('#el').value,description:$('#ed').value,allDay:adn,tz:(ed&&e.tz)||BTZ};
       if(adn){const p=b.split('-');body.start=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).toISOString();
@@ -1300,7 +1400,7 @@ S.cal={
       if(one){body.scope='one';body.rid=e.rid;if(alv==al0)delete body.alarm;}
       else if(rulable){
         const f=$('#erp').value,em=$('#ere').value,iv=Math.max(1,+$('#eri').value||1);
-        const ru={freq:f,interval:iv};
+        const ru={freq:f,interval:iv};if(f=='H'||f=='Q'){ru.freq='MONTHLY';ru.interval=f=='H'?6:3;}else if(f=='Y2'){ru.freq='YEARLY';ru.interval=2;}else if(planOn()&&f=='YEARLY')ru.interval=1;   // Plan: halb-/vierteljährlich, alle 2 Jahre
         if(f&&em=='c')ru.count=Math.max(1,+$('#erc').value||1);
         if(f&&em=='u'){if(!$('#eru').value||$('#eru').value<b.slice(0,10)){alert(t('Das Enddatum der Wiederholung fehlt oder liegt vor dem Beginn.'));return;}ru.until=$('#eru').value;}
         const key=q=>JSON.stringify([q.freq||'',q.freq?(q.interval||1):0,q.count||0,q.until||'']);
@@ -1322,17 +1422,33 @@ S.cal={
       '<div class="row"><input id="ceds" placeholder="'+t('Beschreibung')+'" value="'+esc(c.description||'')+'" style="width:460px"></div>'+
       (shared?'<div class="row">'+t('Freigabe: ')+'<select id="cem"><option value="off">'+t('nicht freigegeben (nur Verantwortliche)')+'</option><option value="ro">'+t('die Berechtigten lesen')+'</option><option value="rw">'+t('alle Berechtigten dürfen eintragen')+'</option></select></div>':'')+
       (!c.sub?'<div class="row"><label><input id="cer" type="checkbox"'+(c.resource?' checked':'')+'> '+t('Ressource (Raum, Gerät): Doppelbuchungen verhindern')+'</label></div>':'')+
+      (this.movable(c)?'<div class="row">'+t('Art: ')+'<select id="cesc"><option value="user">'+t('persönlich')+'</option><option value="group">'+t('Gruppe')+'</option></select> '+
+        '<span id="cegs">'+t('Gruppe: ')+'<select id="ceg">'+[...new Set([...(c.group?[c.group]:[]),...this.calGroups()])].map(g=>'<option'+(g==c.group?' selected':'')+'>'+esc(g)+'</option>').join('')+'</select></span>'+
+        '<div class="muted">'+t('Beim Wechsel der Art ziehen alle Termine mit um; die CalDAV-Adresse ändert sich.')+'</div></div>':'')+
+      (this.planable(c)?'<div class="row"><label><input id="cepl" type="checkbox"'+(c.plan?' checked':'')+'> '+t('Plan (Quartale, Anzeige im Jahr)')+'</label></div>':'')+
+      '<div class="row">'+t('Farbe: ')+'<span class="dot" id="cecd" style="width:16px;height:16px;vertical-align:middle;background:'+esc(c.color||this.autoColor(c))+'"></span> <button id="cecb" type="button">'+t('Farbe wählen')+'</button></div>'+
       '<div class="row"><input id="ceu" value="'+esc(c.url||'')+'" placeholder="'+t('Abo: ICS-URL (https://... oder webcal://...); leeren = Abo beenden')+'" style="width:460px"></div>'+
       '<button id="cego">'+t('Speichern')+'</button>'+(this.delable(k)?' <button id="cedl">'+t('Löschen')+'</button>':'')+
       '<div class="muted row">'+t('Verantwortliche ändern den Kalender: persönliche der Benutzer, Gruppenkalender deren Gruppen-Admins, globale und Organisations-Kalender die globalen Admins. Freigabe "nicht freigegeben" zeigt den Kalender nur den Verantwortlichen, "rw" erlaubt allen Berechtigten Termine.')+'</div>';
     if($('#cem'))$('#cem').value=c.mode||'ro';
+    if($('#cesc')){$('#cesc').value=c.scope;const sg=()=>{$('#cegs').style.display=$('#cesc').value=='group'?'':'none';};$('#cesc').onchange=sg;sg();
+      if(!this.calGroups().length&&c.scope=='user')$('#cesc').options[1].disabled=true;}
+    let col=c.color||'';
+    $('#cecb').onclick=async()=>{const v=await colorDlg(t('Farbe für {0}',c.name),col,t('Die Farbe gilt für alle, die den Kalender sehen.'),this.autoColor(c));
+      if(v!==null){col=v;$('#cecd').style.background=v||this.autoColor(c);}};
     $('#cego').onclick=async()=>{
       const b={name:$('#cen').value,description:$('#ceds').value};
-      if($('#cem'))b.mode=$('#cem').value;
+      if(col!=(c.color||'')){b.color=col;delete this.cols[k];lsSet('cs.cal.col',this.cols);}
+      if($('#cepl')&&$('#cepl').checked!=!!c.plan)b.plan=$('#cepl').checked;   // Art Termine <-> Plan
+      let mv=false;
+      if($('#cesc')){const ns=$('#cesc').value,ng=ns=='group'?$('#ceg').value:'';
+        if(ns!=c.scope||(ns=='group'&&ng!=c.group)){mv=true;b.scope=ns;if(ns=='group')b.group=ng;}}   // Umziehen persönlich <-> Gruppe
+      if($('#cem')&&!mv)b.mode=$('#cem').value;
       if($('#cer'))b.resource=$('#cer').checked;
       if($('#ceu').value.trim()!=String(c.url||''))b.url=$('#ceu').value.trim(); // nur senden, wenn geändert (leer = Abo beenden)
       const r=await J('PUT','/api/cal/'+encodeURIComponent(k),b);
-      if(r){this.note=r.suberr?t('Abo-Fehler: {0}',r.suberr):t('Gespeichert.');await this.load();this.select(k);}
+      if(r){if(mv&&this.vis[k]===false){this.vis[r.id]=false;lsSet('cs.cal.vis',this.vis);}if(mv&&this.cols[k]){this.cols[r.id]=this.cols[k];delete this.cols[k];lsSet('cs.cal.col',this.cols);}
+        this.note=r.suberr?t('Abo-Fehler: {0}',r.suberr):t('Gespeichert.');await this.load();this.select(r.id||k);}
     };
     if($('#cedl'))$('#cedl').onclick=async()=>{
       if(!await uiAsk(t('Kalender und alle Termine löschen?')))return;
@@ -1341,23 +1457,24 @@ S.cal={
   },
   async add(){
     allUnits=(await J('GET','/api/units'))||allUnits;   // Organisationen frisch laden (evtl. gerade erst angelegt)
-    const gm=me.admin?allGroups.map(g=>g.name):(me.adminOf||[]);
+    const gm=this.calGroups();   // Gruppenkalender: jedes Mitglied und die Gruppen-Admins (0.69.2)
     const un=allUnits.filter(u=>u.name!='all').map(u=>u.name);
     $('#main').innerHTML='<h3>'+t('Kalender anlegen')+'</h3><div class="row"><input id="cn" placeholder="'+t('Name')+'"></div>'+
       '<div class="row"><label><input id="cres" type="checkbox"> '+t('Ressource (Raum, Gerät): Doppelbuchungen verhindern')+'</label></div>'+
+      '<div class="row" id="cpls"><label><input id="cpl" type="checkbox"> '+t('Plan: Einträge je Quartal, Anzeige in der Jahresansicht')+'</label></div>'+
       '<div class="row"><input id="cu" placeholder="'+t('optional: Internet-Kalender (ICS-URL, https://... oder webcal://...)')+'" style="width:460px"></div>'+
       '<div class="row">'+t('Art: ')+'<select id="csc"><option value="user">'+t('persönlich')+'</option>'+(me.admin?'<option value="global">'+t('global (alle Benutzer)')+'</option>':'')+(gm.length?'<option value="group">'+t('Gruppe')+'</option>':'')+(me.admin&&un.length?'<option value="unit">'+t('Organisation')+'</option>':'')+'</select> '+
       '<span id="cgs" style="display:none">'+t('Gruppe: ')+'<select id="cg">'+gm.map(g=>'<option>'+esc(g)+'</option>').join('')+'</select></span> '+
       '<span id="cus" style="display:none">'+t('Organisationen: ')+'<select id="cu2">'+un.map(u=>'<option>'+esc(u)+'</option>').join('')+'</select></span> '+
       '<span id="cms" style="display:none">'+t('Schreiben: ')+'<select id="cm"><option value="off">'+t('nicht freigegeben (nur Verantwortliche)')+'</option><option value="ro">'+t('nur Admins / Gruppen-Admins')+'</option><option value="rw">'+t('alle Berechtigten')+'</option></select></span></div>'+
-      '<button id="cgo">'+t('Anlegen')+'</button><div class="muted row">'+t('Persönlich: nur du. Global: alle lesen. Gruppe: Mitglieder lesen. Alle erscheinen auch in Thunderbird (CalDAV). Mit ICS-URL wird ein Internet-Kalender (z.B. Feiertage, Schulferien) abonniert: nur lesbar, alle 30 Minuten aktualisiert.')+'</div>'+
+      '<button id="cgo">'+t('Anlegen')+'</button><div class="muted row">'+t('Gruppenkalender darf jedes Mitglied anlegen. Alle Mitglieder tragen Termine ein; Name, Farbe und Freigabe ändern der Ersteller und die Gruppen-Admins.')+'</div><div class="muted row">'+t('Persönlich: nur du. Global: alle lesen. Gruppe: Mitglieder lesen. Alle erscheinen auch in Thunderbird (CalDAV). Mit ICS-URL wird ein Internet-Kalender (z.B. Feiertage, Schulferien) abonniert: nur lesbar, alle 30 Minuten aktualisiert.')+'</div>'+
       '<div class="muted row">'+t('Kalender: eigene zuerst, dann die der Gruppe und der Organisation, dann globale; Abos sind nur lesbar. In der Kalender-Leiste ändern Verantwortliche ihren Kalender über "Bearbeiten" (Name, Freigabe, Abo).')+'</div>';
-    const scMode=sc=>{$('#cgs').style.display=sc=='group'?'':'none';$('#cus').style.display=sc=='unit'?'':'none';$('#cms').style.display=sc=='user'?'none':'';
-      $('#cm').options[1].textContent=t(sc=='group'?'nur Admins / Gruppen-Admins':'nur Admins');$('#cm').value='ro';};
+    const scMode=sc=>{$('#cgs').style.display=sc=='group'?'':'none';$('#cpls').style.display=(sc=='user'||sc=='group')?'':'none';$('#cus').style.display=sc=='unit'?'':'none';$('#cms').style.display=sc=='user'?'none':'';
+      $('#cm').options[1].textContent=t(sc=='group'?'nur Ersteller und Gruppen-Admins':'nur Admins');$('#cm').value=sc=='group'?'rw':'ro';};
     $('#csc').onchange=e=>scMode(e.target.value);
     $('#cgo').onclick=async()=>{const sc=$('#csc').value;
-      const r=await J('POST','/api/cal',{name:$('#cn').value,scope:sc,group:sc=='group'?$('#cg').value:'',unit:sc=='unit'?$('#cu2').value:'',mode:sc=='user'?'':$('#cm').value,url:$('#cu').value,resource:$('#cres').checked});
-      if(r&&r.id){await this.load();this.select(r.id);}};
+      const r=await J('POST','/api/cal',{name:$('#cn').value,scope:sc,group:sc=='group'?$('#cg').value:'',unit:sc=='unit'?$('#cu2').value:'',mode:sc=='user'?'':$('#cm').value,url:$('#cu').value,resource:$('#cres').checked,plan:$('#cpl').checked&&(sc=='user'||sc=='group')});
+      if(r&&r.id){if($('#cpl').checked){this.view='year';lsSet('cs.cal.view','year');}await this.load();this.select(r.id);}};
   },
   async del(){
     if(!await uiAsk(t('Kalender und alle Termine löschen?')))return;
@@ -3372,7 +3489,7 @@ S.today={
     const m=$('#main');m.className='';
     m.innerHTML='<h3>'+esc(t('Heute'))+' <small class="muted">'+esc(new Date().toLocaleDateString(LOC,{weekday:'long',day:'numeric',month:'long',year:'numeric'}))+(me.version?' &middot; cs-team v'+esc(me.version):'')+'</small></h3><div id="tdbox" class="muted">…</div>';
     const d0=new Date();d0.setHours(0,0,0,0);const d2=addDays(d0,8),k0=dkey(d0),k1=dkey(addDays(d0,1));
-    const cals=(await J('GET','/api/cal'))||[],evs=[];
+    const cals=((await J('GET','/api/cal'))||[]).filter(c=>!c.plan),evs=[];   // Pläne (Quartale) erscheinen nur in der Jahresansicht
     await Promise.all(cals.map(async c=>{const q='?from='+encodeURIComponent(d0.toISOString())+'&to='+encodeURIComponent(d2.toISOString());
       for(const e of ((await J('GET','/api/cal/'+encodeURIComponent(c.id)+'/events'+q))||[]))evs.push({e,c});}));
     await tkLoad();
@@ -3434,7 +3551,7 @@ async function verCheck(){   // nach einem Neustart des Servers: Hinweis, dass d
   d.querySelector('button').onclick=()=>location.reload();document.body.prepend(d);
 }
 async function newsBadge(force){   // Zahl neuer Aushänge anderer Autoren am Knopf "Heute" (0 = Zähler löschen)
-  const bt=document.querySelector('#nav button[data-s=today]');if(!bt)return;
+  const bt=$('#brand');if(!bt)return;   // Abzeichen am Hauptmenue "cs-team" (Aktuell zeigt die Aushänge)
   let n=0;if(force!==0){const r=await J('GET','/api/news');const seen=+lsGet('cs.news.seen',0)||0;n=r&&r.items?r.items.filter(x=>x.created>seen&&x.by!=me.name).length:0;}
   let s=bt.querySelector('.bdg');if(n){if(!s){s=document.createElement('span');s.className='bdg';bt.append(s);}s.textContent=n;}else if(s)s.remove();
 }
@@ -4012,6 +4129,7 @@ document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest
 async function showLogin(){
   await initLang('');
   document.querySelectorAll('#nav button').forEach(b=>b.style.display='none');$('#left').style.display='none';
+  document.body.classList.add('login');   // Handy: Hauptbereich (Anmeldeformular) immer zeigen, es gibt keine linke Liste (0.69.2)
   ['#gs','#who','#logout'].forEach(q=>{const e=$(q);if(e)e.style.display='none';});
   const rm=/^#reset=([a-z0-9._@-]+)~([A-Za-z0-9_-]+)$/.exec(location.hash);   // Link aus der Mail "Passwort vergessen"
   if(rm){
@@ -4087,8 +4205,8 @@ async function showLogin(){
     else if(first=='users'&&s=='files')first='files';});
   chStart();setInterval(chRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)chRefresh();});tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
   if(me.guest){const gb=document.createElement('div');gb.id='guestbar';gb.textContent=t('Gast-Konto, gültig bis {0}',me.expires||'?');document.body.prepend(gb);}
-  {const br=$('#brand'),vt='cs-team'+(me.version?' '+me.version:'');br.title=vt;
-    if(me.admin){br.style.cursor='pointer';br.title=vt+'\n'+t('Einstellungen');br.onclick=()=>go('set');}}
+  {const br=$('#brand'),vt='cs-team'+(me.version?' '+me.version:'');br.title=vt;   // Hauptmenue cs-team fuer alle: Aktuell, (Einstellungen), Singleuser-Apps
+    br.onclick=()=>go('today');br.onkeydown=e=>{if(e.key=='Enter'||e.key==' '){e.preventDefault();go('today');}};}
   J('GET','/api/message/groups').then(r=>{if(r&&(r.groups||[]).length)document.querySelector('#nav button[data-s=msg]').style.display='';});
   const hm=location.hash.match(/^#task\/([0-9a-z]+)$/);
   if(hm){await go('task');S.task.select(hm[1]);}else go('today');

@@ -260,6 +260,25 @@ func readEv(w http.ResponseWriter, r *http.Request) (in evIn, start, end time.Ti
 	return in, start, end, loc, true
 }
 
+// planFix: Eintrag eines Plan-Kalenders auf das Quartal des Beginns einrasten: ganztägig über das ganze Quartal
+// (z. B. Q1 = 1.1.-31.3.); Wiederholung jährlich, alle 2 Jahre, halbjährlich oder vierteljährlich (monatlich mit
+// Intervall 6 bzw. 3, trifft immer Quartalsanfänge - z. B. Notenkonferenz in Q1 und Q3); Änderungen gelten immer dem ganzen Eintrag.
+func planFix(in *evIn, start, end *time.Time) {
+	s := start.UTC()
+	q := (int(s.Month()) - 1) / 3
+	qs := time.Date(s.Year(), time.Month(q*3+1), 1, 0, 0, 0, 0, time.UTC)
+	*start, *end = qs, qs.AddDate(0, 3, 0)
+	in.AllDay, in.Scope, in.Rid = true, "", ""
+	if in.Rule != nil && in.Rule.Freq != "" {
+		switch {
+		case strings.EqualFold(in.Rule.Freq, "MONTHLY") && (in.Rule.Interval == 3 || in.Rule.Interval == 6):
+		case strings.EqualFold(in.Rule.Freq, "YEARLY") && in.Rule.Interval == 2:
+		default:
+			in.Rule.Freq, in.Rule.Interval = "YEARLY", 1
+		}
+	}
+}
+
 // ruleString baut die Regel selbst (nie eine Regel aus der Anfrage übernehmen: keine Last durch fremde Regeln).
 func ruleString(r *ruleIn, allDay bool, loc *time.Location) (string, error) {
 	f := strings.ToUpper(strings.TrimSpace(r.Freq))
@@ -368,6 +387,9 @@ func (b *Backend) apiAddEvent(w http.ResponseWriter, r *http.Request) {
 	if !c.write {
 		http.Error(w, "read-only calendar", 403)
 		return
+	}
+	if c.m.Plan {
+		planFix(&in, &start, &end)
 	}
 	id := newID()
 	ev := ical.NewEvent()
@@ -562,6 +584,9 @@ func (b *Backend) apiPutEvent(w http.ResponseWriter, r *http.Request) {
 	if !c.write {
 		http.Error(w, "read-only calendar", 403)
 		return
+	}
+	if c.m.Plan {
+		planFix(&in, &start, &end)
 	}
 	defer lockCal(c.owner, c.kal)()
 	cal, etag, code, err := b.load(r, c, file)

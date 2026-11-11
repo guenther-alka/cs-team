@@ -166,6 +166,9 @@ func createRight(user, group string) (ok, req bool) {
 	if group == "" {
 		return true, false
 	}
+	if group == auth.AdminGroup || group == auth.GAdminGroup { // Systemgruppen (Rollen) haben keine Aufgaben (0.69.2)
+		return false, false
+	}
 	info, found := auth.GroupInfoOf(group)
 	return rights(found, info.Tasks, auth.IsAdminUser(user), auth.IsMember(user, group), auth.IsGroupAdmin(user, group))
 }

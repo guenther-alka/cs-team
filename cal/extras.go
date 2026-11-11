@@ -565,7 +565,7 @@ func ruleUntil(v string) string {
 
 // ---- Eingabe: Erinnerung und Teilnehmer ----
 
-const maxAlarmMin = 40320 // 4 Wochen
+const maxAlarmMin = 129600 // 90 Tage (z. B. Plan: Vertragsablauf rechtzeitig kündigen)
 
 // orgText: Organisator für die Anzeige (Name, sonst Adresse)
 func orgText(ev *ical.Event) string {
