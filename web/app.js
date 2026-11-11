@@ -62,8 +62,17 @@ const uiPrompt=(m,d,pw)=>uiDlg(m,{cancel:1,input:d===undefined?'':d,pw:pw});
 const uiAlert=m=>uiDlg(m,{});
 // colorDlg: Farbwahl (Palette, beliebige Farbe, "automatisch" = auto). Ergebnis "#rrggbb", "" (automatisch) oder null (Abbruch).
 // pl (optional, true/false): zusätzlich Art Termine/Plan wählen; Ergebnis dann {c:Farbe, p:Plan} statt der Farbe.
-async function colorDlg(title,cur,note,auto,pl){
+// mv (optional, {s:"user"|"group", g:Gruppe, gs:[Gruppen]}): zusätzlich persönlich <-> Gruppe wählen; Ergebnis dann {c,p,s,g}.
+async function colorDlg(title,cur,note,auto,pl,mv){
  let v=cur||'',pv=!!pl;const el=document.createElement('div'),row=document.createElement('div'),pick=document.createElement('input');
+ let sv=mv?mv.s:'',gv=mv?mv.g:'';
+ if(mv){const ar=document.createElement('div');ar.className='row';ar.append(t('Kalender: '));
+  const ss=document.createElement('select'),gs=document.createElement('select'),gl=document.createElement('span');
+  for(const [val,lb] of [['user',t('persönlich')],['group',t('Gruppe')]]){const o=document.createElement('option');o.value=val;o.textContent=lb;if(val=='group'&&!mv.gs.length)o.disabled=true;ss.append(o);}
+  for(const g of mv.gs){const o=document.createElement('option');o.value=g;o.textContent=g;gs.append(o);}
+  ss.value=sv;if(!gv&&mv.gs.length)gv=mv.gs[0];gs.value=gv;
+  const sg=()=>{gl.style.display=sv=='group'?'':'none';};ss.onchange=()=>{sv=ss.value;sg();};gs.onchange=()=>{gv=gs.value;};
+  gl.append(' '+t('Gruppe: '),gs);ar.append(ss,gl);sg();el.append(ar);}
  if(pl!==undefined){const ar=document.createElement('div');ar.className='row';ar.append(t('Art: '));
   for(const [val,lb] of [[false,t('Termine')],[true,t('Plan (Quartale, Anzeige im Jahr)')]]){const l=document.createElement('label');l.style.marginRight='12px';const r=document.createElement('input');r.type='radio';r.name='cdpl';r.checked=val==pv;r.onchange=()=>{pv=val;};l.append(r,' '+lb);ar.append(l);}
   el.append(ar);}
@@ -77,7 +86,7 @@ async function colorDlg(title,cur,note,auto,pl){
  if(note){const n=document.createElement('div');n.className='muted';n.textContent=note;el.append(n);}
  mark();
  if(!await uiBox(title,el,{ok:t('Speichern')}))return null;
- return pl===undefined?v:{c:v,p:pv};
+ return pl===undefined&&!mv?v:{c:v,p:pv,s:sv,g:gv};
 }
 // alert() zeigt nur noch einen Hinweis unten (Klick = schliessen, verschwindet von selbst).
 function uiToast(m){let c=document.getElementById('uitoasts');if(!c){c=document.createElement('div');c.id='uitoasts';c.setAttribute('role','status');c.setAttribute('aria-live','polite');document.body.appendChild(c);}
@@ -911,16 +920,28 @@ S.cal={
   autoColor(c){let h=0;for(const ch of c.id)h=(h*31+ch.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];},
   colorOf(c){return this.cols[c.id]||c.color||this.autoColor(c);},
   canColor(c){return !!(c.manage||(c.scope=='user'&&c.id=='default'));},   // Farbe am Kalender speichern (gilt für alle)
-  /* Doppelklick in der linken Liste: Farbe wählen. Verantwortliche speichern sie am Kalender, sonst nur für diesen Browser. */
+  /* Doppelklick in der linken Liste: Farbe wählen. Verantwortliche speichern sie am Kalender, sonst nur für diesen Browser.
+     Verantwortliche können hier auch persönlich <-> Gruppe umwandeln (nach Bestätigung, alle Termine ziehen mit um). */
   async dbl(k){
     if(Date.now()-(this._dblT||0)<800)return;this._dblT=Date.now();
     const c=this.cals.find(x=>x.id==k);if(!c)return;
-    const own=this.canColor(c),pa=this.planable(c);
-    let v=await colorDlg(pa?t('Kalender {0}',c.name):t('Farbe für {0}',c.name),own?(c.color||''):(this.cols[c.id]||''),own?t('Die Farbe gilt für alle, die den Kalender sehen.'):t('Diese Farbe gilt nur für dich in diesem Browser (den Kalender verwalten andere).'),this.autoColor(c),pa?!!c.plan:undefined);
+    const own=this.canColor(c),pa=this.planable(c),mvo=!!c.manage&&this.movable(c);
+    const mvArg=mvo?{s:c.scope,g:c.group||'',gs:[...new Set([...(c.group?[c.group]:[]),...this.calGroups()])]}:undefined;
+    let v=await colorDlg(pa||mvo?t('Kalender {0}',c.name):t('Farbe für {0}',c.name),own?(c.color||''):(this.cols[c.id]||''),own?t('Die Farbe gilt für alle, die den Kalender sehen.'):t('Diese Farbe gilt nur für dich in diesem Browser (den Kalender verwalten andere).'),this.autoColor(c),pa?!!c.plan:undefined,mvArg);
     if(v===null)return;
-    let pl;if(pa){pl=v.p;v=v.c;}
+    let pl,ns,ng;if(pa||mvo){pl=v.p;ns=v.s;ng=v.g;v=v.c;}
     if(own){const b={color:v};if(pa&&pl!=!!c.plan)b.plan=pl;
-      if(!await J('PUT','/api/cal/'+encodeURIComponent(k),b))return;delete this.cols[k];lsSet('cs.cal.col',this.cols);await this.load();
+      let mv=false;
+      if(mvo&&(ns!=c.scope||(ns=='group'&&ng!=c.group))){   // Umwandeln persönlich <-> Gruppe: erst bestätigen
+        const q=ns=='group'?t('Kalender "{0}" in einen Gruppenkalender der Gruppe {1} umwandeln? Alle Termine ziehen mit um, die CalDAV-Adresse ändert sich.',c.name,ng)
+          :t('Kalender "{0}" in einen persönlichen Kalender umwandeln? Alle Termine ziehen mit um, die CalDAV-Adresse ändert sich; die Gruppe sieht ihn danach nicht mehr.',c.name);
+        if(!await uiAsk(q))return;
+        mv=true;b.scope=ns;if(ns=='group')b.group=ng;}
+      const r=await J('PUT','/api/cal/'+encodeURIComponent(k),b);if(!r)return;
+      delete this.cols[k];lsSet('cs.cal.col',this.cols);
+      if(mv&&r.id&&this.vis[k]===false){this.vis[r.id]=false;lsSet('cs.cal.vis',this.vis);}
+      await this.load();
+      if(mv){const nc=this.cals.find(x=>x.id==(r.id||k));this.note=t('Umgewandelt: {0}',nc?this.calLabel(nc):c.name);this.select(r.id||k);return;}
       if(b.plan!==undefined){this.select(k);return;}}   // Art gewechselt: Plan -> Jahr, Termine -> Monat
     else{if(v)this.cols[k]=v;else delete this.cols[k];lsSet('cs.cal.col',this.cols);
       if(pa&&pl!=!!c.plan){if(!await J('PUT','/api/cal/'+encodeURIComponent(k),{plan:pl}))return;await this.load();this.select(k);return;}   // Mitglied: nur die Art
