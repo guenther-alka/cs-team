@@ -983,6 +983,12 @@ S.cal={
     return [s,e];
   },
   covered(){const r=this.range,n=this.rangeNeed();return !!(r&&r[0]<=n[0]&&r[1]>=n[1]);},
+  /* Auto-Refresh (alle 60 s und beim Zurueckkehren in den Tab): nur wenn die Kalenderansicht offen ist und gerade nichts bearbeitet wird */
+  idle(){const d=$('#cdet');return sec=='cal'&&!document.hidden&&!!$('#main .ctool')&&!(d&&d.innerHTML.trim())&&!this.drag&&!document.querySelector('.uidov');},
+  async auto(){
+    if(this.autoBusy||!this.idle())return;this.autoBusy=true;
+    try{await this.loadEvents();if(this.idle())this.paint();}finally{this.autoBusy=false;}
+  },
   /* Termine (Serien serverseitig aufgelöst) für den sichtbaren Zeitraum plus Puffer laden */
   async loadEvents(){
     const n=this.rangeNeed(),lo=addDays(n[0],-35),hi=addDays(n[1],35);
@@ -4224,7 +4230,7 @@ async function showLogin(){
   document.querySelectorAll('#nav button').forEach(b=>{   // Bereiche ohne Recht ausblenden
     const s=b.dataset.s;if(s=='chat'||s=='msg'||s=='task'||s=='set'||s=='today')return;if(s=='units'){if(!me.admin)b.style.display='none';}else if(s!='users'&&s!='groups'&&!me.areas.includes(s))b.style.display='none';
     else if(first=='users'&&s=='files')first='files';});
-  chStart();setInterval(chRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)chRefresh();});tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
+  chStart();setInterval(chRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){chRefresh();S.cal.auto();}});setInterval(()=>S.cal.auto(),60000);tkLoad().then(tkStart);aiStart();gsInit();newsBadge();setInterval(newsBadge,300000);setInterval(verCheck,120000);
   if(me.guest){const gb=document.createElement('div');gb.id='guestbar';gb.textContent=t('Gast-Konto, gültig bis {0}',me.expires||'?');document.body.prepend(gb);}
   {const br=$('#brand'),vt='cs-team'+(me.version?' '+me.version:'');br.title=vt;   // Hauptmenue cs-team fuer alle: Aktuell, (Einstellungen), Singleuser-Apps
     br.onclick=()=>go('today');br.onkeydown=e=>{if(e.key=='Enter'||e.key==' '){e.preventDefault();go('today');}};}
