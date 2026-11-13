@@ -209,7 +209,7 @@ abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle
 **Failover (0.67):** Der Datenordner liegt in einem ZFS-Dataset, das ein **von Hand angelegter und verwalteter Replikationsjob** (z. B. napp-it) auf einen zweiten Rechner kopiert. Startoptionen `CS_FAILOVER=master|standby|takeover`
 (`CS_HA_NAME`, `CS_HA_ASSUME_OFF`, `CS_HA_FORCE`); Standby liest nur (Schreiben: 503), `takeover` stuft hoch (Epoche + 1); die HA-Gruppe steht in *Einstellungen > Hochverfügbarkeit*. Ein Failover **mit Erhalt der
 SMB-Rechte** funktioniert am besten mit **OmniOS/illumos** (Windows-SID als ZFS-Attribut, ACLs bleiben in replizierten Dateisystemen, Benutzer und SMB-Passwörter bleiben erhalten). Handbuch Kapitel 18, `docs/HA_SPEC.md`.
-Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 3.9.
+Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 21.9.
 
 ## Sprachen (0.6.0)
 Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr, ar (rechts-nach-links), uk, pl, el und ja. Die Auswahl steht oben rechts und wird im

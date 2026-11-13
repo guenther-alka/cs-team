@@ -159,7 +159,7 @@ client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devi
 ZFS attribute, ACLs stay intact in copied or replicated ZFS filesystems, local users and SMB passwords survive the failover. Manual chapter 18, [docs/HA_SPEC.md](docs/HA_SPEC.md).
 Tested on two OmniOS hosts (planned switch with incremental replication, standby read-only, second master refused, old master refused after takeover).
 
-**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 3.9.
+**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 21.9.
 
 ## Sign-in and roles
 
