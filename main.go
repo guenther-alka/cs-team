@@ -1,6 +1,8 @@
 // cs-team: Multiuser CalDAV + Calc + Text auf RustFS/S3. Ein Binary, eine AbhÃ¤ngigkeitsliste.
 //
-//	cs-team                      Server starten
+//	cs-team                      Server starten (ohne Parameter: team.cfg neben dem Programm, fehlt sie: Setup-Menue)
+//	cs-team setup                Setup-Menue (team.cfg aendern), danach Start
+//	cs-team -c <datei>           Server mit Konfigurationsdatei starten (napp-it)
 //	cs-team adduser <name> <pw> [admin]  Benutzer anlegen / Passwort setzen
 package main
 
@@ -99,17 +101,12 @@ func loadConf() {
 	if p == "" {
 		return
 	}
-	b, err := os.ReadFile(p)
+	m, err := parseConf(p)
 	if err != nil {
 		log.Fatal("conf: ", err)
 	}
-	for _, ln := range strings.Split(string(b), "\n") {
-		ln = strings.TrimSpace(ln)
-		k, v, ok := strings.Cut(ln, "=")
-		if ln == "" || ln[0] == '#' || !ok {
-			continue
-		}
-		k, v = strings.TrimSpace(k), strings.Trim(strings.TrimSpace(v), `"'`)
+	relPaths(m, filepath.Dir(p)) // relative Pfade (./) in team.cfg = ab dem Ordner der Datei; absolute bleiben wie sie sind
+	for k, v := range m {
 		if _, set := os.LookupEnv(k); !set {
 			os.Setenv(k, v)
 		}
@@ -130,7 +127,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.69.4" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.70.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -147,6 +144,7 @@ func main() {
 		fmt.Println("cs-team", version)
 		return
 	}
+	adhoc() // ohne Parameter: team.cfg neben dem Programm oder Setup-Menue (setup.go)
 	loadConf()
 	if len(os.Args) == 2 && os.Args[1] == "vipdown" { // Dienst-IP dieses Rechners wegnehmen (Windows beendet cs-team hart; auch zum Aufraeumen von Hand)
 		removed, err := ha.DownFromDir(os.Getenv("CS_DIR"))
@@ -464,6 +462,16 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 	aiSvc.Routes(mux, a.Wrap)
 	web, _ := fs.Sub(webFS, "web")
 	mux.Handle("GET /lang/", a.Public(http.HandlerFunc(langHandler))) // Public: ohne Anmeldung nur bei CS_LOGIN_FORM=1 (auth/session.go)
+	if d := webcraftDir(); d != "" { // Webcraft-Apps selbst ausliefern (ohne cs-proxy), webcraft.go
+		mux.Handle("/webcraft/", a.Public(webcraftHandler(d)))
+		log.Println("webcraft:", d)
+	} else if !napp() { // Standalone (ohne napp-it oder mit standalone.set): leere App-Liste, nie die Apps von napp-it/cs-proxy
+		mux.Handle("GET /webcraft/index.json", a.Public(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Write([]byte("[]"))
+		})))
+	}
 	mux.Handle("/", a.Public(http.FileServerFS(web)))
 	return logMW(secHeaders(haSvc.Guard(mux)))
 }
@@ -490,6 +498,15 @@ func cspHost(host string) string {
 func secHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
+		if strings.HasPrefix(r.URL.Path, "/webcraft/") { // Webcraft-Apps: eigene Skripte/WebAssembly, die CSP der Oberflaeche wuerde sie sperren
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("Referrer-Policy", "no-referrer")
+			if r.TLS != nil {
+				h.Set("Strict-Transport-Security", "max-age=15552000")
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
 		h.Set("X-Frame-Options", "DENY")
 		fsrc := "'self'" // Webcraft-Editoren (WordCraft/GridCraft/PDFCraft) liegen auf demselben Host unter /webcraft/ (napp-it CS, https, beliebiger Port)
 		if fh := cspHost(r.Host); fh != "" {

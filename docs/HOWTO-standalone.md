@@ -160,6 +160,6 @@ If the port is taken, change `CS_LISTEN`. If it refuses to start with a storage 
 
 ## Minimal start script (alternative to the napp-it start)
 
-The manual (chapter 3.8) contains a small standalone start script for sh (Linux, FreeBSD, illumos, macOS) and cmd (Windows): a **config part** at the top
+The manual (chapter 3.9) contains a small standalone start script for sh (Linux, FreeBSD, illumos, macOS) and cmd (Windows): a **config part** at the top
 (data folder, port, admin, HTTPS certificate, `FAILOVER`, `HA_NAME`, `LDAP_LISTEN`, `LDAP_READER`) followed by the start of cs-team from the folder of the script
 (`start|stop|status|fg`, pid and log next to the script).

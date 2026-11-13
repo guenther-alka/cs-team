@@ -9,6 +9,23 @@ Kontingent und Versionen aus ZFS-Snapshots; Aufgaben; Chat mit Umfragen; Videoch
 Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
 Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
 
+## Installation
+
+**In der napp-it ZFS Web-GUI (napp-it CS):** cs-team unter *About > Download cs tools* herunterladen, unter *System > Services > cs-team*
+einrichten und starten (Speicher-Ordner, Port, HTTPS, Admin; enable = Autostart).
+
+**Standalone-Setup (jedes Betriebssystem, ohne napp-it, kein ZFS nötig):**
+1. Programm für das Betriebssystem unter [Releases](https://github.com/guenther-alka/cs-team/releases) herunterladen und in einen eigenen
+   Ordner legen (z. B. `C:\cs-team` oder `/opt/cs-team`), Name `cs-team` bzw. `cs-team.exe`.
+2. Starten (Doppelklick unter Windows, `./cs-team` im Terminal). Ein kurzes Menü fragt die Einstellungen ab - Enter übernimmt die Vorgabe:
+   Daten-Ordner (`./`, Daten in `./.csteam`), PEM-Ordner (`./pem`, fehlt das Zertifikat, wird ein eigenes selbst signiertes angelegt),
+   Port (`9004`), Webcraft-Ordner (`./webcraft`, je App ein Unterordner) und das Admin-Startpasswort.
+3. Nutzen: im Browser `https://<rechner>:9004` öffnen und als `admin` anmelden (Startpasswort beim ersten Anmelden ändern).
+
+Die Einstellungen stehen in `team.cfg` neben dem Programm; spätere Starts kommen ohne Menü aus. Neu einrichten: `team.cfg` löschen (die Daten
+bleiben) oder `cs-team setup`. Snapshots/Backup macht der Benutzer selbst. Standalone auf einem napp-it-Server testen: leere Datei `standalone.set`
+neben das Programm legen. Mehr (Startskripte, Dienst, alle Optionen): Handbuch Kapitel 3.
+
 Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
 
 Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 für Schule und Kleinbetrieb - bewusst ohne eigenen Mailserver,
@@ -18,6 +35,31 @@ KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch
 seitdem ergänzt: globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung (Mail, ntfy), Gäste, Kommentare in Dokumenten und Anmeldung per OIDC; offen: natives Web-Push (ntfy deckt das Handy ab) und volle docx/xlsx-Treue.
 
 ## Start
+
+Ad hoc ohne napp-it: Programm in einen Ordner kopieren und ohne Parameter starten (unter Windows z. B. per Doppelklick).
+Fehlt `team.cfg` neben dem Programm, fragt ein Textmenue die Einstellungen ab (Daten-Ordner, PEM-Ordner, Port,
+Webcraft-Ordner, Admin-Konto und Startpasswort), prueft sie (Ordner beschreibbar / S3 erreichbar, Port frei, Zertifikat lesbar),
+schreibt `team.cfg` neben das Programm und startet cs-team im Vordergrund (Strg+C beendet). Der naechste Start nutzt `team.cfg`
+direkt; `./cs-team setup` oeffnet das Menue erneut zum Aendern. Das Admin-Startpasswort steht nie in `team.cfg`: es legt nur den
+ersten Admin eines leeren Speichers an, der es bei der ersten Anmeldung aendern muss. Mit `-c <datei>`, `CS_CONF` oder
+`CS_*`-Variablen (napp-it, Startskripte) gibt es kein Menue; ohne Terminal und ohne gueltige `team.cfg` endet cs-team mit einer Fehlermeldung.
+Ist napp-it auf dem Rechner installiert (`/opt/csweb-gui/_cfg`, Windows `C:\opt\csweb-gui\_cfg`), nutzt cs-team dieselbe Konfiguration
+wie das napp-it-Menue System > Services > cs-team (`_cfg/team/team.cfg`); das Setup-Menue liest und schreibt dann `team.par` und
+`team.cfg` von napp-it, beide zeigen immer dieselben Einstellungen. Eine Datei `standalone.set` neben dem Programm (Inhalt egal)
+schaltet das ab: cs-team verhaelt sich dann wie ohne napp-it (`team.cfg` und `webcraft` neben dem Programm).
+
+Standalone-Menue (kein ZFS noetig, Snapshots macht der Benutzer selbst): 1. Daten-Ordner, Vorgabe `./` (Daten in `./.csteam`),
+2. PEM-Ordner, Vorgabe `./pem` (fehlt das Zertifikat, legt cs-team ein eigenes selbst signiertes `cert.pem`/`key.pem` an; `off` = http),
+3. Port, 4. Webcraft-Ordner, Vorgabe `./webcraft` mit je App einem Unterordner, z. B. `./webcraft/wordcraft`, 5. Admin-Konto und
+Startpasswort (nur solange der Speicher leer ist). Relative Pfade in einer Konfigurationsdatei gelten ab deren Ordner (bei `team.cfg`
+der Programmordner), absolute Pfade sind erlaubt. S3-Speicher: `team.cfg` bearbeiten. Standalone zeigt die Oberflaeche nur die
+Webcraft-Apps aus dem eigenen Ordner, nie die von napp-it/cs-proxy.
+
+Webcraft-Apps (WordCraft, GridCraft, PDFCraft ...): cs-team liefert sie unter `/webcraft/<app>/` selbst aus (ohne cs-proxy), aus
+`CS_WEBCRAFT` (`off` = keine), sonst `_my/wwwroot/webcraft` von napp-it, sonst Ordner `webcraft` neben dem Programm
+(je App ein Unterordner mit `index.html`).
+
+Mit Umgebungsvariablen:
 
     export S3_ENDPOINT=127.0.0.1:9000 S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team S3_TLS=0
     export CS_ADMIN_USER=admin CS_ADMIN_PASS=geheim     # nur beim ersten Start (legt users.json an)
@@ -167,7 +209,7 @@ abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle
 **Failover (0.67):** Der Datenordner liegt in einem ZFS-Dataset, das ein **von Hand angelegter und verwalteter Replikationsjob** (z. B. napp-it) auf einen zweiten Rechner kopiert. Startoptionen `CS_FAILOVER=master|standby|takeover`
 (`CS_HA_NAME`, `CS_HA_ASSUME_OFF`, `CS_HA_FORCE`); Standby liest nur (Schreiben: 503), `takeover` stuft hoch (Epoche + 1); die HA-Gruppe steht in *Einstellungen > Hochverfügbarkeit*. Ein Failover **mit Erhalt der
 SMB-Rechte** funktioniert am besten mit **OmniOS/illumos** (Windows-SID als ZFS-Attribut, ACLs bleiben in replizierten Dateisystemen, Benutzer und SMB-Passwörter bleiben erhalten). Handbuch Kapitel 18, `docs/HA_SPEC.md`.
-Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 3.8.
+Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 3.9.
 
 ## Sprachen (0.6.0)
 Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr, ar (rechts-nach-links), uk, pl, el und ja. Die Auswahl steht oben rechts und wird im

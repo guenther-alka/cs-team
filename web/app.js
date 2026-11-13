@@ -183,12 +183,14 @@ function setList(items){
 }
 /* Menue Text/Calc/Files, unter + add: Webcraft-Editor (WordCraft, GridCraft, PDFCraft) in eigenem Browserfenster (kein iframe). Adresse: https://<dieser Host>/webcraft/<app>/ (napp-it CS cs-proxy/webserver); abweichend per localStorage cs.webcraft.base, z. B. https://host:8443/webcraft/ */
 const WC={text:{key:'wordcraft',label:'Wordcraft Editor'},calc:{key:'gridcraft',label:'Gridcraft Editor'}};
-function wcBase(){let b='';try{b=localStorage.getItem('cs.webcraft.base')||'';}catch(e){}if(!b)b='https://'+location.hostname+'/webcraft/';if(!b.endsWith('/'))b+='/';return b;}
+/* liefert cs-team die Apps selbst aus (ohne cs-proxy, 0.70.0), antwortet /webcraft/index.json unter der eigenen Adresse: dann diese Adresse (mit Port) */
+let wcSelf=false;const wcProbe=fetch('/webcraft/index.json',{cache:'no-cache'}).then(r=>{wcSelf=r.ok&&/json/.test(r.headers.get('Content-Type')||'');}).catch(()=>{});
+function wcBase(){let b='';try{b=localStorage.getItem('cs.webcraft.base')||'';}catch(e){}if(!b)b=wcSelf?location.origin+'/webcraft/':'https://'+location.hostname+'/webcraft/';if(!b.endsWith('/'))b+='/';return b;}
 const WCN={wordcraft:'Wordcraft',gridcraft:'Gridcraft',pdfcraft:'PDFcraft'},wcOpen=[];let wcAct=null;
 let wcGpu=false;   // true = dieser Browser meldet kein WebGPU (Wordcraft/Gridcraft/PDFcraft zeichnen per WebGPU): die Apps werden dann mit ?webgl (WebGL-Modus) geladen und die Leiste zeigt einen Hinweis. Nur bei sicherem Kontext (https/localhost) pruefbar.
 /* installierte Webcraft-Apps: <base>index.json (cs-proxy >= 0.13.2, JSON-Array der Ordnernamen); ohne Antwort nur die Standard-App */
 let wcInst=null;
-function wcInstalled(){if(!wcInst)wcInst=fetch(wcBase()+'index.json',{cache:'no-cache'}).then(r=>r.ok?r.json():Promise.reject()).then(a=>(Array.isArray(a)?a.filter(k=>/^[A-Za-z0-9_-]+$/.test(k)):[]).sort((x,y)=>wcName(x).localeCompare(wcName(y)))).catch(()=>{wcInst=null;return ['pdfcraft'];});return wcInst;}
+function wcInstalled(){if(!wcInst)wcInst=wcProbe.then(()=>fetch(wcBase()+'index.json',{cache:'no-cache'})).then(r=>r.ok?r.json():Promise.reject()).then(a=>(Array.isArray(a)?a.filter(k=>/^[A-Za-z0-9_-]+$/.test(k)):[]).sort((x,y)=>wcName(x).localeCompare(wcName(y)))).catch(()=>{wcInst=null;return ['pdfcraft'];});return wcInst;}
 function wcName(k){return WCN[k]||(k.charAt(0).toUpperCase()+k.slice(1));}
 const wc32=/Windows/.test(navigator.userAgent)&&/WOW64|Win32|i686/.test(navigator.userAgent);   // 32-Bit-Browser: wenig Adressraum, die WebAssembly-Apps scheitern oft mit out of memory
 function wcUrl(key){return wcBase()+key+'/'+(wcGpu?'?webgl':'');}

@@ -8,9 +8,24 @@ Part of the [napp-it 4ai (client-server edition)](https://napp-it.org) tooling f
 (alongside [cs-tools](https://www.napp-it.org/cs-tools_en.html)). It can be started and stopped from the
 napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on its own.
 
-**Run it standalone (CLI, config file, service):** [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md)
+## Installation
 
-**Manual (PDF, version 0.68):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
+**In the napp-it ZFS web GUI (napp-it CS):** download cs-team in *About > Download cs tools*, configure and start it in
+*System > Services > cs-team* (storage folder, port, HTTPS, admin; enable = autostart).
+
+**Standalone setup (any OS, no napp-it, no ZFS needed):**
+1. Download the program for your OS from [Releases](https://github.com/guenther-alka/cs-team/releases) and put it into a folder of its own
+   (e.g. `C:\cs-team` or `/opt/cs-team`), named `cs-team` or `cs-team.exe`.
+2. Start it (double-click on Windows, `./cs-team` in a terminal). A short menu asks for the settings - Enter keeps the default:
+   data folder (`./`, data in `./.csteam`), PEM folder (`./pem`, a private self-signed certificate is created if missing), port (`9004`),
+   webcraft folder (`./webcraft`, one sub folder per app) and the admin start password.
+3. Use it: open `https://<host>:9004` in the browser and sign in as `admin` (change the start password at the first sign-in).
+
+The settings are saved in `team.cfg` next to the program; later starts skip the menu. To reconfigure, delete `team.cfg` (the data stays)
+or run `cs-team setup`. Snapshots/backups are up to you. Test standalone on a napp-it server: put an empty file `standalone.set` next to the program.
+More (start scripts, service, all options): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) and the manual, chapter 3.
+
+**Manual (PDF, version 0.70):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
 · Detailed German notes: [README.de.md](README.de.md)
 
 ## Goal
@@ -56,6 +71,31 @@ cs-team keeps all data on your own server (folder/ZFS dataset or S3); no trackin
 - The handbook chapter 11 "Privacy (GDPR)" adds a TOM checklist, templates for schools (notice, record of processing activities, consent) and a 72-hour data breach procedure. It is technical help, not legal advice.
 
 ## Quick start
+
+Ad hoc, without napp-it: copy the program into a folder and start it without parameters (e.g. double-click on Windows).
+Without a `team.cfg` next to the program, a text menu asks for the settings (data folder, PEM folder, port, webcraft folder,
+admin account and start password), checks them (folder writable / S3 reachable, port free, certificate readable), writes
+`team.cfg` next to the program and starts cs-team in the foreground (Ctrl+C stops it). The next start uses `team.cfg` directly;
+`./cs-team setup` opens the menu again to change it. The admin start password is never written to `team.cfg`: it only creates the
+first admin of an empty storage, who must change it at the first sign-in. With `-c <file>`, `CS_CONF` or `CS_*` variables (napp-it,
+start scripts) there is no menu; without a terminal and without a valid `team.cfg`, cs-team exits with an error message.
+If napp-it is installed on the host (`/opt/csweb-gui/_cfg`, Windows `C:\opt\csweb-gui\_cfg`), cs-team uses the same configuration
+as the napp-it menu System > Services > cs-team (`_cfg/team/team.cfg`); the setup menu then reads and writes napp-it's `team.par`
+and `team.cfg`, so both always show the same settings. A file `standalone.set` next to the program (any content) switches this off:
+cs-team then behaves as on a host without napp-it (`team.cfg` and `webcraft` next to the program).
+
+Standalone setup menu (no ZFS needed, make snapshots yourself): 1. data folder, default `./` (data in `./.csteam`), 2. PEM folder,
+default `./pem` (a private self-signed certificate `cert.pem`/`key.pem` is created if missing; `off` = plain http), 3. port,
+4. webcraft folder, default `./webcraft` with one sub folder per app, e.g. `./webcraft/wordcraft`, 5. admin account and start
+password (only while the storage is empty). Relative paths in a config file start at the folder of that file (the program folder
+for `team.cfg`), absolute paths are allowed. S3 storage: edit `team.cfg`. Standalone, the UI only lists the webcraft apps of its
+own folder, never those of napp-it/cs-proxy.
+
+Webcraft apps (WordCraft, GridCraft, PDFCraft ...): cs-team serves them itself under `/webcraft/<app>/` (no cs-proxy needed) from
+`CS_WEBCRAFT` (`off` = none), otherwise napp-it's `_my/wwwroot/webcraft`, otherwise a folder `webcraft` next to the program
+(one sub folder with `index.html` per app).
+
+With environment variables:
 
 ```
 # data in a folder (e.g. a ZFS dataset) - stored in /tank/team/.csteam
@@ -119,7 +159,7 @@ client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devi
 ZFS attribute, ACLs stay intact in copied or replicated ZFS filesystems, local users and SMB passwords survive the failover. Manual chapter 18, [docs/HA_SPEC.md](docs/HA_SPEC.md).
 Tested on two OmniOS hosts (planned switch with incremental replication, standby read-only, second master refused, old master refused after takeover).
 
-**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 3.8.
+**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 3.9.
 
 ## Sign-in and roles
 

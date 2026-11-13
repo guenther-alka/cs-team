@@ -291,6 +291,17 @@ func weakPass(p string) bool {
 	return len(l) > 0
 }
 
+// CheckPass: dieselben Regeln wie beim Setzen eines Passworts (Laenge, zu einfach); fuer das Setup-Menue.
+func CheckPass(pass string) error {
+	if len(pass) < minPass || len(pass) > maxPass {
+		return ErrBadPass
+	}
+	if weakPass(pass) {
+		return ErrWeakPass
+	}
+	return nil
+}
+
 func hash(pass string) (string, error) {
 	if len(pass) < minPass || len(pass) > maxPass {
 		return "", ErrBadPass
