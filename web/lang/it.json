@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Indirizzo e-mail alternativo",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Le e-mail vanno sempre a entrambi gli indirizzi (ridondanza se un server di posta non funziona).",
+ "Zweiter Mailserver": "Secondo server di posta",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "subentra se il primo non funziona (vuoto = nessuno)",
+ "leer = wie oben": "vuoto = come sopra",
+ "Speichern + Testmail über Server 2": "Salva + e-mail di prova tramite il server 2",
  "Anmeldung mit Anbieter (OIDC)": "Accesso con provider (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google e Microsoft: inserisci l'ID client e il segreto dalla console sviluppatori del provider. Quando un provider è compilato, viene offerto nella pagina di accesso e nella scelta della password; gli utenti collegano poi il proprio account.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Indirizzo di reindirizzamento (da inserire presso il provider): ",

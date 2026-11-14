@@ -184,6 +184,51 @@ func (a *Auth) SetMail(ctx_ context.Context, name, mailAddr string) error {
 	})
 }
 
+// SetMail2 setzt die alternative E-Mail-Adresse ("" = keine). Gleich der primären Adresse = keine.
+func (a *Auth) SetMail2(ctx_ context.Context, name, mailAddr string) error {
+	mailAddr, _, err := cleanContact(mailAddr, "")
+	if err != nil {
+		return err
+	}
+	return a.mutate(ctx_, func(m map[string]Account) error {
+		u, ok := m[name]
+		if !ok {
+			return ErrNoUser
+		}
+		if strings.EqualFold(mailAddr, u.Mail) {
+			mailAddr = ""
+		}
+		u.Mail2 = mailAddr
+		m[name] = u
+		return nil
+	})
+}
+
+// mailList: primäre und alternative Adresse (ohne leere und doppelte).
+func mailList(m1, m2 string) []string {
+	var out []string
+	if m1 != "" {
+		out = append(out, m1)
+	}
+	if m2 != "" && !strings.EqualFold(m1, m2) {
+		out = append(out, m2)
+	}
+	return out
+}
+
+// MailsOf: alle E-Mail-Adressen eines aktiven Benutzers (primär, dann alternativ); nil wenn unbekannt/gesperrt.
+// Regel (0.71): jede Mail an den Benutzer geht an beide Adressen.
+func MailsOf(user string) []string {
+	if std == nil {
+		return nil
+	}
+	u, found := std.get(context.Background(), user)
+	if !found || u.Disabled {
+		return nil
+	}
+	return mailList(u.Mail, u.Mail2)
+}
+
 func (a *Auth) SetGroupModes(ctx_ context.Context, group string, chat, msg, chans, tasks *string) error {
 	if (chat != nil && !validMode(*chat)) || (msg != nil && !validMode(*msg)) || (chans != nil && !validMode(*chans)) || (tasks != nil && !validMode(*tasks)) {
 		return ErrBadMode
@@ -313,7 +358,10 @@ func IsGroupAdmin(user, group string) bool {
 }
 
 // MemberContact: ein Mitglied mit seinen Adressen.
-type MemberContact struct{ Name, Mail, Chat string }
+type MemberContact struct{ Name, Mail, Chat, Mail2 string }
+
+// Mails: primäre und alternative Adresse des Mitglieds (jede Mail geht an beide).
+func (c MemberContact) Mails() []string { return mailList(c.Mail, c.Mail2) }
 
 // MembersOf liefert die aktiven Mitglieder einer Gruppe mit ihren Kontaktadressen.
 func MembersOf(group string) []MemberContact {
@@ -326,7 +374,7 @@ func MembersOf(group string) []MemberContact {
 	var out []MemberContact
 	for n, u := range std.users {
 		if !u.Disabled && contains(effGroups(u), group) {
-			out = append(out, MemberContact{n, u.Mail, u.Chat})
+			out = append(out, MemberContact{n, u.Mail, u.Chat, u.Mail2})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -335,41 +383,79 @@ func MembersOf(group string) []MemberContact {
 
 func (a *Auth) contactRoutes(mux *http.ServeMux, adm func(http.HandlerFunc) http.Handler) {
 	mux.Handle("POST /api/me/contact", a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var in struct{ Mail, Chat string }
+		var in contactIn
 		if !body(w, r, &in) {
+			return
+		}
+		if !in.mail2OK(w) {
 			return
 		}
 		if err := a.SetContact(r.Context(), User(r.Context()), in.Mail, in.Chat); err != nil {
 			fail_(w, err)
+			return
 		}
+		a.setMail2In(w, r, User(r.Context()), in.Mail2)
 	})))
 	mux.Handle("POST /api/users/{name}/contact", adm(func(w http.ResponseWriter, r *http.Request) {
-		var in struct{ Mail, Chat string }
+		var in contactIn
 		if !body(w, r, &in) {
 			return
 		}
-		if !a.manages(r.Context(), r.PathValue("name")) { // globaler Admin oder Gruppen-Admin des Benutzers
+		if !in.mail2OK(w) {
+			return
+		}
+		name := r.PathValue("name")
+		if !a.manages(r.Context(), name) { // globaler Admin oder Gruppen-Admin des Benutzers
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		if err := a.adminGuard(r.Context(), r.PathValue("name"), true); err != nil {
+		if err := a.adminGuard(r.Context(), name, true); err != nil {
 			fail_(w, err)
 			return
 		}
-		if !IsAdmin(r.Context()) && r.PathValue("name") != User(r.Context()) { // Gruppen-Admin: nur die E-Mail-Adresse; Webhook (enthält Token) bleibt unberührt
+		if !IsAdmin(r.Context()) && name != User(r.Context()) { // Gruppen-Admin: nur die E-Mail-Adressen; Webhook (enthält Token) bleibt unberührt
 			if strings.TrimSpace(in.Chat) != "" {
 				http.Error(w, "chat address: only the owner or a global admin", http.StatusForbidden)
 				return
 			}
-			if err := a.SetMail(r.Context(), r.PathValue("name"), in.Mail); err != nil {
+			if err := a.SetMail(r.Context(), name, in.Mail); err != nil {
 				fail_(w, err)
+				return
 			}
+		} else if err := a.SetContact(r.Context(), name, in.Mail, in.Chat); err != nil {
+			fail_(w, err)
 			return
 		}
-		if err := a.SetContact(r.Context(), r.PathValue("name"), in.Mail, in.Chat); err != nil {
-			fail_(w, err)
-		}
+		a.setMail2In(w, r, name, in.Mail2)
 	}))
+}
+
+// contactIn: Eingabe der Kontakt-Routen; Mail2 nil = alternative Adresse unverändert (ältere Oberflächen senden sie nicht).
+type contactIn struct {
+	Mail, Chat string
+	Mail2      *string
+}
+
+// mail2OK prüft die alternative Adresse vor dem Speichern (damit nichts halb gespeichert wird).
+func (in contactIn) mail2OK(w http.ResponseWriter) bool {
+	if in.Mail2 == nil {
+		return true
+	}
+	if _, _, err := cleanContact(*in.Mail2, ""); err != nil {
+		fail_(w, err)
+		return false
+	}
+	return true
+}
+
+// setMail2In speichert die alternative Adresse, wenn sie mitgeschickt wurde.
+func (a *Auth) setMail2In(w http.ResponseWriter, r *http.Request, name string, m2 *string) {
+	if m2 == nil {
+		return
+	}
+	if err := a.SetMail2(r.Context(), name, *m2); err != nil {
+		fail_(w, err)
+	}
 }
 
 // ContactOf: Adressen eines aktiven Benutzers; ok=false wenn unbekannt oder gesperrt.

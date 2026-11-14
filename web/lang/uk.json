@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Альтернативна адреса e-mail",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Листи завжди надходять на обидві адреси (резерв на випадок збою поштового сервера).",
+ "Zweiter Mailserver": "Другий поштовий сервер",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "підключається, якщо перший не працює (порожньо = немає)",
+ "leer = wie oben": "порожньо = як вище",
+ "Speichern + Testmail über Server 2": "Зберегти + тестовий лист через сервер 2",
  "Anmeldung mit Anbieter (OIDC)": "Вхід через провайдера (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google і Microsoft: введіть ідентифікатор клієнта та секрет із консолі розробника провайдера. Коли провайдера заповнено, він пропонується на сторінці входу та під час вибору пароля; потім користувачі самі прив'язують свій обліковий запис.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Адреса перенаправлення (вкажіть у провайдера): ",

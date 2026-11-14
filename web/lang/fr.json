@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Adresse e-mail alternative",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Les e-mails partent toujours vers les deux adresses (redondance si un serveur de messagerie tombe en panne).",
+ "Zweiter Mailserver": "Second serveur de messagerie",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "prend le relais si le premier ne fonctionne pas (vide = aucun)",
+ "leer = wie oben": "vide = comme ci-dessus",
+ "Speichern + Testmail über Server 2": "Enregistrer + e-mail de test via le serveur 2",
  "Anmeldung mit Anbieter (OIDC)": "Connexion avec un fournisseur (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google et Microsoft : saisissez l'ID client et le secret de la console développeur du fournisseur. Dès qu'un fournisseur est renseigné, il est proposé sur la page de connexion et lors du choix du mot de passe ; les utilisateurs lient ensuite eux-mêmes leur compte.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Adresse de redirection (à saisir chez le fournisseur) : ",

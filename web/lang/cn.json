@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "备用电子邮件地址",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "邮件始终发送到两个地址（邮件服务器故障时的冗余）。",
+ "Zweiter Mailserver": "第二邮件服务器",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "第一个无法工作时接替（留空 = 无）",
+ "leer = wie oben": "留空 = 同上",
+ "Speichern + Testmail über Server 2": "保存并通过服务器 2 发送测试邮件",
  "Anmeldung mit Anbieter (OIDC)": "通过提供商登录（OIDC）",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google 和 Microsoft：填写提供商开发者控制台中的客户端 ID 和密钥。填写完整的提供商会出现在登录页面和选择密码时；用户随后自行关联账户。",
  "Rücksprungadresse (beim Anbieter eintragen): ": "重定向地址（在提供商处填写）：",

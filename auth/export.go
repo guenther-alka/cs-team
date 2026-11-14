@@ -113,7 +113,7 @@ func (a *Auth) writeExport(w http.ResponseWriter, r *http.Request, name string) 
 		notices = append(notices, k)
 	}
 	sort.Strings(notices)
-	acc := map[string]any{"name": name, "groups": effGroups(u), "mail": u.Mail, "language": u.Lang, "created": u.Created,
+	acc := map[string]any{"name": name, "groups": effGroups(u), "mail": u.Mail, "mail2": u.Mail2, "language": u.Lang, "created": u.Created,
 		"admin": u.Admin, "disabled": u.Disabled, "chatAddressSet": u.Chat != "", "realm": u.Realm, "source": u.Source, "notices": notices, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires}
 	b, _ := json.MarshalIndent(acc, "", " ")
 	put("account.json", b)

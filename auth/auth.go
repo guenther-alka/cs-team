@@ -75,6 +75,7 @@ type Account struct {
 	Must     bool     `json:"must,omitempty"`   // Passwort muss beim nächsten Login geändert werden
 	Lang     string   `json:"lang,omitempty"`   // Oberflächensprache (leer = Browser/Serverstandard)
 	Mail     string   `json:"mail,omitempty"`   // externe E-Mail-Adresse (für Nachrichten)
+	Mail2    string   `json:"mail2,omitempty"`  // alternative E-Mail-Adresse (Redundanz): jede Mail an den Benutzer geht auch dorthin (0.71)
 	Chat     string   `json:"chat,omitempty"`   // externe Chat-Adresse (URL, z.B. Webhook/ntfy)
 	NotifyOff []string `json:"notifyOff,omitempty"` // abgewaehlte Meldungsarten (task | mention | news), Standard: alle an (notify.go)
 	Guest    bool     `json:"guest,omitempty"`   // Gast-Konto (guest.go): nur ausdruecklich genannte Gruppen, ohne Verwaltungsrechte, mit Ablauf

@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Dirección de correo alternativa",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Los correos van siempre a ambas direcciones (redundancia si falla un servidor de correo).",
+ "Zweiter Mailserver": "Segundo servidor de correo",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "entra en acción si el primero no funciona (vacío = ninguno)",
+ "leer = wie oben": "vacío = igual que arriba",
+ "Speichern + Testmail über Server 2": "Guardar + correo de prueba por el servidor 2",
  "Anmeldung mit Anbieter (OIDC)": "Inicio de sesión con proveedor (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google y Microsoft: introduzca el ID de cliente y el secreto de la consola de desarrollador del proveedor. Cuando un proveedor está completo, se ofrece en la página de inicio de sesión y al elegir la contraseña; después los usuarios vinculan su propia cuenta.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Dirección de redirección (introducir en el proveedor): ",

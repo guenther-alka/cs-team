@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"mime/quotedprintable"
 	"net"
@@ -32,9 +33,14 @@ import (
 type SMTP struct {
 	Host, Port, User, Pass, From string
 	TLS                          string // starttls (Standard bei Port 587), ssl (Port 465), none
+	Alt                          *SMTP  // zweiter Mailserver (0.71): übernimmt, wenn der Versand über den ersten scheitert
 }
 
-func (s SMTP) Enabled() bool { return s.Host != "" && s.From != "" }
+// on: dieser Server ist eingerichtet (ohne den zweiten).
+func (s SMTP) on() bool { return s.Host != "" && s.From != "" }
+
+// Enabled: Mailversand möglich (erster oder zweiter Server eingerichtet).
+func (s SMTP) Enabled() bool { return s.on() || (s.Alt != nil && s.Alt.on()) }
 
 func noCRLF(s string) string { return strings.NewReplacer("\r", " ", "\n", " ").Replace(s) }
 
@@ -75,9 +81,30 @@ func (s SMTP) SendICS(to []string, subject, body, ics, method, replyTo string) e
 	})
 }
 
-// deliver: SMTP-Sitzung; head liefert Content-Type/Encoding-Kopfzeilen samt Leerzeile, body schreibt den Inhalt.
+// deliver: Versand über den ersten Mailserver; scheitert er (Verbindung, TLS, Anmeldung, Ablehnung, Abbruch), geht dieselbe Mail
+// über den zweiten Server (Alt). Ist nur der zweite eingerichtet, wird er direkt benutzt.
 func (s SMTP) deliver(to []string, subject, replyTo string, head func(io.Writer) (string, error), body func(io.Writer) error) error {
-	if !s.Enabled() {
+	alt := s.Alt != nil && s.Alt.on()
+	if !s.on() {
+		if alt {
+			return s.Alt.deliver1(to, subject, replyTo, head, body)
+		}
+		return errors.New("smtp not configured")
+	}
+	err := s.deliver1(to, subject, replyTo, head, body)
+	if err == nil || !alt {
+		return err
+	}
+	log.Printf("mail: server 1 (%s) failed: %v - trying server 2 (%s)", s.Host, err, s.Alt.Host)
+	if err2 := s.Alt.deliver1(to, subject, replyTo, head, body); err2 != nil {
+		return fmt.Errorf("server 1: %v; server 2: %v", err, err2)
+	}
+	return nil
+}
+
+// deliver1: eine SMTP-Sitzung mit genau diesem Server; head liefert Content-Type/Encoding-Kopfzeilen samt Leerzeile, body schreibt den Inhalt.
+func (s SMTP) deliver1(to []string, subject, replyTo string, head func(io.Writer) (string, error), body func(io.Writer) error) error {
+	if !s.on() {
 		return errors.New("smtp not configured")
 	}
 	port := s.Port
@@ -175,7 +202,8 @@ func (s SMTP) deliver(to []string, subject, replyTo string, head func(io.Writer)
 	if err = w.Close(); err != nil {
 		return err
 	}
-	return c.Quit()
+	c.Quit() // Mail ist angenommen: ein Fehler beim Abmelden darf keinen zweiten Versand (Server 2) auslösen
+	return nil
 }
 
 // ---- externe Chat-Adresse: HTTP-POST (ntfy, Slack-, Discord-, Telegram-Webhook ...) ----
@@ -385,8 +413,8 @@ func (m *Mailer) send(ctx context.Context, user string, in sendIn) (*sendOut, in
 	if in.Mail {
 		var to []string
 		for _, mb := range members {
-			if mb.Mail != "" {
-				to = append(to, mb.Mail)
+			if ms := mb.Mails(); len(ms) > 0 { // primäre und alternative Adresse (0.71)
+				to = append(to, ms...)
 			} else {
 				out.MailSkipped++
 			}
@@ -488,7 +516,7 @@ func (m *Mailer) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler
 			rw := row{Name: g, Wide: wideSend(r.Context(), me, g)}
 			for _, mb := range auth.MembersOf(g) {
 				rw.Members++
-				if mb.Mail != "" {
+				if len(mb.Mails()) > 0 {
 					rw.Mail++
 				}
 				if mb.Chat != "" {
@@ -536,13 +564,13 @@ func (m *Mailer) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handler
 // Notify schickt eine kurze Nachricht an einen einzelnen Benutzer (E-Mail und/oder Chat-Adresse, soweit hinterlegt und
 // eingerichtet). Wird von den Aufgaben benutzt; Fehler werden ignoriert (Hinweis in der App gibt es ohnehin).
 func (m *Mailer) Notify(ctx context.Context, user, subject, text string) {
-	mail, chat, ok := auth.ContactOf(user)
+	_, chat, ok := auth.ContactOf(user)
 	if !ok {
 		return
 	}
 	subject = noCRLF(subject)
-	if mail != "" && m.smtp().Enabled() {
-		m.smtp().Send([]string{mail}, subject, text, "")
+	if mails := auth.MailsOf(user); len(mails) > 0 && m.smtp().Enabled() { // primäre und alternative Adresse (0.71)
+		m.smtp().Send(mails, subject, text, "")
 	}
 	if chat != "" {
 		hook(ctx, safeClient(m.allowPrivate()), chat, subject, text)

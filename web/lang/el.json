@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Εναλλακτική διεύθυνση e-mail",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Τα μηνύματα πηγαίνουν πάντα και στις δύο διευθύνσεις (εφεδρεία σε περίπτωση βλάβης διακομιστή αλληλογραφίας).",
+ "Zweiter Mailserver": "Δεύτερος διακομιστής αλληλογραφίας",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "αναλαμβάνει όταν ο πρώτος δεν λειτουργεί (κενό = κανένας)",
+ "leer = wie oben": "κενό = όπως παραπάνω",
+ "Speichern + Testmail über Server 2": "Αποθήκευση + δοκιμαστικό μήνυμα μέσω διακομιστή 2",
  "Anmeldung mit Anbieter (OIDC)": "Σύνδεση μέσω παρόχου (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google και Microsoft: εισαγάγετε το αναγνωριστικό πελάτη και το μυστικό από την κονσόλα προγραμματιστή του παρόχου. Όταν ένας πάροχος συμπληρωθεί, προσφέρεται στη σελίδα σύνδεσης και κατά την επιλογή κωδικού· οι χρήστες συνδέουν έπειτα μόνοι τους τον λογαριασμό τους.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Διεύθυνση ανακατεύθυνσης (να καταχωριστεί στον πάροχο): ",

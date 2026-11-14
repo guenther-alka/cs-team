@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "代替メールアドレス",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "メールは常に両方のアドレスに送信されます（メールサーバー障害時の冗長化）。",
+ "Zweiter Mailserver": "第2メールサーバー",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "1台目が動作しない場合に代わりに使用（空欄 = なし）",
+ "leer = wie oben": "空欄 = 上と同じ",
+ "Speichern + Testmail über Server 2": "保存 + サーバー2でテストメール",
  "Anmeldung mit Anbieter (OIDC)": "プロバイダーでのログイン（OIDC）",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google と Microsoft：プロバイダーの開発者コンソールから取得したクライアント ID とシークレットを入力します。入力済みのプロバイダーは、ログインページとパスワード選択時に選べるようになり、ユーザーが自分のアカウントを連携します。",
  "Rücksprungadresse (beim Anbieter eintragen): ": "リダイレクト先アドレス（プロバイダーに登録）：",

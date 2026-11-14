@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Alternatif e-posta adresi",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "E-postalar her zaman iki adrese de gider (bir posta sunucusu çökerse yedeklilik).",
+ "Zweiter Mailserver": "İkinci posta sunucusu",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "birincisi çalışmazsa devreye girer (boş = yok)",
+ "leer = wie oben": "boş = yukarıdaki gibi",
+ "Speichern + Testmail über Server 2": "Kaydet + 2. sunucu üzerinden test e-postası",
  "Anmeldung mit Anbieter (OIDC)": "Sağlayıcı ile oturum açma (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google ve Microsoft: sağlayıcının geliştirici konsolundan istemci kimliğini ve gizli anahtarı girin. Bir sağlayıcı doldurulunca oturum açma sayfasında ve parola seçerken sunulur; kullanıcılar hesaplarını sonra kendileri bağlar.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Yönlendirme adresi (sağlayıcıya girin): ",

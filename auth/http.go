@@ -66,7 +66,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		if realm == "" {
 			realm, src = RealmLocal, "local"
 		}
-		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "chat": u.Chat, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
+		json.NewEncoder(w).Encode(map[string]any{"lang": u.Lang, "mail": u.Mail, "mail2": u.Mail2, "chat": u.Chat, "notifyOff": u.NotifyOff, "guest": u.Guest, "expires": u.Expires, "must": u.Must, "name": User(r.Context()), "admin": IsAdmin(r.Context()), "areas": ar, "groups": GroupsOf(User(r.Context())), "adminOf": AdminOf(r.Context()), "sys": u.Sys, "version": Version,
 			"realm": realm, "source": src, "idRealm": idc.DisplayRealm(), "idMode": idc.ModeName(), "allowLocal": idc.LocalOK(), "loginForm": LoginForm, "oidc": linkProv(u), "pw": pwState(u), "initExp": u.InitExp,
 			"ack": ackState(u), "ackAddr": ackAddrs(), "privacy": privacyNote(),
 			"twofa": u.TOTP != "", "need2fa": need2FA(u, isLocalKey(User(r.Context()), u))})
@@ -159,6 +159,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			PW       string   `json:"pw,omitempty"`      // Anmeldeart: local | oidc | init (Initialpasswort offen) | none (initpw.go)
 			Seen     string   `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, seen.go)
 			Uid      int      `json:"uid,omitempty"`     // feste numerische Kennung (ids.go)
+			Mail2    string   `json:"mail2,omitempty"`   // alternative E-Mail-Adresse (0.71)
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -177,11 +178,11 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u), u.Uid})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u), u.Uid, u.Mail2})
 			case n == me:
-				out = append(out, row{Name: n, Uid: u.Uid, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
+				out = append(out, row{Name: n, Uid: u.Uid, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
 			}
 		}
 		a.mu.Unlock()

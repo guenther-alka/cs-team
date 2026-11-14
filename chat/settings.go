@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -43,6 +44,7 @@ type stored struct {
 	Pass      string     `json:"pass,omitempty"`
 	From      string     `json:"from,omitempty"`
 	TLS       string     `json:"tls,omitempty"`
+	Alt       *smtpAlt   `json:"alt,omitempty"`       // zweiter Mailserver (0.71), nil = keiner
 	Public    string     `json:"public,omitempty"`
 	Private   *bool      `json:"private,omitempty"`
 	Video     []VideoOpt `json:"video,omitempty"`     // Videochat-Server (bis zu 3)
@@ -87,12 +89,26 @@ func or(a, b string) string {
 	return b
 }
 
-// SMTP: wirksame Mail-Einstellungen (gespeichert vor Startparameter).
+// smtpAlt: zweiter Mailserver (nur in der Oberfläche, keine Startparameter). From leer = Absender des ersten Servers.
+type smtpAlt struct {
+	Host string `json:"host,omitempty"`
+	Port string `json:"port,omitempty"`
+	User string `json:"user,omitempty"`
+	Pass string `json:"pass,omitempty"`
+	From string `json:"from,omitempty"`
+	TLS  string `json:"tls,omitempty"`
+}
+
+// SMTP: wirksame Mail-Einstellungen (gespeichert vor Startparameter), mit dem zweiten Server als Alt.
 func (s *Settings) SMTP() SMTP {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return SMTP{Host: or(s.cur.Host, s.Env.Host), Port: or(s.cur.Port, s.Env.Port), User: or(s.cur.User, s.Env.User),
+	c := SMTP{Host: or(s.cur.Host, s.Env.Host), Port: or(s.cur.Port, s.Env.Port), User: or(s.cur.User, s.Env.User),
 		Pass: or(s.cur.Pass, s.Env.Pass), From: or(s.cur.From, s.Env.From), TLS: or(s.cur.TLS, s.Env.TLS)}
+	if a := s.cur.Alt; a != nil && a.Host != "" {
+		c.Alt = &SMTP{Host: a.Host, Port: a.Port, User: a.User, Pass: a.Pass, From: or(a.From, c.From), TLS: a.TLS}
+	}
+	return c
 }
 
 func (s *Settings) AllowPrivate() bool {
@@ -412,35 +428,58 @@ type settingsIn struct {
 	Host, Port, User, From, TLS, Public string
 	Pass                                *string // nil = unverändert, "" = löschen
 	Private                             bool
+	Alt                                 *altIn // zweiter Mailserver: nil = unverändert, Host leer = keiner (0.71)
+}
+
+type altIn struct {
+	Host, Port, User, From, TLS string
+	Pass                        *string // nil = unverändert, "" = löschen
+}
+
+// checkSMTP prüft die Angaben eines Mailservers (erster oder zweiter); p = Präfix der Fehlermeldung.
+func checkSMTP(p, host, port, user, from, tls string, pass *string) error {
+	for _, x := range []string{host, port, user, from, tls} {
+		if !noCtl(x) || len(x) > 300 {
+			return errors.New("invalid characters")
+		}
+	}
+	if pass != nil && (!noCtl(*pass) || len(*pass) > 300) {
+		return errors.New("invalid characters")
+	}
+	if strings.ContainsAny(host, " /\\") {
+		return errors.New(p + "host: name only, without port")
+	}
+	if port != "" {
+		if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+			return errors.New(p + "port: 1..65535")
+		}
+	}
+	switch tls {
+	case "", "starttls", "ssl", "none":
+	default:
+		return errors.New(p + "encryption: starttls, ssl or none")
+	}
+	if from != "" {
+		if _, err := mail.ParseAddress(from); err != nil {
+			return errors.New(strings.TrimPrefix(p, "smtp ") + "sender address invalid")
+		}
+	}
+	return nil
 }
 
 func (s *Settings) set(in settingsIn) error {
 	in.Host, in.Port, in.User, in.From, in.TLS = strings.TrimSpace(in.Host), strings.TrimSpace(in.Port), strings.TrimSpace(in.User), strings.TrimSpace(in.From), strings.TrimSpace(in.TLS)
 	in.Public = strings.TrimRight(strings.TrimSpace(in.Public), "/")
-	for _, x := range []string{in.Host, in.Port, in.User, in.From, in.TLS, in.Public} {
-		if !noCtl(x) || len(x) > 300 {
-			return errors.New("invalid characters")
-		}
-	}
-	if in.Pass != nil && (!noCtl(*in.Pass) || len(*in.Pass) > 300) {
+	if !noCtl(in.Public) || len(in.Public) > 300 {
 		return errors.New("invalid characters")
 	}
-	if strings.ContainsAny(in.Host, " /\\") {
-		return errors.New("smtp host: name only, without port")
+	if err := checkSMTP("smtp ", in.Host, in.Port, in.User, in.From, in.TLS, in.Pass); err != nil {
+		return err
 	}
-	if in.Port != "" {
-		if n, err := strconv.Atoi(in.Port); err != nil || n < 1 || n > 65535 {
-			return errors.New("smtp port: 1..65535")
-		}
-	}
-	switch in.TLS {
-	case "", "starttls", "ssl", "none":
-	default:
-		return errors.New("smtp encryption: starttls, ssl or none")
-	}
-	if in.From != "" {
-		if _, err := mail.ParseAddress(in.From); err != nil {
-			return errors.New("sender address invalid")
+	if a := in.Alt; a != nil {
+		a.Host, a.Port, a.User, a.From, a.TLS = strings.TrimSpace(a.Host), strings.TrimSpace(a.Port), strings.TrimSpace(a.User), strings.TrimSpace(a.From), strings.TrimSpace(a.TLS)
+		if err := checkSMTP("smtp server 2 ", a.Host, a.Port, a.User, a.From, a.TLS, a.Pass); err != nil {
+			return err
 		}
 	}
 	if in.Public != "" {
@@ -457,6 +496,24 @@ func (s *Settings) set(in settingsIn) error {
 		n.Pass = *in.Pass
 	} else if in.Host != or(s.cur.Host, s.Env.Host) || in.User != or(s.cur.User, s.Env.User) {
 		n.Pass = "" // Ziel geändert: gespeichertes Passwort nie an einen neuen Server/Benutzer weitergeben
+	}
+	if a := in.Alt; a != nil {
+		if a.Host == "" {
+			n.Alt = nil // kein zweiter Server
+		} else {
+			old := smtpAlt{}
+			if s.cur.Alt != nil {
+				old = *s.cur.Alt
+			}
+			na := smtpAlt{Host: a.Host, Port: a.Port, User: a.User, From: a.From, TLS: a.TLS}
+			switch {
+			case a.Pass != nil:
+				na.Pass = *a.Pass
+			case a.Host == old.Host && a.User == old.User:
+				na.Pass = old.Pass // gleiches Ziel: Passwort bleibt (sonst nie an einen neuen Server/Benutzer weitergeben)
+			}
+			n.Alt = &na
+		}
 	}
 	p := in.Private
 	n.Private = &p
@@ -486,6 +543,7 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 		s.mu.RUnlock()
 		json.NewEncoder(w).Encode(map[string]any{
 			"host": c.Host, "port": c.Port, "user": c.User, "from": c.From, "tls": c.TLS, "passSet": c.Pass != "",
+			"alt": altOut(own.Alt), // zweiter Mailserver (0.71), nur Gespeichertes, Passwort nie
 			"public": own.Public, "private": s.AllowPrivate(), "enabled": c.Enabled(),
 			"envHost":   s.Env.Host != "", // Vorgabe aus den Startparametern vorhanden
 			"video":     s.Video(),
@@ -599,18 +657,39 @@ func (s *Settings) Routes(mux *http.ServeMux, wrap func(http.Handler) http.Handl
 			http.Error(w, err.Error(), 400)
 		}
 	}))
-	// Testmail an die eigene Adresse des Admins
+	// Testmail an die eigene Adresse des Admins; {"server":2} testet den zweiten Mailserver, sonst den ersten (jeweils ohne Ausweichen).
 	mux.Handle("POST /api/settings/testmail", admin(func(w http.ResponseWriter, r *http.Request) {
+		var in struct{ Server int }
+		json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in) // leerer Body = erster Server
 		me := auth.User(r.Context())
 		to, _, _ := auth.ContactOf(me)
 		if to == "" {
 			http.Error(w, "set your own e-mail address first (Konto)", 400)
 			return
 		}
-		if err := s.SMTP().Send([]string{to}, "cs-team: Testmail", "Die Mail-Einstellungen von cs-team funktionieren.", ""); err != nil {
+		c, nr := s.SMTP(), "1"
+		if in.Server == 2 {
+			if c.Alt == nil {
+				http.Error(w, "smtp server 2 not configured", 400)
+				return
+			}
+			c, nr = *c.Alt, "2"
+		}
+		c.Alt = nil
+		info := "Server " + nr + ": " + c.Host + ", Benutzer " + c.User + ", Absender " + c.From
+		log.Printf("mail: testmail via %s to %s", info, to)
+		if err := c.Send([]string{to}, "cs-team: Testmail (Server "+nr+")", "Die Mail-Einstellungen von cs-team funktionieren.\n\n"+info+"\n", ""); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"to": to})
+		json.NewEncoder(w).Encode(map[string]string{"to": to, "server": c.Host, "from": c.From, "user": c.User, "nr": nr})
 	}))
+}
+
+// altOut: Anzeige des zweiten Mailservers (ohne Passwort).
+func altOut(a *smtpAlt) map[string]any {
+	if a == nil {
+		return map[string]any{}
+	}
+	return map[string]any{"host": a.Host, "port": a.Port, "user": a.User, "from": a.From, "tls": a.TLS, "passSet": a.Pass != ""}
 }

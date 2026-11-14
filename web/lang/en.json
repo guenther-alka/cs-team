@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Alternative e-mail address",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Mail always goes to both addresses (redundancy in case a mail server fails).",
+ "Zweiter Mailserver": "Second mail server",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "takes over if the first one does not work (empty = none)",
+ "leer = wie oben": "empty = same as above",
+ "Speichern + Testmail über Server 2": "Save + test mail via server 2",
  "Anmeldung mit Anbieter (OIDC)": "Sign-in with provider (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google and Microsoft: enter the client ID and secret from the provider's developer console. Once a provider is filled in, it is offered on the sign-in page and when choosing a password; users then link their own account.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Redirect address (enter at the provider): ",

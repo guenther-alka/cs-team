@@ -350,11 +350,28 @@ func whenText(ev *ical.Event) string {
 	return s.In(loc).Format("02.01.2006 15:04") + " - " + e.In(loc).Format("15:04") + " " + z
 }
 
+// mailsOf: Empfänger der Teilnehmer; bei cs-team-Benutzern auch die alternative Adresse (0.71: jede Mail an beide).
 func mailsOf(l []attRow) []string {
 	var out []string
+	seen := map[string]bool{}
+	add := func(m string) {
+		if m != "" && !seen[strings.ToLower(m)] {
+			seen[strings.ToLower(m)] = true
+			out = append(out, m)
+		}
+	}
 	for _, a := range l {
-		if a.Mail != "" {
-			out = append(out, a.Mail)
+		add(a.Mail)
+		if a.Name != "" { // nur wenn der Teilnehmer wirklich dieser Benutzer ist (CN kann aus einer importierten .ics stammen)
+			ms := auth.MailsOf(a.Name)
+			switch {
+			case a.Mail == "": // Teilnehmer ohne Adresse (urn:cs-team:name)
+				for _, m := range ms {
+					add(m)
+				}
+			case len(ms) > 1 && strings.EqualFold(a.Mail, ms[0]):
+				add(ms[1])
+			}
 		}
 	}
 	return out

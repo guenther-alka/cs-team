@@ -52,7 +52,7 @@ func resetEnabled() bool {
 }
 
 func resetOK(u Account) bool {
-	return eligible(u) && !u.Disabled && u.Mail != "" && u.TOTP == ""
+	return eligible(u) && !u.Disabled && (u.Mail != "" || u.Mail2 != "") && u.TOTP == ""
 }
 
 func resetSum(tok string) string {
@@ -82,7 +82,7 @@ func (a *Auth) findForgot(ctx context.Context, q string) (string, Account, bool)
 	}
 	hit := ""
 	for n, u := range a.users {
-		if u.Mail != "" && strings.EqualFold(u.Mail, q) {
+		if (u.Mail != "" && strings.EqualFold(u.Mail, q)) || (u.Mail2 != "" && strings.EqualFold(u.Mail2, q)) {
 			if hit != "" {
 				return "", Account{}, false
 			}
@@ -129,7 +129,8 @@ func (a *Auth) issueReset(name, ip string) {
 		return
 	}
 	tok := base64.RawURLEncoding.EncodeToString(b)
-	var mail, lang string
+	var mails []string
+	var lang string
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		u, ok := m[name]
 		if !ok || !resetOK(u) {
@@ -139,7 +140,7 @@ func (a *Auth) issueReset(name, ip string) {
 			return errResetSkip // gerade erst eine Mail geschickt
 		}
 		u.Reset, u.ResetExp = resetSum(tok), time.Now().Add(resetTTL).UTC().Format(time.RFC3339)
-		mail, lang = u.Mail, u.Lang
+		mails, lang = mailList(u.Mail, u.Mail2), u.Lang
 		m[name] = u
 		return nil
 	})
@@ -147,11 +148,17 @@ func (a *Auth) issueReset(name, ip string) {
 		return
 	}
 	subj, text := resetMail(lang, name, resetBase()+"/#reset="+name+"~"+tok)
-	if err := SendMail(mail, subj, text); err != nil {
-		log.Printf("auth: password reset mail for %q failed: %v", safeName(name), err)
-		return
+	sent := 0
+	for _, to := range mails { // primäre und alternative Adresse (0.71)
+		if err := SendMail(to, subj, text); err != nil {
+			log.Printf("auth: password reset mail for %q failed: %v", safeName(name), err)
+			continue
+		}
+		sent++
 	}
-	log.Printf("auth: password reset link sent user=%q ip=%s", safeName(name), ip)
+	if sent > 0 {
+		log.Printf("auth: password reset link sent user=%q ip=%s addresses=%d", safeName(name), ip, sent)
+	}
 }
 
 func (a *Auth) resetRoutes(mux *http.ServeMux) {

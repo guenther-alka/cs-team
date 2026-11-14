@@ -310,15 +310,16 @@ async function pickDlg(inp,kind,single,title){
   inp.value=[...cur.filter(x=>on.has(x)),...lines.filter(x=>on.has(x.name)&&!cur.includes(x.name)).map(x=>x.name)].join(sep);
   inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));inp.focus();}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.pkb');if(!b)return;e.preventDefault();pickDlg(document.getElementById(b.dataset.pk),b.dataset.kind,!!b.dataset.single,b.dataset.title||'');});
-const contactPanel=(m,c,own,set,nt)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
+const contactPanel=(m,c,own,set,nt,m2)=>'<div class="panel"><b>'+t('Externe Adressen')+'</b><div class="muted">'+t('Für Nachrichten an die Gruppe (Menü Nachricht): E-Mail-Adresse und Webhook-URL eines Chatdienstes (Slack, Discord, Telegram, ntfy …). Beides ist optional.')+'</div>'+
   '<div class="row"><input id="cmail" style="width:320px" placeholder="'+t('E-Mail-Adresse')+'" value="'+esc(m||'')+'"></div>'+
+  '<div class="row"><input id="cmail2" style="width:320px" placeholder="'+t('Alternative E-Mail-Adresse')+' ('+t('optional')+')" value="'+esc(m2||'')+'"> <span class="muted">'+t('Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).')+'</span></div>'+
   (own?'<div class="row"><input id="cchat" style="width:320px" placeholder="'+t('Chat-Adresse (https://…)')+'" value="'+esc(c||'')+'"></div>'
       :'<div class="row muted">'+t('Chat-Adresse (Webhook): {0}. Sie enthält einen Zugangsschlüssel und ist nur für den Benutzer selbst und globale Admins sichtbar und änderbar.',t(set?'gesetzt':'nicht gesetzt'))+'</div>')+
   (nt?'<div class="row">'+esc(t('Benachrichtigen bei'))+': '+[['task','Aufgaben'],['mention','Erwähnung im Chat'],['news','Aushängen'],['dm','1:1-Nachrichten']].map(([k,l])=>'<label><input type="checkbox" class="cnt" data-k="'+k+'"'+(nt.includes(k)?'':' checked')+'> '+esc(t(l))+'</label>').join(' ')+'</div><div class="muted">'+esc(t('Die Meldungen kommen per E-Mail und/oder an die Chat-Adresse (z. B. ntfy aufs Handy). Ohne Adresse gibt es keine Meldung.'))+'</div>':'')+
    '<button id="cgo">'+t('Speichern')+'</button></div>';
-const contactBind=(url,done)=>{$('#cgo').onclick=async()=>{const m=$('#cmail').value.trim(),ce=$('#cchat'),c=ce?ce.value.trim():undefined;
-  const b={mail:m};if(ce)b.chat=c;
-  if(await api('POST',url,b)){const cn=document.querySelectorAll('.cnt');if(cn.length){const off=[...cn].filter(x=>!x.checked).map(x=>x.dataset.k);if(await api('POST','/api/me/notify',{off}))me.notifyOff=off;}done(m,c);alert(t('Gespeichert'));}};};
+const contactBind=(url,done)=>{$('#cgo').onclick=async()=>{const m=$('#cmail').value.trim(),m2=$('#cmail2').value.trim(),ce=$('#cchat'),c=ce?ce.value.trim():undefined;
+  const b={mail:m,mail2:m2};if(ce)b.chat=c;
+  if(await api('POST',url,b)){const cn=document.querySelectorAll('.cnt');if(cn.length){const off=[...cn].filter(x=>!x.checked).map(x=>x.dataset.k);if(await api('POST','/api/me/notify',{off}))me.notifyOff=off;}done(m,c,m2.toLowerCase()==m.toLowerCase()?'':m2);alert(t('Gespeichert'));}};};
 const modeSel=(id,v,opts,dis)=>'<select id="'+id+'"'+(dis?' disabled':'')+'>'+opts.map(o=>'<option value="'+o[0]+'"'+(o[0]==v?' selected':'')+'>'+esc(t(o[1]))+'</option>').join('')+'</select>';
 const chatModes=(p,g,dis)=>'<div class="row">'+t('Chat: ')+modeSel(p+'c',g.chat||'member',[['member','Mitglieder schreiben'],['admin','nur Admins schreiben'],['off','aus']],dis)+' &nbsp; '+
   t('Kanäle anlegen: ')+modeSel(p+'k',g.chans||'admin',[['admin','nur Admins'],['member','jedes Mitglied'],['off','niemand']],dis)+' &nbsp; '+
@@ -467,11 +468,11 @@ S.users={
      (me.oidc?'<div class="panel"><b>'+esc(t('Anmeldung über {0}',provName(me.oidc)))+'</b><div class="muted row">'+esc(t('Dieses Konto hat kein Passwort. Zurücksetzen (neues Initialpasswort) kann nur ein Admin.'))+'</div></div>':'<div class="panel"><b>'+t('Passwort ändern')+'</b>'+
      '<div class="row"><input id="po" type="password" placeholder="'+t('altes Passwort')+'"></div>'+
      '<div class="row"><input id="pn" type="password" placeholder="'+t('neues Passwort (min. 8)')+'"></div>'+
-     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>')+'<div id="lnk"></div>'+(me.oidc?'':'<div class="panel" id="tfa"></div>')+contactPanel(me.mail,me.chat,true,false,me.notifyOff||[])+
+     '<button id="pgo">'+t('Ändern')+'</button><div class="muted row">'+t('Danach das Passwort auch in CalDAV-/WebDAV-Clients anpassen.')+'</div></div>')+'<div id="lnk"></div>'+(me.oidc?'':'<div class="panel" id="tfa"></div>')+contactPanel(me.mail,me.chat,true,false,me.notifyOff||[],me.mail2)+
      '<div class="panel"><div class="row"><button id="mexp">'+t('Meine Daten exportieren (ZIP)')+'</button></div><div class="muted">'+t('Alles, was cs-team über dich gespeichert hat (Konto, eigene Dateien, Kalender, Aufgaben, Chat), als ZIP-Datei (Auskunft nach Art. 15 und 20 DSGVO).')+'</div></div>'+
      (isGA()?'<div class="row"><a href="/api/users/export">'+t('Benutzer als CSV exportieren')+'</a> <span class="muted">'+t('(Importformat, Excel-tauglich, ohne Passwörter)')+'</span></div>':'<div class="muted">'+t('Benutzer anlegen, sperren und löschen dürfen nur Admins bzw. Gruppen-Admins.')+'</div>');
     if($('#pgo'))$('#pgo').onclick=async()=>{if(await api('POST','/api/me/password',{old:$('#po').value,new:$('#pn').value})){uiAlert(t('Passwort geändert – bitte neu anmelden.')).then(()=>location.reload());}};
-    contactBind('/api/me/contact',(m,c)=>{me.mail=m;me.chat=c;});
+    contactBind('/api/me/contact',(m,c,m2)=>{me.mail=m;me.chat=c;me.mail2=m2;});
     $('#mexp').onclick=()=>{location.href='/api/me/export';};
     if(!me.oidc&&me.loginForm&&!me.sys&&me.source!='dir')oidcProvs().then(oi=>{const l=$('#lnk');if(l&&oi.oidc&&oi.oidc.length)l.innerHTML='<div class="panel"><b>'+esc(t('Mit einem Anbieter verknüpfen'))+'</b><div class="muted row">'+esc(t('Danach hat das Konto kein Passwort mehr: Anmeldung nur noch über den Anbieter. Zurücksetzen kann nur ein Admin.'))+'</div><div class="row">'+provBtns('link')+'</div></div>';});
     if(!me.oidc)tfaInit();
@@ -515,9 +516,9 @@ S.users={
     if((me.admin||isGA())&&u.pw&&u.pw!='dir'&&(!u.admin||(u.pw=='oidc'&&me.sys))&&!u.sys&&!u.guest&&u.name!=me.name)h+='<div class="row"><button id="urc">'+t('Neu konfigurieren')+'</button> <span class="muted">'+t('Wie beim ersten Login: neues Initialpasswort, Verknüpfung mit einem Anbieter, Zwei-Faktor und App-Passwörter werden gelöscht.')+'</span></div>';
     if(me.admin)h+='<div class="row"><button id="uxp">'+t('Daten exportieren')+'</button></div>';
     if(u.name==me.name)h+='<div class="panel" id="tfa"></div>';
-    h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet);
+    h+=contactPanel(u.mail,u.chat,me.admin||u.name==me.name,u.chatSet,undefined,u.mail2);
     $('#main').innerHTML=h;
-    contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c)=>{u.mail=m;if(c!==undefined){u.chat=c;u.chatSet=!!c;}});
+    contactBind('/api/users/'+encodeURIComponent(k)+'/contact',(m,c,m2)=>{u.mail=m;u.mail2=m2;if(c!==undefined){u.chat=c;u.chatSet=!!c;}});
     tfaInit();
     if($('#f2r'))$('#f2r').onclick=async()=>{if(!await uiAsk(t('Zwei-Faktor-Anmeldung von {0} zurücksetzen? Wiederherstellungscodes und App-Passwörter werden gelöscht.',k)))return;
       if(await api('POST','/api/users/'+encodeURIComponent(k)+'/2fa/reset')){await this.load();this.select(k);}};
@@ -3935,7 +3936,12 @@ S.set={
        modeSel('st',c.tls||'',tls,false)+'</div>'+
      '<div class="row"><input id="su" style="width:200px" placeholder="'+t('Benutzer')+'" value="'+v('user')+'" autocomplete="off"> <input id="sw" type="password" style="width:200px" autocomplete="new-password" placeholder="'+(c.passSet?t('Passwort gesetzt – leer lassen = unverändert'):t('Passwort'))+'">'+
        (c.passSet?' <label><input type="checkbox" id="swx"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
-     '<div class="row"><input id="sf" style="width:300px" placeholder="'+t('Absender')+' (cs-team@example.org)" value="'+v('from')+'"></div></div>'+
+     '<div class="row"><input id="sf" style="width:300px" placeholder="'+t('Absender')+' (cs-team@example.org)" value="'+v('from')+'"></div>'+
+     ((al)=>'<details'+(al.host?' open':'')+'><summary><b>'+t('Zweiter Mailserver')+'</b> <small class="muted">'+t('springt ein, wenn der erste nicht arbeitet (leer = keiner)')+'</small></summary>'+
+       '<div class="row"><input id="sh2" style="width:240px" placeholder="'+t('SMTP-Server')+'" value="'+esc(al.host||'')+'"> <input id="sp2" style="width:70px" placeholder="587" value="'+esc(al.port||'')+'"> '+modeSel('st2',al.tls||'',tls,false)+'</div>'+
+       '<div class="row"><input id="su2" style="width:200px" placeholder="'+t('Benutzer')+'" value="'+esc(al.user||'')+'" autocomplete="off"> <input id="sw2" type="password" style="width:200px" autocomplete="new-password" placeholder="'+(al.passSet?t('Passwort gesetzt – leer lassen = unverändert'):t('Passwort'))+'">'+
+       (al.passSet?' <label><input type="checkbox" id="swx2"> '+t('Passwort löschen')+'</label>':'')+'</div>'+
+       '<div class="row"><input id="sf2" style="width:300px" placeholder="'+t('Absender')+' ('+t('leer = wie oben')+')" value="'+esc(al.from||'')+'"> <button id="stest2" type="button">'+t('Speichern + Testmail über Server 2')+'</button></div></details>')(c.alt||{})+'</div>'+
      '<div class="panel"><b>'+t('KI-Assistent (für alle)')+'</b> <small class="muted">'+t('Anbieter, Schlüssel und Modell gelten zentral für alle Benutzer. Der Schlüssel bleibt auf dem Server. Fragen und die Daten der Knöpfe (Aufgaben, Termine …) gehen an diesen Anbieter.')+'</small>'+
      '<div class="row">'+modeSel('aimo',a.mode||'off',[['off','KI aus'],['provider','KI ein']],false)+'</div>'+
      aiProvRow('',{provider:a.provider,endpoint:a.endpoint,model:a.model,keySet:a.keySet,def:a.defaultEndpoint})+
@@ -3989,6 +3995,8 @@ S.set={
     };
     const save=async()=>{const b={host:$('#sh').value,port:$('#sp').value,tls:$('#st').value,user:$('#su').value,from:$('#sf').value,public:$('#sb').value,private:$('#sv').checked};
       if($('#swx')&&$('#swx').checked)b.pass='';else if($('#sw').value)b.pass=$('#sw').value;
+      b.alt={host:$('#sh2').value,port:$('#sp2').value,tls:$('#st2').value,user:$('#su2').value,from:$('#sf2').value};   // zweiter Mailserver (Server leer = keiner)
+      if($('#swx2')&&$('#swx2').checked)b.alt.pass='';else if($('#sw2').value)b.alt.pass=$('#sw2').value;
       if(!await api('POST','/api/settings',b))return false;this.cfg=(await J('GET','/api/settings'))||{};
       if($('#aimo').value=='provider'&&!$('#aimod').value.trim()){alert(t('Bitte ein Modell wählen.'));return false;}
       const ab={mode:$('#aimo').value,provider:$('#aip_').value,model:$('#aimod').value.trim(),endpoint:$('#aiep').value,history:+$('#aihis').value||11,context:+$('#aictx').value||12000,altProvider:$('#aip_2').value,altEndpoint:$('#aiep2').value,altModel:$('#aimod2').value.trim(),vision:$('#aivis').value,maxTokens:+$('#aitok').value||1024,rate:+$('#airate').value||20,private:$('#aipriv').checked,files:$('#aifi').checked?'yes':'no',review:$('#airv').checked?'yes':'no',create:$('#aicr').checked?'yes':'no'};
@@ -4023,7 +4031,8 @@ S.set={
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};
     $('#aswt').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/search-settings/test');this.select();if(r)alert(t('Suchdienst ok: {0} Treffer, z. B. {1}',r.count,r.first));};
-    $('#stest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/settings/testmail');this.select();if(r)alert(t('Testmail gesendet an {0}',r.to));};
+    $('#stest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/settings/testmail');this.select();if(r)alert(t('Testmail gesendet an {0}',r.to)+'\nServer 1: '+r.server+' / '+r.user+' / '+r.from);};
+    $('#stest2').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/settings/testmail',{server:2});this.select();if(r)alert(t('Testmail gesendet an {0}',r.to)+'\nServer 2: '+r.server+' / '+r.user+' / '+r.from);};
   }
 };
 

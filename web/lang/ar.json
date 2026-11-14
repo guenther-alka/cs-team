@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "عنوان بريد إلكتروني بديل",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "تُرسل الرسائل دائمًا إلى العنوانين (احتياط في حال تعطل خادم بريد).",
+ "Zweiter Mailserver": "خادم بريد ثانٍ",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "يتولى المهمة إذا لم يعمل الأول (فارغ = لا يوجد)",
+ "leer = wie oben": "فارغ = كما في الأعلى",
+ "Speichern + Testmail über Server 2": "حفظ + رسالة اختبار عبر الخادم 2",
  "Anmeldung mit Anbieter (OIDC)": "تسجيل الدخول عبر مزوّد (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google وMicrosoft: أدخل معرّف العميل والسر من لوحة المطوّر لدى المزوّد. عند ملء بيانات مزوّد يظهر في صفحة تسجيل الدخول وعند اختيار كلمة المرور؛ ثم يربط المستخدمون حساباتهم بأنفسهم.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "عنوان إعادة التوجيه (يُدخل لدى المزوّد): ",

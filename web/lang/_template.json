@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Alternative E-Mail-Adresse",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).",
+ "Zweiter Mailserver": "Zweiter Mailserver",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "springt ein, wenn der erste nicht arbeitet (leer = keiner)",
+ "leer = wie oben": "leer = wie oben",
+ "Speichern + Testmail über Server 2": "Speichern + Testmail über Server 2",
  "Anmeldung mit Anbieter (OIDC)": "Anmeldung mit Anbieter (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Rücksprungadresse (beim Anbieter eintragen): ",

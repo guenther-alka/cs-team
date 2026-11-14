@@ -1,4 +1,10 @@
 {
+ "Alternative E-Mail-Adresse": "Alternatywny adres e-mail",
+ "Mails gehen immer an beide Adressen (Redundanz, falls ein Mailserver ausfällt).": "Wiadomości trafiają zawsze na oba adresy (redundancja na wypadek awarii serwera poczty).",
+ "Zweiter Mailserver": "Drugi serwer poczty",
+ "springt ein, wenn der erste nicht arbeitet (leer = keiner)": "przejmuje, gdy pierwszy nie działa (puste = brak)",
+ "leer = wie oben": "puste = jak wyżej",
+ "Speichern + Testmail über Server 2": "Zapisz + wiadomość testowa przez serwer 2",
  "Anmeldung mit Anbieter (OIDC)": "Logowanie przez dostawcę (OIDC)",
  "Google und Microsoft: Client-ID und Secret aus der Entwicklerkonsole des Anbieters eintragen. Ist ein Anbieter ausgefüllt, steht er auf der Anmeldeseite und bei der Passwortwahl zur Wahl; die Benutzer verknüpfen ihr Konto danach selbst.": "Google i Microsoft: wpisz identyfikator klienta i sekret z konsoli deweloperskiej dostawcy. Gdy dostawca jest uzupełniony, pojawia się na stronie logowania i przy wyborze hasła; użytkownicy sami łączą potem swoje konto.",
  "Rücksprungadresse (beim Anbieter eintragen): ": "Adres przekierowania (wpisz u dostawcy): ",
