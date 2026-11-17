@@ -204,6 +204,18 @@ Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer
 dem Schalter *Export*). `CS_LDAP_BASE` (Standard `dc=csteam,dc=local`), `CS_LDAP_READER` = Konto, das alles sieht; andere Benutzer sehen nur ihren eigenen Eintrag, anonym nur die Wurzel-DSE (mit `CS_LDAP_ANON=1` auch Benutzer und Gruppen, noetig fuer macOS-Clients, nie Passwoerter); Schreiben wird
 abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle können sich nicht per LDAP anmelden. Auf OmniOS mit OpenLDAP `ldapsearch` geprüft; Einrichtung der Clients je Betriebssystem: Handbuch Kapitel 19.
 
+**Client-Installer `cs-ldapclient` (0.68.2):** ein kleines Konsolenprogramm je Betriebssystem (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`, `-osx`, `-osx-arm64`; auch als `cs-ldapclient.zip`
+für einen USB-Stick) richtet aus einer gemeinsamen `ldap.cfg` (Server, Lesekonto, Zertifikat, Gruppe = lokale Gruppe) die Anmeldung mit cs-team-Konten ein: Windows mit pGina, Linux und FreeBSD
+mit sssd, macOS mit Open Directory. Jeder cs-team-Benutzer darf sich an jedem Rechner anmelden, Gruppen bestimmen nur die lokalen Rechte, das lokale Profil wird beim Abmelden gelöscht.
+macOS braucht `CS_LDAP_ANON=1`. Handbuch Kapitel 20.
+
+**Labortest pGina + SMB (Nov. 2026, cs-team 0.71.0 auf OmniOS als LDAPS- und SMB-Server, Clients Windows 11 mit pGina und Debian 12 mit sssd):** Anmeldung mit cs-team-Konten
+auf beiden Clients (LDAPS mit Zertifikatsprüfung); die Gruppenregeln setzen die lokalen Rechte (`lehrer` -> Administratoren, `klasse5a` -> Benutzer). pGina legt bei jeder Anmeldung ein
+neues lokales Konto an und löscht beim Abmelden Konto, Profilordner und Registry-Eintrag, **die Windows-SID ist also bei jeder Anmeldung neu** - SMB-Rechte und HA hängen deshalb am
+Benutzernamen bzw. an der cs-team-uid, nie an der SID des Clients (`docs/HA_SPEC.md`, Abschnitt 12). SMB-Zugriff auf eine Freigabe des OmniOS-Rechners mit den cs-team-Namen und
+-Passwörtern (SMB-Passwörter über `pam_smb_passwd`) liefert unter Windows (`net use`) und Linux (`mount.cifs`) dasselbe Ergebnis: `lehrer` lesen und schreiben, `klasse5a` nur lesen,
+uid/gid aus cs-team auf allen Rechnern gleich.
+
 **Kontoarten:** lokale Benutzer mit lokalem Passwort (auch als LDAP-Benutzer für andere Clients), lokale Spiegelkonten einer entfernten AD-Domäne und lokale Spiegelkonten eines entfernten LDAP-Verzeichnisses (das Passwort bleibt dort).
 
 **Failover (0.67):** Der Datenordner liegt in einem ZFS-Dataset, das ein **von Hand angelegter und verwalteter Replikationsjob** (z. B. napp-it) auf einen zweiten Rechner kopiert. Startoptionen `CS_FAILOVER=master|standby|takeover`

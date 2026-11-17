@@ -149,6 +149,14 @@ client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devi
 
 **Client installer `cs-ldapclient` (0.68.2).** A small console program per OS (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`, `-osx`, `-osx-arm64`; also as `cs-ldapclient.zip` for a USB stick with start scripts) sets up sign-in with cs-team accounts on a client computer from a shared `ldap.cfg` (server, reader account, certificate fingerprint, group = local group rules): Windows with pGina, Linux and FreeBSD with sssd, macOS with Open Directory (LDAPv3 node, home folder created at the first login). Every cs-team user may sign in on every computer, groups only decide the local rights, the local profile/home is deleted at logout. Tested on Windows 11, Debian 12, FreeBSD 15.1 and macOS 12.7 (Intel). **macOS needs the server option `CS_LDAP_ANON=1`** (no search account possible) and an approval of the server certificate at the Mac screen. Manual chapter 20.
 
+**Lab test pGina + SMB (Nov 2026, cs-team 0.71.0 on OmniOS as LDAPS and SMB server, clients Windows 11 with pGina and Debian 12 with sssd).**
+Sign-in with cs-team accounts works on both clients (LDAPS with certificate check); the group rules set the local rights (`lehrer` -> local
+administrators, `klasse5a` -> users). pGina creates a fresh local account at every sign-in and removes account, profile folder and registry
+entry at logout, so **the Windows SID changes with every sign-in** - SMB rights and HA therefore key on the user name / cs-team uid, never on the
+client SID ([docs/HA_SPEC.md](docs/HA_SPEC.md), section 12). SMB access to a share on the OmniOS host with the cs-team user names and passwords
+(SMB passwords set via `pam_smb_passwd`) gives the same result from Windows (`net use`) and Linux (`mount.cifs`): group `lehrer` read/write,
+`klasse5a` read-only, uid/gid from cs-team identical on all hosts.
+
 **Account types:** local users with a local password (also usable as LDAP users by other clients), and local mirror accounts of a remote AD domain or a remote LDAP directory
 (the password stays in the source directory).
 

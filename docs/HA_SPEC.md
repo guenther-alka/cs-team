@@ -69,6 +69,7 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
     Konten per useradd -u / groupadd -g, SMB-Gruppen per smbadm aus den cs-team-Daten neu aufbauen. Nicht ausprobiert, Test auf zwei OmniOS-Rechnern noetig.
   - Linux mit Samba: Samba-Passwortdatenbank und lokale Domaenen-SID exportieren/einspielen.
   - Windows: keine Hash- und SID-Uebernahme moeglich; Konten per Windows-API anlegen, Passwoerter beim ersten cs-team-Login ins System schreiben.
+    Konzept fuer Windows-HA mit erhaltenen SMB-Rechten (Name als Schluessel, SID-Uebersetzung beim Hochstufen): Abschnitt 12.
   - Wo ein SMB-Passwort nicht uebernommen werden kann, markiert cs-team die Konten; beim ersten Login mit Klartext wird es ins System geschrieben.
 - Passwort-Gewinn: cs-team speichert KEINEN NT-Hash; es setzt das Passwort beim Setzen/bei der ersten Anmeldung mit den Werkzeugen des
   Betriebssystems. Ein NT-Hash waere nur ein ausdruecklicher, getrennt gespeicherter Schalter fuer mehrere SMB-Server.
@@ -105,6 +106,54 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
 - Ob ZFS recv inkrementell auf ein eingehaengtes, schreibgeschuetztes Dataset laeuft, waehrend cs-team liest.
 - Ob smbadm lokale Gruppen in Gruppen kann (wird nicht gebraucht, da aufgeloest wird).
 - Gruppen mit mehr als 16 gids: NFS (AUTH_SYS) und illumos ngroups_max (Standard 16) abschneiden; Schalter "Export" je Gruppe haelt die Liste klein.
+
+## 12. Windows als SMB-Server mit HA: Name als Schluessel, SID-Uebersetzung (Konzept, 2026-11-17, nicht umgesetzt)
+Ausgangslage (Gespraech mit Gea 2026-11-17, Tests auf my-w11 und w11.103):
+- Windows speichert in ACLs (NTFS und OpenZFS on Windows) nur SIDs, nie Namen. Lokale SIDs = Rechner-SID + RID; die RID vergibt die SAM,
+  sie ist nicht vorgebbar. Jeder Windows-Server hat eine andere Rechner-SID, also hat derselbe Benutzer auf Server A und B verschiedene SIDs.
+- pGina hilft nicht: es greift nur bei der Anmeldung am Bildschirm (nicht bei SMB-Netzwerkanmeldungen) und kann keine SID setzen; mit
+  remove_profiles=yes entsteht bei jeder Anmeldung ein neues Konto (neue RID, belegt: anna -1007 am 03.11. angelegt und geloescht), mit no
+  bleibt die SID nur auf diesem einen Rechner gleich. Fuer SMB-Rechte ist das egal: der Server prueft mit seiner eigenen SID.
+- OpenZFS on Windows (zfswin-2.4.4rc9) ignoriert uid/gid und POSIX-ACLs eines Pools (Test: Pool mit acltype=posix von pve importiert,
+  Besitzer = angemeldeter Windows-Benutzer, Standard-DACL). Ein Pool-Wechsel Windows <-> Linux mit erhaltenen Rechten ist kein Ziel.
+- Ein SID-Feld in cs-team/LDAP haette keinen Abnehmer (Windows uebernimmt SIDs nur von einem Domaenencontroller). Nicht bauen.
+
+Prinzip:
+- Der **Benutzername** (und Gruppenname) ist der feste Schluessel. Die **uid/gid** kommt aus cs-team (ids.go, unabhaengig von jeder SID) und
+  gilt fuer Unix-Clients und OmniOS. Die **SID** ist je Windows-Server verschieden und wird ueber den Namen uebersetzt.
+- cs-team fuehrt eine Tabelle im Datenbestand (mit repliziert), z.B. failover/winsid.json:
+  `{"users":{"anna":{"uid":10005,"sid":{"srvA":"S-1-5-21-<A>-1007","srvB":"S-1-5-21-<B>-1012"}}},"groups":{"klasse5a":{"gid":10010,"sid":{...}}}}`
+  Schluessel des Servers = HA-Mitgliedsname. Die alte SID von A muss vorher bekannt sein: nach dem Ausfall von A kann B sie nicht mehr aufloesen.
+
+Ablauf:
+1. Konten auf allen HA-Mitgliedern: cs-team legt fuer jeden lokalen cs-team-Benutzer (Name ohne @, hoechstens 20 Zeichen) ein lokales
+   Windows-Konto an (Windows-API NetUserAdd/NetUserSetInfo, Beschreibung "cs-team"), fuer jede exportierte Gruppe eine lokale Gruppe mit
+   den Mitgliedern. Auf dem Master sofort, auf Standby-Mitgliedern ebenfalls (Standby fuehrt nur diese Kontoaktionen aus, sonst nur lesen).
+   Gesperrt/abgelaufen/geloescht in cs-team -> lokales Konto sperren, NIE loeschen (sonst SID weg). Die SID jedes Kontos landet in der Tabelle.
+2. Passwort: cs-team kennt nur bcrypt; es setzt das Windows-Passwort im Klartextmoment (Anmeldung, Aenderung, Initialpasswort, Reset) lokal
+   und reicht es ueber die HA-Verbindung (TLS, nur an Mitglieder der HA-Gruppe) an die Standby-Mitglieder weiter. War ein Standby aus,
+   wird das Passwort nach dem Hochstufen bei der naechsten cs-team-Anmeldung nachgezogen (reine SMB-Nutzer bis dahin mit altem Passwort).
+   Kein NT-Hash im Datenbestand (Windows hat keine Schnittstelle zum Setzen eines Hashes).
+3. Hochstufen von B (napp-it-Menue / `cs-team failover adopt`): fuer jeden Namen der Tabelle alte SID (A) -> neue SID (B) in allen
+   Share-Pfaden ersetzen, mit Windows-Bordmitteln: `icacls <share> /substitute <SID-A> <SID-B> [<SID-A2> <SID-B2> ...] /T /C /Q`
+   (mehrere Paare je Aufruf). Danach gelten auf B dieselben Rechte fuer dieselben Namen. Dauer waechst mit der Dateizahl
+   (Minuten bis Stunden); bis zum Ende stimmen die Rechte nicht. Fortschritt und Fehler ins Log, Probelauf ohne Aenderung moeglich.
+   Neu angelegte Dateien auf B tragen B-SIDs; beim Zurueckschwenken auf A dieselbe Uebersetzung in Gegenrichtung.
+4. Freigaben (Share-Namen, Share-Rechte) gehoeren zum Export-Zustand (Abschnitt 7) und werden auf B mit den B-SIDs neu angelegt.
+
+Alternative ohne Umschreiben (heikel, nicht empfohlen): Standby als Klon ohne Sysprep (gleiche Rechner-SID) und Konten auf beiden Servern in
+exakt derselben Reihenfolge anlegen -> gleiche RIDs, gleiche SIDs. Ein einziges von Hand angelegtes lokales Konto verschiebt alle folgenden
+RIDs; cs-team muesste die SIDs aller Mitglieder laufend vergleichen und bei Abweichung warnen.
+
+Bewertung: funktioniert ohne Domaene und ohne Kerberos (KISS), aber mit Umschaltzeit fuer die ACL-Uebersetzung. Failover mit sofort gueltigen
+Rechten bleibt mit OmniOS einfacher (ACLs mit uid, SID aus uid + uebernommener Rechner-SID, siehe Livetest unten). Mit Domaene (Samba-AD)
+waeren die SIDs auf allen Servern gleich, das ist aber nicht Ziel (Abschnitt 1).
+
+Offene Punkte Windows:
+- Ob OpenZFS on Windows unter Windows gesetzte ACLs (SIDs lokaler Konten) dauerhaft speichert und repliziert (Test noetig; im Importtest kamen
+  nur Standard-ACLs). Bei NTFS als Share-Ablage: Replikation nicht ueber ZFS, dann robocopy /MIR /SEC oder Storage Replica.
+- Laufzeit von icacls /substitute bei 10^5 bis 10^6 Dateien messen.
+- Unix-Clients: pam_mount in cs-ldapclient (Share beim Login mit dem LDAP-Passwort mounten, mount.cifs username=%u).
 
 
 ## Livetest Failover OmniOS .189 -> .44 (November 2026)
