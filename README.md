@@ -25,7 +25,7 @@ The settings are saved in `team.cfg` next to the program; later starts skip the 
 or run `cs-team setup`. Snapshots/backups are up to you. Test standalone on a napp-it server: put an empty file `standalone.set` next to the program.
 More (start scripts, service, all options): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) and the manual, chapter 3.
 
-**Manual (PDF, version 0.70):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
+**Manual (PDF, version 0.71):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
 · Detailed German notes: [README.de.md](README.de.md)
 
 ## Goal
