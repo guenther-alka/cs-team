@@ -34,6 +34,7 @@ import (
 	"golang.org/x/term"
 
 	"cs-team/auth"
+	"cs-team/osacct"
 	"cs-team/store"
 )
 
@@ -212,7 +213,38 @@ func parToCS(p map[string]string) map[string]string {
 	if p["snap_mode"] == "off" {
 		c["CS_SNAPSHOT"] = "off"
 	}
+	c["CS_OSACCOUNTS"] = "1" // lokale Benutzer fuer SMB (0.72), Vorgabe ja
+	if p["osacct"] == "no" {
+		c["CS_OSACCOUNTS"] = "0"
+	}
+	if p["osacct_shares"] != "" {
+		c["CS_OSACCOUNTS_SHARES"] = p["osacct_shares"]
+	}
 	return c
+}
+
+// osacctOK: legt cs-team auf diesem Betriebssystem lokale Konten fuer SMB an (osacct: illumos/Solaris, Windows, Linux,
+// FreeBSD, macOS)?
+func osacctOK() bool { return osacct.New() != nil }
+
+// askOSAccounts: Frage "lokale Benutzer fuer SMB abgleichen" (Vorgabe ja; CS_OSACCOUNTS=1/0), unter Windows dazu die
+// Freigaben, deren ACL beim Failover umgeschrieben werden. Andere Betriebssysteme: keine Frage, Wert bleibt.
+func askOSAccounts(n, c map[string]string, label string) {
+	if !osacctOK() {
+		return
+	}
+	if yes(ask(label+"Sync local users for SMB: members of groups with Export get a local account, password at their next cs-team sign-in (y/n)", yn(c["CS_OSACCOUNTS"] != "0"))) {
+		n["CS_OSACCOUNTS"] = "1"
+		if runtime.GOOS == "windows" {
+			if s := ask("   SMB share folders whose ACL follow a failover, ; separated (none = no rewrite)", c["CS_OSACCOUNTS_SHARES"]); s != "" {
+				n["CS_OSACCOUNTS_SHARES"] = s
+			} else {
+				delete(n, "CS_OSACCOUNTS_SHARES")
+			}
+		}
+	} else {
+		n["CS_OSACCOUNTS"] = "0"
+	}
 }
 
 // saveNapp: Menuewerte in team.par uebernehmen (uebrige Felder wie autostart, HA, LDAP bleiben) und team.cfg daraus erzeugen.
@@ -235,6 +267,10 @@ func saveNapp(cfg string, par, n map[string]string, pw string) error {
 	par["snap_mode"] = "auto"
 	if n["CS_SNAPSHOT"] == "off" {
 		par["snap_mode"] = "off"
+	}
+	par["osacct"], par["osacct_shares"] = "yes", n["CS_OSACCOUNTS_SHARES"]
+	if n["CS_OSACCOUNTS"] == "0" {
+		par["osacct"] = "no"
 	}
 	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
 		return err
@@ -308,6 +344,12 @@ func napCfg(c map[string]string) string {
 		}
 		if c["ldap_reader"] != "" {
 			l = append(l, "CS_LDAP_READER="+c["ldap_reader"])
+		}
+	}
+	if c["osacct"] != "no" { // lokale Benutzer fuer SMB (0.72), Vorgabe ja
+		l = append(l, "CS_OSACCOUNTS=1")
+		if c["osacct_shares"] != "" {
+			l = append(l, "CS_OSACCOUNTS_SHARES="+c["osacct_shares"])
 		}
 	}
 	return strings.Join(l, "\n") + "\n"
@@ -512,6 +554,7 @@ func menu(cfg string, c map[string]string, why error, first, nap bool) (map[stri
 				n["CS_TLS_KEY"] = k
 			}
 		}
+		askOSAccounts(n, c, "")
 		n["CS_ADMIN_USER"] = ask("Admin account (sysadmin)", dflt(c["CS_ADMIN_USER"], "admin"))
 		pw := ""
 		for {

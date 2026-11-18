@@ -127,7 +127,7 @@ func notifyUser(m *chat.Mailer, user, kind, subj, text string) {
 	}
 }
 
-const version = "0.71.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
+const version = "0.72.0" // Zaehlung neu ab 0.50.0 (0.1x waren die ersten Tests, 1.0 folgt, wenn es ausgereifter ist)
 
 var started = time.Now()
 
@@ -243,7 +243,34 @@ func main() {
 		log.Println("sysadmin:", err)
 	}
 
+	// Betriebssystem-Konten fuer den SMB-Server auf diesem Rechner (CS_OSACCOUNTS=1, osacct_glue.go)
+	osm := newOSAccounts(st, a, haName, haStandby)
+	if len(os.Args) == 3 && os.Args[1] == "osaccounts" {
+		osAccountsCmd(osm, os.Args[2])
+		return
+	}
+	if osm != nil {
+		a.OnPlain = osm.Plain
+		if haMode == "master" { // Failover/Umzug: Zustand des letzten Masters uebernehmen (Rechner-SID, SMB-Passwoerter, SIDs in ACL)
+			if last, need := osm.NeedAdopt(ctx); need {
+				log.Printf("osaccounts: last master was %s, adopting", last)
+				if err := osm.Adopt(ctx, false); err != nil {
+					log.Println("osaccounts:", err)
+				}
+			}
+		}
+		if !haStandby {
+			osm.Run(ctx, time.Minute)
+		}
+		log.Printf("osaccounts: on (%s), host %s, standby %v", runtime.GOOS, haName, haStandby)
+	}
+
 	handler := routes(st, a)
+	if !haStandby { // alte Spiegelkonten "name@realm" auf "name" umstellen (0.72), bevor Anfragen bedient werden
+		if r := a.MigrateDirKeys(ctx); len(r.Renamed)+len(r.Kept)+len(r.Failed) > 0 {
+			log.Printf("identity: mirror accounts renamed %d, kept %d (name in use), failed %d", len(r.Renamed), len(r.Kept), len(r.Failed))
+		}
+	}
 	startLDAP(a) // LDAPS-Dienst (nur lesen), wenn CS_LDAP gesetzt ist
 
 	addr := env("CS_LISTEN", ":8080")
@@ -424,6 +451,11 @@ func routes(st store.Store, a *auth.Auth) http.Handler {
 		{Name: "tasks", Count: ts.AnonCount, Anon: ts.Anon},
 		{Name: "events", Count: cb.AnonCount, Anon: cb.Anon},
 		{Name: "news", Count: ns.AnonCount, Anon: ns.Anon},
+	}
+	auth.UserRenameHooks = []auth.UserRenameHook{ // Konto umbenennen (alte Spiegelkonten name@realm -> name, 0.72): danach laufen die AnonHooks mit dem neuen Namen
+		{Name: "files", Rename: fsvc.RenameUser},
+		{Name: "documents", Rename: hub.RenameUser},
+		{Name: "calendar", Rename: cb.RenameUser},
 	}
 	auth.ExportHooks = []auth.ExportHook{ // Datenauskunft: ZIP mit den Daten einer Person
 		{Name: "files", Write: fsvc.ExportUser},

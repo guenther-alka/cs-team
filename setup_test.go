@@ -17,9 +17,16 @@ func TestNappCfg(t *testing.T) {
 	par := map[string]string{"admin_pass": "start-pw-123", "admin_user": "root", "autostart": "yes", "dir": "/daten1/cs-team",
 		"ha_mode": "off", "listen": "9004", "proxy": "no", "s3_bucket": "cs-team", "s3_endpoint": "127.0.0.1:9000", "s3_secret": "x",
 		"s3_tls": "no", "snap_mode": "auto", "storage": "dir", "tls_cert": "/c.pem", "tls_key": "/k.pem"}
-	want := "CS_LISTEN=:9004\nCS_DIR=/daten1/cs-team\nCS_ADMIN_USER=root\nCS_ADMIN_PASS=start-pw-123\nCS_TLS_CERT=/c.pem\nCS_TLS_KEY=/k.pem\n"
+	want := "CS_LISTEN=:9004\nCS_DIR=/daten1/cs-team\nCS_ADMIN_USER=root\nCS_ADMIN_PASS=start-pw-123\nCS_TLS_CERT=/c.pem\nCS_TLS_KEY=/k.pem\nCS_OSACCOUNTS=1\n" // ohne osacct: Vorgabe ja (0.72)
 	if got := napCfg(par); got != want {
 		t.Fatalf("napCfg:\n%s\nwant:\n%s", got, want)
+	}
+	po := map[string]string{"listen": "9004", "storage": "dir", "dir": "/d", "osacct": "no", "osacct_shares": "D:\\s"}
+	if got := napCfg(po); strings.Contains(got, "OSACCOUNTS") {
+		t.Fatalf("osacct=no: %s", got)
+	}
+	if c := parToCS(po); c["CS_OSACCOUNTS"] != "0" {
+		t.Fatalf("parToCS osacct=no: %v", c)
 	}
 	c := parToCS(par)
 	if c["CS_DIR"] != "/daten1/cs-team" || c["CS_LISTEN"] != ":9004" || c["S3_ENDPOINT"] != "127.0.0.1:9000" {
@@ -34,7 +41,7 @@ func TestNappCfg(t *testing.T) {
 		t.Fatal(err)
 	}
 	p2, _ := parseConf(filepath.Join(dir, "team", "team.par"))
-	if p2["storage"] != "s3" || p2["listen"] != "9010" || p2["s3_tls"] != "yes" || p2["admin_pass"] != "neu-pw-4567" || p2["autostart"] != "yes" || p2["dir"] != "/daten1/cs-team" || p2["snap_mode"] != "off" {
+	if p2["storage"] != "s3" || p2["listen"] != "9010" || p2["s3_tls"] != "yes" || p2["admin_pass"] != "neu-pw-4567" || p2["autostart"] != "yes" || p2["dir"] != "/daten1/cs-team" || p2["snap_mode"] != "off" || p2["osacct"] != "yes" {
 		t.Fatalf("team.par: %v", p2)
 	}
 	c2, _ := parseConf(cfg)

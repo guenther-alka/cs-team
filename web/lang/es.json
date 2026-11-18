@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "3 meses antes",
  "alle 2 Jahre": "cada 2 años",
  "Plan (Quartale, Anzeige im Jahr)": "Plan (trimestres, se muestra en la vista anual)",
- "Kalender {0}": "Calendario {0}"
+ "Kalender {0}": "Calendario {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Si la conexión al directorio está desactivada (dirección vacía), las cuentas espejo inician sesión con su última contraseña válida hasta que termine este plazo.",
+ "Spiegelkonten in lokale Konten umwandeln": "Convertir cuentas espejo en cuentas locales",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "¿Convertir todas las cuentas espejo en cuentas locales? Se mantienen el nombre, los grupos y los derechos; la última contraseña válida en el directorio pasa a ser la contraseña local. Después, las cuentas ya no inician sesión en el directorio.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "{0} cuentas convertidas, {1} necesitan una contraseña inicial: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "No convertido (nombre de cuenta no válido): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Las cuentas espejo de los usuarios del directorio se nombran sin @ (peter.pan): inicio de sesión con peter.pan@schule.de o peter.pan; la cuenta lleva el directorio como marca y el directorio confirma el inicio de sesión. Una cuenta local existente con el mismo nombre nunca es asumida por el directorio."
 }

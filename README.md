@@ -1,216 +1,134 @@
 # cs-team
 
-A small, self-contained collaboration platform ("Nextcloud light") as a **single Go binary** with a built-in
-web interface - no database, no web server stack. Calendars, spreadsheets, text, files, tasks and chat for
-teams, schools and clubs. Works in the desktop and phone browser.
+A small, self-contained collaboration platform ("Nextcloud light") as a **single Go binary** with a built-in web interface -
+no database, no web server stack. Calendars, spreadsheets, text, files, tasks and chat for teams, schools and clubs,
+in the desktop and phone browser. Storage: a folder (e.g. a ZFS dataset) or an S3 bucket.
 
-Part of the [napp-it 4ai (client-server edition)](https://napp-it.org) tooling family
-(alongside [cs-tools](https://www.napp-it.org/cs-tools_en.html)). It can be started and stopped from the
-napp-it CS web GUI (menu **System > Services > 17_cs-team**), but runs fine on its own.
+cs-team has three roles:
+
+- **Collaboration server** - calendar (CalDAV), Calc/Text with live multi-user editing, files (WebDAV), tasks, chat with
+  video chat, messages, AI assistant; 13 UI languages.
+- **Central directory** - users, passwords and groups with fixed uid/gid for the whole network: built-in read-only LDAPS
+  server, client installer `cs-ldapclient`, local OS/SMB accounts on the cs-team host, AD/LDAP sign-in with mirror accounts.
+- **High availability** - failover with a replicated ZFS dataset (master / read-only standby / takeover), service IP,
+  takeover of the SMB accounts and passwords.
+
+Part of the [napp-it 4ai (client-server edition)](https://napp-it.org) tool family ([cs-tools](https://www.napp-it.org/cs-tools_en.html));
+it can be managed in the napp-it CS web GUI, but runs fine on its own.
+
+**Manual (PDF, version 0.72):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
+· German README: [README.de.md](README.de.md) · Changes: [CHANGELOG.md](CHANGELOG.md)
 
 ## Installation
 
-**In the napp-it ZFS web GUI (napp-it CS):** download cs-team in *About > Download cs tools*, configure and start it in
-*System > Services > cs-team* (storage folder, port, HTTPS, admin; enable = autostart).
+**With napp-it CS:** download cs-team in *About > Download cs tools*, configure and start it in *System > Services > cs-team*
+(storage, port, HTTPS, admin, SMB users, HA, LDAP; enable = autostart).
 
-**Standalone setup (any OS, no napp-it, no ZFS needed):**
-1. Download the program for your OS from [Releases](https://github.com/guenther-alka/cs-team/releases) and put it into a folder of its own
-   (e.g. `C:\cs-team` or `/opt/cs-team`), named `cs-team` or `cs-team.exe`.
-2. Start it (double-click on Windows, `./cs-team` in a terminal). A short menu asks for the settings - Enter keeps the default:
-   data folder (`./`, data in `./.csteam`), PEM folder (`./pem`, a private self-signed certificate is created if missing), port (`9004`),
-   webcraft folder (`./webcraft`, one sub folder per app) and the admin start password.
-3. Use it: open `https://<host>:9004` in the browser and sign in as `admin` (change the start password at the first sign-in).
+**Standalone (any OS, no napp-it, no ZFS needed):**
 
-The settings are saved in `team.cfg` next to the program; later starts skip the menu. To reconfigure, delete `team.cfg` (the data stays)
-or run `cs-team setup`. Snapshots/backups are up to you. Test standalone on a napp-it server: put an empty file `standalone.set` next to the program.
-More (start scripts, service, all options): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) and the manual, chapter 3.
+1. Download the program for your OS from [Releases](https://github.com/guenther-alka/cs-team/releases) into a folder of its own
+   (e.g. `C:\cs-team` or `/opt/cs-team`) and name it `cs-team` or `cs-team.exe`.
+2. Start it (double-click on Windows, `./cs-team` in a terminal). A short menu asks for the settings, Enter keeps the default:
+   data folder (`./`), PEM folder (`./pem`, a self-signed certificate is created if missing), port (`9004`), webcraft folder,
+   *Sync local users for SMB* and the admin start password.
+3. Open `https://<host>:9004` and sign in as `admin` (change the start password at the first sign-in).
 
-**Manual (PDF, version 0.71):** [English](https://www.napp-it.org/pdf/cs-team_en.pdf) · [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf)
-· Detailed German notes: [README.de.md](README.de.md)
+The settings go to `team.cfg` next to the program; `cs-team setup` opens the menu again. Snapshots and backups are up to you.
+Start scripts, service, all options: [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) and manual chapter 3.
 
-## Goal
-
-cs-team aims at roughly 80% of the most used Microsoft Teams / Office 365 functions for a school or a small organisation - deliberately without
-a built-in mail server, video-conferencing infrastructure, telephony and full docx/xlsx compatibility - at far less complexity than Teams, O365 or
-Nextcloud (target: under 10%, a qualitative estimate): one file, copy and run, file based, no database, in-house and GDPR friendly, easy to extend and translate.
-KISS wins whenever goals conflict. Honest AI assessment (handbook chapter 17, version 0.61, estimates): about 60-70% of the daily-used functions are covered;
-since then added: global search, 1:1 messages and threads, mention notifications (e-mail, ntfy), guests, comments in documents and sign-in with OIDC; still open: native web push (ntfy covers the phone) and full docx/xlsx fidelity.
-
-## Features
-
-| Menu | What it does |
-|------|--------------|
-| User / Groups / Organizations | users, roles (global admin, group admin, user), guest accounts with expiry date (always in the group `guests`, no admin rights, no AI),  groups that enable areas, CSV import/export, universal JSON export/import of all users and groups (backup, migration, optionally with password hashes and 2FA secrets; handbook chapter 15), two-factor login (TOTP) with recovery codes and app passwords for WebDAV/CalDAV (local accounts; admins can be required to use it); **one role model**: *sysadmin* (startup admin, always global admin, the only one who creates and edits further global admins), global admin, group admin, user, with the fixed system groups `globaladmins` (membership = admin right) and `groupadmins` (computed from the group admin lists); **initial passwords** (30 days, shown once, forced change) with a user list per group (upload/download, optional delivery by e-mail) and *Reconfigure*; optional **login form** and **sign-in/linking with OIDC** (Google, Microsoft, generic); user page with login type, two-factor state, *last seen* and the role in one sentence; editable group description (comment) |
-| Calendar | CalDAV (Thunderbird, iOS, DAVx5): personal, group, organization and global calendars, each with its own release (not released / entitled read / entitled write), plus internet subscriptions (read-only) and resources (no double booking); recurring events with time zones, edit "only this / this and following / all events of the series", mouse control (click a day for a new event, Shift+click for a multi-day range, drag & drop, Ctrl+X/C/V), reminders (VALARM), attendees with e-mail invitation (iMIP), .ics import/export per calendar, subscription status |
-| Calc / Text | multi-user live editing (per cell / per paragraph), history panel (creator, admins): change list for admins - who changed what and when, never the content, origin AI / by hand / import -, write protection (creator or admin can make a document read-only or editable again) and earlier states from ZFS snapshots with import as a write-protected copy `Name_date`, formulas, undo/redo, number formats, hour grid in the calendar, more functions (SUMIF, VLOOKUP, TEXT ...), sort, freeze, column width, alignment, import/export csv, xlsx, txt, rtf, docx, pdf export (with formats: bold, italic, underline, strikethrough, colour, size, background, lists, indent, comments/notes as Word comments and Excel notes, cell formats; xlsx first sheet, dates as text, docx tables as tab-separated rows; no images, charts, macros; pdf uses the standard font Helvetica, Latin text only); strikethrough cells count as empty in formulas; keyboard Ctrl+Shift+X (strikethrough), Shift+F2 (comment/note); Text > + add: merge several PDFs / Word / text files / texts into one new cs-text or PDF (no AI), and AI functions (summarize, key points, tasks and appointments) on a selection with the result saved as cs-text or PDF; **AI research** (Text > + add): question + level (short overview / short presentation / analytical paper), sources from the provider's web search, else from cs-team (Wikipedia, OpenAlex and, if set up by the admin, Brave Search or SearXNG), result with framework, fact check verdict, source rating and "how to check it yourself", translation into any UI language, saved as cs-text or PDF; Calc: strikethrough cells (count as empty), cell notes, PDF export |
-| Files | storage with sharing (users, groups, team, public link), group folders, WebDAV, resumable/seekable downloads (Range, ETag/304), optional quota per user and group folder, trash (restore, 30 days by default), public links with expiry (7 days by default, global cap), file versions from ZFS snapshots (browse, download, restore), WebDAV file locks (LOCK/UNLOCK), read-only folder `share` provided by admins (e.g. via SMB): visible to all, per group or per user by folder name, view/download and import into the user's own area |
-| Today / Search | start page with today's events, due tasks and news, plus notices (admins publish to everyone or to a group, group admins to their groups; optional expiry date; unread counter); global search (Ctrl+K) over tasks, events, documents, files and chat, each with the user's own rights |
-| Tasks | ticket system light: requester, assignee, milestones (= checklist), labels, board view (drag cards between open / doing / done), history, repetition, notifications, class tasks (distribute to all group members as private copies, hand-in and acceptance) |
-| Chat / Message | group chat with channels (attachments, reactions, @mentions, replies/threads, private 1:1 messages switchable per group - group admin with member or members among themselves, nobody else reads them - polls - named or anonymous, multiple choice, end time); broadcast by e-mail, webhook (Slack, Discord, Telegram, ntfy) and chat: admins of a group choose group chat / e-mail / external chat address, members (if the group allows sending) write to the group chat only |
-| Video chat | in the chat: fixed room per group or ad-hoc rooms on external servers (Jitsi, MiroTalk, own URL), plus a **built-in WebRTC room** (browser only, up to 6 participants, peer-to-peer mesh, STUN/TURN configurable, screen sharing) |
-| AI assistant | optional widget (Anthropic, OpenAI-compatible, Ollama): answers questions about your tasks, appointments, files and chat with your own rights, reads chosen files (text, DOCX, XLSX, PDF, images) and proposes new documents; nothing is written without your confirmation |
-| Directory / High availability | cs-team as the **central source of users, passwords and groups** (every account has a fixed numeric uid, every group a gid, optional short name and *Export* switch): built-in read-only **LDAPS server** (0.68) for Linux, FreeBSD, illumos, macOS and devices; **failover** with a replicated ZFS dataset: master / read-only standby / takeover with an epoch counter that prevents two masters (0.67); see the section below |
-| Settings | mail server (SMTP), public address (DynDNS), webhooks, video chat servers, AI provider, file quota - effective immediately |
-
-Also included: user deletion wizard with preview and snapshot, renaming a group (class) with its folders and shares,
-rights changes that take effect at once on open documents, CSV and JSON user/group import and export (`GET /api/users/exportjson`, `POST /api/users/importjson`), phone layout.
-Security: bcrypt passwords with lockout, SSRF block list for webhooks, calendar feeds and AI endpoints, chat addresses
-(webhook URLs hold access keys) visible only to the user and global admins, security headers, no formula injection in exports.
-
-UI languages: de, en, fr, es, it, ru, cn, tr, ar (right-to-left), uk, pl, el, ja; more can be added without rebuilding
-(`CS_LANGDIR`).
-
-## Privacy / GDPR
-
-cs-team keeps all data on your own server (folder/ZFS dataset or S3); no tracking, no external fonts or scripts; a session cookie is set only by the login form (default; `CS_LOGIN_FORM=0` turns it off).
-- **Access / portability (Art. 15, 20):** "Export my data (ZIP)" on the account page (account without password hash, own files, calendars, tasks, chat); admins can export for a user.
-- **Erasure (Art. 17):** user deletion with preview, snapshot and the option to replace the name in chat, tasks and events with "gelöschter Benutzer" (anonymize, on by default).
-- **Retention:** per group "Chat retention (days)", global "Closed tasks: days until automatic deletion", trash days; each run is logged (`retention: ...`).
-- **Notice before first use** of the AI assistant and the external video chat (provider/server, data sent, voluntary); acknowledgement per user, reset when the provider or server changes; optional additional privacy text in Settings.
-- **Logs:** failed logins, lockouts, audit lines (who changed users/groups/settings) and errors, never passwords or contents; they contain user names and IP addresses, so rotate them externally (30-90 days).
-- The handbook chapter 11 "Privacy (GDPR)" adds a TOM checklist, templates for schools (notice, record of processing activities, consent) and a 72-hour data breach procedure. It is technical help, not legal advice.
-
-## Quick start
-
-Ad hoc, without napp-it: copy the program into a folder and start it without parameters (e.g. double-click on Windows).
-Without a `team.cfg` next to the program, a text menu asks for the settings (data folder, PEM folder, port, webcraft folder,
-admin account and start password), checks them (folder writable / S3 reachable, port free, certificate readable), writes
-`team.cfg` next to the program and starts cs-team in the foreground (Ctrl+C stops it). The next start uses `team.cfg` directly;
-`./cs-team setup` opens the menu again to change it. The admin start password is never written to `team.cfg`: it only creates the
-first admin of an empty storage, who must change it at the first sign-in. With `-c <file>`, `CS_CONF` or `CS_*` variables (napp-it,
-start scripts) there is no menu; without a terminal and without a valid `team.cfg`, cs-team exits with an error message.
-If napp-it is installed on the host (`/opt/csweb-gui/_cfg`, Windows `C:\opt\csweb-gui\_cfg`), cs-team uses the same configuration
-as the napp-it menu System > Services > cs-team (`_cfg/team/team.cfg`); the setup menu then reads and writes napp-it's `team.par`
-and `team.cfg`, so both always show the same settings. A file `standalone.set` next to the program (any content) switches this off:
-cs-team then behaves as on a host without napp-it (`team.cfg` and `webcraft` next to the program).
-
-Standalone setup menu (no ZFS needed, make snapshots yourself): 1. data folder, default `./` (data in `./.csteam`), 2. PEM folder,
-default `./pem` (a private self-signed certificate `cert.pem`/`key.pem` is created if missing; `off` = plain http), 3. port,
-4. webcraft folder, default `./webcraft` with one sub folder per app, e.g. `./webcraft/wordcraft`, 5. admin account and start
-password (only while the storage is empty). Relative paths in a config file start at the folder of that file (the program folder
-for `team.cfg`), absolute paths are allowed. S3 storage: edit `team.cfg`. Standalone, the UI only lists the webcraft apps of its
-own folder, never those of napp-it/cs-proxy.
-
-Webcraft apps (WordCraft, GridCraft, PDFCraft ...): cs-team serves them itself under `/webcraft/<app>/` (no cs-proxy needed) from
-`CS_WEBCRAFT` (`off` = none), otherwise napp-it's `_my/wwwroot/webcraft`, otherwise a folder `webcraft` next to the program
-(one sub folder with `index.html` per app).
-
-With environment variables:
+With environment variables instead of the menu:
 
 ```
-# data in a folder (e.g. a ZFS dataset) - stored in /tank/team/.csteam
-export CS_DIR=/tank/team CS_LISTEN=:9004
+export CS_DIR=/tank/team CS_LISTEN=:9004                   # data in /tank/team/.csteam
 export CS_ADMIN_USER=admin CS_ADMIN_PASS=change-me-123     # first start only
 ./cs-team
 ```
 
-Or with an S3 bucket (RustFS): `S3_ENDPOINT=127.0.0.1:9000 S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team S3_TLS=0`.
-Demo without storage: `CS_MEM=1 ./cs-team`. Set or reset a user: `./cs-team adduser anna secret [admin]`.
-Version: `./cs-team version`.
+S3 instead of a folder: `S3_ENDPOINT=... S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team`. Demo in RAM: `CS_MEM=1 ./cs-team`.
+Other commands: `cs-team adduser NAME PASS [admin]`, `cs-team sysadmin NAME`, `cs-team osaccounts status`, `cs-team version`.
 
-A login form with session cookie is the default (`CS_LOGIN_FORM=0` = browser Basic Auth) - run it with HTTPS (`CS_TLS_CERT`, `CS_TLS_KEY`) or behind an HTTPS proxy
-(`CS_TRUST_PROXY=1`). Only one process per data folder.
+## Features
+
+| Area | What it does |
+|------|--------------|
+| Users / groups | roles sysadmin, global admin, group admin, user, guests with expiry; groups enable areas; CSV and JSON import/export; initial passwords; two-factor (TOTP) and app passwords; login form, OIDC (Google, Microsoft, generic), AD/LDAP sign-in |
+| Calendar | CalDAV (Thunderbird, iOS, DAVx5); personal, group, organization and global calendars, resources, subscriptions; series with time zones, reminders, invitations (iMIP), .ics import/export, plan calendars and year view |
+| Calc / Text | live multi-user editing, formulas, comments/notes; import/export csv, xlsx, txt, rtf, docx, pdf; change list, write protection, earlier states from ZFS snapshots; merge files, AI summaries and AI research |
+| Files | sharing (users, groups, team, public link with expiry), group folders, WebDAV with locks, quota, trash, versions from ZFS snapshots, read-only folder `share` |
+| Today / search | events, due tasks, notices; global search (Ctrl+K) with the user's own rights |
+| Tasks | ticket system light: assignee, milestones, board view, repetition, class tasks |
+| Chat / message | group chat with channels, threads, 1:1 messages, polls; messages by group chat, e-mail (two SMTP servers) and webhook |
+| Video chat | external servers (Jitsi, MiroTalk) or built-in WebRTC room (up to 6 participants, screen sharing) |
+| AI assistant | Anthropic, OpenAI-compatible or Ollama; sees only what the user may see, writes nothing without confirmation |
+
+Goal: about 80% of the most used Microsoft Teams / Office 365 functions for a school or a small organisation at a small fraction of
+the complexity - one file, file based, in-house, GDPR friendly (no tracking, data export and erasure, retention, notices; manual chapter 14).
+KISS wins whenever goals conflict.
+
+## Directory, SMB accounts and high availability
+
+- **LDAPS server:** `CS_LDAP=:636` serves users (`uid=<name>,ou=people,<base>`, posixAccount) and exported groups (posixGroup)
+  read-only; binds check the cs-team password. Clients: Linux/FreeBSD sssd, illumos/Solaris, macOS (`CS_LDAP_ANON=1`), Windows
+  (pGina), devices. Manual chapter 17.
+- **cs-ldapclient:** console installer for Windows, Linux, FreeBSD and macOS (also as `cs-ldapclient.zip` for a USB stick);
+  every cs-team user may sign in on every client, groups decide the local rights. Manual chapter 18.
+- **Mirror accounts (AD/LDAP):** a directory user signs in as `paula@domain` or `paula`; the account is `paula` everywhere, the
+  directory is only a marker. Old `name@realm` accounts are renamed at start (snapshot first, data moves along). With the
+  directory unreachable or switched off, mirror accounts sign in from the cache until it expires; *Settings > Sign-in* converts
+  them into local accounts that keep their password.
+- **Local users for SMB** (`CS_OSACCOUNTS=1`, setup option *Sync local users for SMB*, default yes): members of exported groups
+  get OS accounts on the cs-team host (illumos/OmniOS and Solaris 11 with the cs-team uid/gid and the kernel SMB server,
+  Linux/FreeBSD with Samba, Windows). cs-team stores no NT hash; it sets the SMB/OS password whenever it sees the password in clear
+  text (sign-in, password change). Disabled users are locked, never deleted. System names (root, administrator, guest ...) are
+  never created. Manual chapter 19.
+- **Failover:** the data folder lives in a ZFS dataset that your own replication job copies to a second host;
+  `CS_FAILOVER=master|standby|takeover`, HA group and service IP in *Settings > High availability*. On promotion the new master
+  takes over the OS accounts: illumos/Solaris with machine SID and SMB passwords (rights valid at once), Windows rewrites the
+  share ACLs to the new SIDs, Linux/FreeBSD keep uid/gid; otherwise the password applies from the user's next sign-in. The standby
+  never changes the OS. Manual chapter 20, [docs/HA_SPEC.md](docs/HA_SPEC.md).
+
+Lab-tested (Nov 2026): OmniOS failover with SMB from Linux before and after takeover, Windows 11 promotion with SID rewrite and
+password sync, FreeBSD 15.1 and Debian 12 accounts, pGina and sssd clients. Not tested: Solaris 11, a real AD.
+
+## Configuration
+
+Most settings (mail, public address, webhooks, video chat, AI, quota, sign-in, HA group) are made in the UI (*Settings*, global admins).
+Start parameters as environment variables or `KEY=VALUE` lines in `team.cfg` / `-c file`:
 
 | Variable | Meaning | Default |
 |----------|---------|---------|
+| `CS_DIR` or `S3_*` | storage: folder (data in `<dir>/.csteam`) or S3 bucket; one process per storage | - |
 | `CS_LISTEN` | address/port | `:8080` |
-| `CS_DIR` or `S3_*` | storage (folder or S3 bucket) | - |
-| `CS_ADMIN_USER` / `CS_ADMIN_PASS` | first admin (only if no user exists); this account becomes the **sysadmin**: local, always admin, cannot be deleted, disabled or demoted (change with `cs-team sysadmin NAME`) | - |
-| `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS certificate / key (PEM) | HTTP |
-| `CS_TRUST_PROXY` | `1` = evaluate X-Forwarded-For | `0` |
-| `CS_MAX_FAILS_IP` | failed sign-ins per address before it is locked (signed-in users exempt) | `60` |
-| `CS_IDENTITY_*` | directory/LDAP sign-in defaults (`MODE`, `REALM`, `URL`, `BASE`, `BIND_DN`, `BIND_PW`, `STARTTLS`, `ADMIT_GROUPS`, `LOCAL_GROUP`, `ALLOW_LOCAL`, `CACHE_DAYS`); UI settings override | local |
-| `CS_LOGIN_FORM` | `0` = browser login window (Basic) instead of the login form with session cookie; the form is the default and required for OIDC (WebDAV/CalDAV stay on Basic / app password) | form |
-| `CS_OIDC` / `CS_OIDC_BASE` | OIDC providers, e.g. `google,ms,keycloak`; BASE = public **https** address of this server (return address `BASE/oidc/callback`) | - |
-| `CS_OIDC_<ID>_CLIENT_ID` / `_CLIENT_SECRET` / `_ISSUER` / `_NAME` / `_SCOPE` | the application registered at the provider; Microsoft only with a fixed tenant id in `CS_OIDC_MS_TENANT` | - |
-| `CS_MAX_UPLOAD_MB` / `CS_CHAT_MAX_MB` | upload limits | 100 / 10 |
-| `CS_QUOTA_MB` | default file quota per user and group folder in MB (better set in *Settings*) | 0 (unlimited) |
-| `CS_SHARE` | local folder with read-only documents (see below); without it `<CS_DIR>/share` is used, no folder = feature off | – |
-| `CS_TRASH_DAYS` | days deleted files stay in the trash (better set in *Settings*; 0 = no trash) | 30 |
+| `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS certificate / key (PEM, reloaded on change) | HTTP |
+| `CS_ADMIN_USER` / `CS_ADMIN_PASS` | first admin of an empty storage = sysadmin | - |
+| `CS_LOGIN_FORM` | `0` = browser Basic Auth instead of the login form | form |
+| `CS_TRUST_PROXY` / `CS_MAX_FAILS_IP` | behind an HTTPS proxy / failed sign-ins per address before lock | `0` / `60` |
+| `CS_IDENTITY_*` | AD/LDAP sign-in defaults (`URL`, `REALM`, `BASE`, `BIND_DN`, `CACHE_DAYS` ...) | local |
+| `CS_OIDC*` | OIDC providers (also in the UI) | - |
+| `CS_LDAP` / `CS_LDAP_BASE` / `CS_LDAP_READER` / `CS_LDAP_ANON` | built-in LDAPS server | off |
+| `CS_OSACCOUNTS` / `CS_OSACCOUNTS_SHARES` | local users for SMB / Windows share paths for the SID rewrite | off |
+| `CS_FAILOVER` / `CS_HA_NAME` | `master`, `standby`, `takeover` / own name in the HA group | off / auto |
+| `CS_WEBCRAFT` / `CS_SHARE` | folder of the webcraft apps / read-only document folder | auto |
 | `CS_LANG` / `CS_LANGDIR` | default language / own language files | `de` |
-| `CS_FAILOVER` | high availability: `master` (allow failover), `standby` (read-only copy of the replicated data) or `takeover` (start as master now, epoch + 1); needs `CS_DIR` on a replicated filesystem | off |
-| `CS_HA_NAME` / `CS_HA_ASSUME_OFF` / `CS_HA_FORCE` | name of this host in the HA group (default: found automatically from the host name) / treat unreachable members as off / emergency exit that skips the start checks | - |
-| `CS_LDAP` | address of the built-in read-only LDAPS server, e.g. `:636` (needs `CS_TLS_CERT`) | off |
-| `CS_LDAP_ANON` | `1` lets anonymous LDAPS clients search users and groups (never passwords); needed for macOS clients, which cannot keep a search account | off |
-| `CS_LDAP_BASE` / `CS_LDAP_READER` | base DN / name of the cs-team account that may read all entries (other users see only their own entry) | `dc=csteam,dc=local` / - |
-| `CS_CONF` or `-c file` | configuration file (`KEY=VALUE`) | - |
+| `CS_MAX_UPLOAD_MB` / `CS_QUOTA_MB` / `CS_TRASH_DAYS` | upload limit / default quota / trash days | 100 / 0 / 30 |
 
-Mail (SMTP), public address, webhooks, video chat (STUN/TURN), AI provider and the file quota are configured inside cs-team (menu *Settings*, global admins only).
-The built-in video chat needs HTTPS or localhost (browser rule for camera and microphone).
-
-## Central directory (LDAP) and high availability
-
-**cs-team as LDAP server (0.68).** `CS_LDAP=:636` (with `CS_TLS_CERT`/`CS_TLS_KEY`) starts a small read-only LDAPv3 server, LDAPS only. Users are
-`uid=<name>,ou=people,<base>` (posixAccount/inetOrgPerson: uid, uidNumber, gidNumber of the group `alluser`, homeDirectory, loginShell, mail), groups are
-`cn=<group>,ou=groups,<base>` (posixGroup with flat `memberUid`; only groups with the *Export* switch, never system groups). A bind checks the cs-team password
-(lockout as for web sign-in). Only the `CS_LDAP_READER` account sees everything, other users see only their own entry, anonymous clients only the root DSE (with `CS_LDAP_ANON=1` also users and groups, for macOS);
-writes answer *unwilling to perform*. Accounts with two-factor sign-in, an OIDC link or a directory source cannot bind. Tested with OpenLDAP `ldapsearch` on OmniOS;
-client set-up per OS (Linux sssd, FreeBSD, illumos/Solaris, macOS, Windows, devices) is in manual chapter 19.
-
-**Client installer `cs-ldapclient` (0.68.2).** A small console program per OS (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`, `-osx`, `-osx-arm64`; also as `cs-ldapclient.zip` for a USB stick with start scripts) sets up sign-in with cs-team accounts on a client computer from a shared `ldap.cfg` (server, reader account, certificate fingerprint, group = local group rules): Windows with pGina, Linux and FreeBSD with sssd, macOS with Open Directory (LDAPv3 node, home folder created at the first login). Every cs-team user may sign in on every computer, groups only decide the local rights, the local profile/home is deleted at logout. Tested on Windows 11, Debian 12, FreeBSD 15.1 and macOS 12.7 (Intel). **macOS needs the server option `CS_LDAP_ANON=1`** (no search account possible) and an approval of the server certificate at the Mac screen. Manual chapter 20.
-
-**Lab test pGina + SMB (Nov 2026, cs-team 0.71.0 on OmniOS as LDAPS and SMB server, clients Windows 11 with pGina and Debian 12 with sssd).**
-Sign-in with cs-team accounts works on both clients (LDAPS with certificate check); the group rules set the local rights (`lehrer` -> local
-administrators, `klasse5a` -> users). pGina creates a fresh local account at every sign-in and removes account, profile folder and registry
-entry at logout, so **the Windows SID changes with every sign-in** - SMB rights and HA therefore key on the user name / cs-team uid, never on the
-client SID ([docs/HA_SPEC.md](docs/HA_SPEC.md), section 12). SMB access to a share on the OmniOS host with the cs-team user names and passwords
-(SMB passwords set via `pam_smb_passwd`) gives the same result from Windows (`net use`) and Linux (`mount.cifs`): group `lehrer` read/write,
-`klasse5a` read-only, uid/gid from cs-team identical on all hosts.
-
-**Account types:** local users with a local password (also usable as LDAP users by other clients), and local mirror accounts of a remote AD domain or a remote LDAP directory
-(the password stays in the source directory).
-
-**Failover (0.67).** The data folder lives in a ZFS dataset that is replicated to a second host **by a replication job you create and manage yourself**
-(e.g. a napp-it replication job; cs-team does not create it). Start options: `CS_FAILOVER=master`, `standby` (read-only, writes answer 503, no background jobs) or
-`takeover` (promotion, epoch + 1). The *HA group* (members and addresses, optionally a *service IP*) is edited in *Settings > High availability*; the master sets the service IP itself at start (temporary, extra address, removed at stop; Linux, FreeBSD, macOS, illumos/Solaris 11, Windows); at start cs-team asks the other members under
-`/ha/status`, a running master re-checks every 10 s and blocks writes on a conflict. Failover that **keeps the SMB rights** works best on **OmniOS/illumos**: the Windows SID is a
-ZFS attribute, ACLs stay intact in copied or replicated ZFS filesystems, local users and SMB passwords survive the failover. Manual chapter 18, [docs/HA_SPEC.md](docs/HA_SPEC.md).
-Tested on two OmniOS hosts (planned switch with incremental replication, standby read-only, second master refused, old master refused after takeover).
-
-**Standalone start script** (alternative to the napp-it start, config part followed by the start from the script's folder): manual chapter 21.9.
-
-## Sign-in and roles
-
-- **Login:** by default a login form with a session cookie (`CS_LOGIN_FORM=0` = browser Basic Auth); WebDAV/CalDAV stay on Basic or app passwords. Every user chooses a local password or OIDC. Account types: **local**, **directory** (LDAP/AD, `name@realm`) and **OIDC**; local names such as `anna@school.org` are allowed, the directory realm stays reserved. **The login type follows the account name** (no `@` = local with password or OIDC, `name@realm` = directory; refused while none is configured). **Forgot password** on the login page: link by mail (1 h, single use, in the account language, default English) for active local accounts with a mail address, excluding admins, guests, directory and 2FA accounts; then a new password or OIDC, logged. **OIDC for Google and Microsoft** can be entered under Settings (public https address required, secret write-only, overrides `CS_OIDC_*`).
-- **Initial passwords:** the admin imports a user list into a group (`name[, mail[, password]]`, header `org: my.school.org` appends the domain), generates initial passwords (valid 30 days, displayed once, only the hash is stored, forced change at first login) and may deliver them by e-mail. *Reconfigure* issues a new one and removes the OIDC link, two-factor and app passwords.
-- **OIDC:** the user logs in with the initial password once and links the account to a provider himself (authorization code + PKCE, own id_token check, identity = issuer + `sub`, never the mail address). Afterwards only OIDC applies (password *or* OIDC). The sysadmin and directory accounts never use OIDC (emergency access stays local); global admins may link, and only the sysadmin resets a linked admin.
-- **Roles:** the *sysadmin* (`CS_ADMIN_USER`, or `cs-team sysadmin NAME`) is the startup admin and always global admin; only he creates and edits further global admins. Global admins manage everything else including group admins and only view other admins. System groups `globaladmins` and `groupadmins` cannot be deleted or renamed. Two-factor stays optional (mandatory for admins by a setting).
-- **Message:** admins of a group may send by group chat, e-mail and external chat address, members (if the group allows it) only to the group chat.
+Full list: manual chapter 3.
 
 ## Clients
 
-CalDAV `https://host:9004/dav/` · WebDAV `https://host:9004/webdav/` (rclone, WinSCP, Cyberduck, macOS Finder;
-Windows network drive needs HTTPS; DAV class 2 with LOCK/UNLOCK, so Explorer and Office can write) · REST `/api/...`.
-
-A CalDAV client sees exactly the calendars the user may see (own, group, organization, global and subscriptions);
-calendars that are not released (`off`) are missing and answer 404 on direct access. Writing is allowed only where the
-release says so (`rw`, or as owner/manager); subscriptions are always read-only (403). Owners may always change their own
-calendars (the release only governs other people); if the user's *Calendar* area is read-only (group template `klasse`),
-their own calendars are locked as well (403). New calendars are created in the UI (calendar bar → **+ add**); via CalDAV a
-calendar is created with `MKCOL` and a `<c:calendar/>` resource type, `MKCALENDAR` is answered with 405.
-Group calendars come with the group (checkbox *Create group calendar*, templates `team`/`klasse`) or later in the group
-settings (global admins): `cal` = `""` (none / removal, only while the calendar is empty), `off`, `ro`, `rw`.
-`GET /api/groups` reports `cal` per group, `POST /api/groups/<group>` sets it.
-A single calendar as a file: **Export (.ics)** in the calendar bar = `GET /api/cal/<id>/export.ics` (also for read-only
-calendars and subscriptions), back into a writable calendar via **Import (.ics)** = `POST /api/cal/<id>/import`
-(matches by UID, repeated import creates no duplicates).
-
-**Android phone specifics (manual chapter 6.1):**
-- Browser: use **Firefox**. Chrome often rejects the own (self-signed) certificate (`ERR_TOO_MANY_RETRIES`).
-- Calendars (iCal/CalDAV): install **DAVx5** (free from F-Droid), URL `https://server:9004/dav/`.
-- Tick the calendars in the DAVx5 account (CalDAV) and **also switch them on in the calendar app** (e.g. Google Calendar › ☰ › tick the calendars of the DAVx5 account), otherwise they stay invisible.
-- When cs-team runs in the **local network**, DAVx5 must be **allowed** to access devices in the local network (Android 16 asks at the first connection), otherwise DAVx5 stays at "Please wait".
-- Own certificate (test): install the cs-proxy CA once, load `http://server/cs-proxy-ca.crt`, then Settings › Security › Encryption & credentials › Install a certificate › CA certificate. Not needed with Let's Encrypt.
+CalDAV `https://host:9004/dav/` · WebDAV `https://host:9004/webdav/` (rclone, WinSCP, Cyberduck, Finder, Windows network drive
+with HTTPS) · REST `/api/...`. Android: Firefox as browser, DAVx5 for calendars (manual chapter 9.1).
+Do not write directly into `.csteam` or the S3 bucket; use WebDAV or the UI.
 
 ## Build
 
 ```
 go vet ./... && go test ./... && go build -o cs-team .
-powershell -NoProfile -File build-all.ps1 -Test     # 8 static release builds into dist\
+powershell -NoProfile -File build-all.ps1 -Test     # release builds into dist\
 ```
 
-Release builds: Windows, Linux (amd64, arm64), macOS (amd64, arm64), FreeBSD, illumos/OmniOS, Solaris.
-Dependencies: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
+Release builds: Windows, Linux (amd64, arm64), macOS (amd64, arm64), FreeBSD, illumos/OmniOS, Solaris, plus `cs-ldapclient`.
+Dependencies: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto, x/term.
 
 ## License
 

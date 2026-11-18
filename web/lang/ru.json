@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "за 3 месяца",
  "alle 2 Jahre": "раз в 2 года",
  "Plan (Quartale, Anzeige im Jahr)": "План (кварталы, годовой вид)",
- "Kalender {0}": "Календарь {0}"
+ "Kalender {0}": "Календарь {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Если подключение к каталогу отключено (адрес пуст), зеркальные учётные записи входят с последним действительным паролем до окончания этого срока.",
+ "Spiegelkonten in lokale Konten umwandeln": "Преобразовать зеркальные учётные записи в локальные",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Преобразовать все зеркальные учётные записи в локальные? Имя, группы и права сохраняются; последний действительный в каталоге пароль становится локальным паролем. После этого учётные записи больше не входят через каталог.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "Преобразовано учётных записей: {0}, нужен начальный пароль: {1}: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Не преобразовано (недопустимое имя учётной записи): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Зеркальные учётные записи пользователей каталога называются без @ (peter.pan): вход как peter.pan@schule.de или peter.pan; учётная запись несёт каталог как метку, и каталог подтверждает вход. Существующая локальная учётная запись с тем же именем никогда не перенимается каталогом."
 }

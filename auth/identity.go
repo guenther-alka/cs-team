@@ -2,7 +2,12 @@ package auth
 
 // Namensraum-Anmeldung: "name" allein und "name@local" sind lokale cs-team-Konten (users.json, bcrypt) wie bisher.
 // "name@<eigener Namensraum>" (z.B. anna@local.de) wird gegen das Verzeichnis geprüft und bekommt hier ein
-// Spiegelkonto ohne Passwort, damit Gruppen, Bereiche und Freigaben unverändert funktionieren.
+// Spiegelkonto, damit Gruppen, Bereiche und Freigaben unverändert funktionieren.
+// Ab 0.72 heisst das Spiegelkonto wie der Benutzer ohne Namensraum ("anna"); Account.Realm ist nur das Merkmal "das
+// Verzeichnis local.de bestaetigt die Anmeldung". Damit gilt ueberall derselbe Name (Dateien, SMB, OS-Konto, LDAP-uid),
+// und die Anmeldung geht mit "anna" wie mit "anna@local.de". Ein vorhandenes lokales Konto gleichen Namens wird nie
+// vom Verzeichnis uebernommen (Anmeldung abgelehnt, Protokoll). Alte Schluessel "anna@local.de" gelten weiter, bis
+// MigrateDirKeys sie umgestellt hat (dirkeys.go).
 
 import (
 	"context"
@@ -218,7 +223,7 @@ func parseLogin(name string, id Identity) (loginID, error) {
 	case realm == RealmLocal:
 		return loginID{Key: base, Name: base, Realm: RealmLocal, Source: "local", Local: true}, nil
 	case id.ValidRealm(realm) && validKey.MatchString(base+"@"+realm):
-		return loginID{Key: base + "@" + realm, Name: base, Realm: realm, Source: "dir"}, nil
+		return loginID{Key: base, Name: base, Realm: realm, Source: "dir"}, nil // Spiegelkonto ohne Namensraum (0.72)
 	default:
 		return loginID{Key: n, Name: base, Realm: realm}, ErrBadRealm
 	}
@@ -232,7 +237,38 @@ func (a *Auth) resolveLogin(ctx context.Context, name string, id Identity) (logi
 			return loginID{Key: n, Name: n, Realm: RealmLocal, Source: "local", Local: true}, nil
 		}
 	}
-	return parseLogin(name, id)
+	l, err := parseLogin(name, id)
+	switch {
+	case err == nil && l.Source == "dir":
+		// name@realm: Spiegelkonto "name"; ein noch nicht umgestelltes altes Konto "name@realm" gilt weiter
+		if u, ok := a.get(ctx, l.Name); !(ok && u.Source == "dir") {
+			if u, ok := a.get(ctx, l.Name+"@"+l.Realm); ok && u.Source == "dir" {
+				l.Key = l.Name + "@" + l.Realm
+			}
+		}
+	case err == nil && l.Local && !strings.Contains(n, "@"):
+		// Name ohne Namensraum ("name@local" bleibt ausdruecklich lokal): ist das Konto ein Spiegelkonto, bestaetigt das Verzeichnis seines Merkmals die Anmeldung
+		if u, ok := a.get(ctx, l.Key); ok && u.Source == "dir" && u.Realm != "" {
+			return loginID{Key: l.Key, Name: l.Key, Realm: u.Realm, Source: "dir"}, nil
+		}
+	case errors.Is(err, ErrBadRealm) && !id.DirOK():
+		// Verzeichnisanbindung abgeschaltet (0.72): ein vorhandenes Spiegelkonto meldet sich weiter mit dem zuletzt im
+		// Verzeichnis gueltigen Passwort an, aber nur aus dem Zwischenspeicher und nur bis CacheDays (verifyDir -> verifyDirOffline).
+		if u, ok := a.get(ctx, l.Name); ok && u.Source == "dir" && u.Realm == l.Realm {
+			return loginID{Key: l.Name, Name: l.Name, Realm: l.Realm, Source: "dir"}, nil
+		}
+		if validKey.MatchString(l.Key) {
+			if u, ok := a.get(ctx, l.Key); ok && u.Source == "dir" {
+				return loginID{Key: l.Key, Name: l.Name, Realm: l.Realm, Source: "dir"}, nil
+			}
+		}
+		// in lokale Konten umgewandelte Spiegelkonten (convertdir.go): die gewohnte Anmeldung name@domain fuehrt zum lokalen
+		// Konto, wenn genau diese Adresse seine Kontakt-Mail ist (das Passwort prueft wie immer das lokale Konto)
+		if u, ok := a.get(ctx, l.Name); ok && u.Source != "dir" && strings.EqualFold(u.Mail, l.Name+"@"+l.Realm) && validAcct.MatchString(l.Name) {
+			return loginID{Key: l.Name, Name: l.Name, Realm: RealmLocal, Source: "local", Local: true}, nil
+		}
+	}
+	return l, err
 }
 
 // verifyDirCached wie verifyDir, merkt sich aber erfolgreiche Anmeldungen authTTL lang - sonst kostet jede Anfrage
@@ -269,6 +305,9 @@ func (a *Auth) verifyDir(ctx context.Context, id loginID, pass string) (Account,
 	if pass == "" {
 		return Account{}, ErrBadDir
 	}
+	if idc := a.identity(); !idc.DirOK() || id.Realm != idc.DirRealm() { // Anbindung abgeschaltet oder anderes Verzeichnis: wie "nicht erreichbar" (Zwischenspeicher bis CacheDays)
+		return a.verifyDirOffline(ctx, id, pass)
+	}
 	du, err := a.dirCheck().CheckDir(ctx, id.Name, pass)
 	switch {
 	case errors.Is(err, ErrDirDown):
@@ -280,7 +319,11 @@ func (a *Auth) verifyDir(ctx context.Context, id loginID, pass string) (Account,
 		log.Printf("auth: %s refused: not in an admitted group (%v)", id.Key, du.Groups)
 		return Account{}, ErrNotAdmit
 	}
-	return a.ensureDir(ctx, id, du, pass)
+	u, err := a.ensureDir(ctx, id, du, pass)
+	if err == nil {
+		a.plain(id.Key, pass) // OS-/SMB-Konto des Spiegelkontos (0.72): Passwort wie bei lokalen Konten bei der Anmeldung setzen
+	}
+	return u, err
 }
 
 // admitted: ist der Verzeichnisbenutzer zur Anmeldung berechtigt? Ohne Aufnahme-Gruppen: jeder gültige Benutzer.
@@ -327,8 +370,16 @@ func (a *Auth) ensureDir(ctx context.Context, id loginID, du DirUser, pass strin
 	grp, now := idc.Group(), time.Now()
 	cur, have := a.get(ctx, id.Key)
 	if have && cur.Source != "dir" {
-		// lokales Konto gleichen Namens (name@other.org): nie vom Verzeichnis übernehmen
-		log.Printf("auth: %s refused: local account with directory-like name", id.Key)
+		// lokales Konto gleichen Namens: nie vom Verzeichnis übernehmen (sonst koennte ein Verzeichnisbenutzer ein lokales Konto kapern)
+		log.Printf("auth: %s@%s refused: the name %s is a local cs-team account (rename it or convert it, then the directory user can log in)", id.Name, id.Realm, id.Key)
+		return Account{}, ErrBadDir
+	}
+	if !have && SysName(id.Key) { // kein neues Spiegelkonto mit dem Namen eines Systemkontos (daraus wuerde ein OS-Konto, 0.72)
+		log.Printf("auth: %s@%s refused: %s is the name of a system account", id.Name, id.Realm, id.Key)
+		return Account{}, ErrBadDir
+	}
+	if have && cur.Realm != "" && cur.Realm != id.Realm {
+		log.Printf("auth: %s@%s refused: the name %s belongs to a user of the directory %s", id.Name, id.Realm, id.Key, cur.Realm)
 		return Account{}, ErrBadDir
 	}
 	hash, seen := "!", ""
@@ -408,8 +459,12 @@ func (a *Auth) verifyDirOffline(ctx context.Context, id loginID, pass string) (A
 	if bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(pass)) != nil {
 		return Account{}, ErrDirDown
 	}
-	log.Printf("auth: %s logged in from the local cache (directory unreachable, last check %s, valid %d days)",
-		id.Key, u.DirSeen, days)
+	why := "directory unreachable"
+	if !a.identity().DirOK() {
+		why = "directory connection switched off"
+	}
+	log.Printf("auth: %s logged in from the local cache (%s, last check %s, valid %d days)", id.Key, why, u.DirSeen, days)
+	a.plain(id.Key, pass) // HA: nach dem Hochstufen setzt die erste Anmeldung gegen den replizierten Abdruck das lokale Passwort
 	return u, nil
 }
 
@@ -421,7 +476,7 @@ func (a *Auth) dropDirCache(ctx context.Context, idc Identity) {
 	a.mu.Lock()
 	need := false
 	for _, u := range a.users {
-		if u.Source == "dir" && (u.Hash != "" && u.Hash != "!" || u.DirSeen != "") && (days <= 0 || u.Realm != realm) {
+		if u.Source == "dir" && (u.Hash != "" && u.Hash != "!" || u.DirSeen != "") && (days <= 0 || idc.DirOK() && u.Realm != realm) {
 			need = true
 			break
 		}
@@ -434,7 +489,8 @@ func (a *Auth) dropDirCache(ctx context.Context, idc Identity) {
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		for k, u := range m {
 			has := (u.Hash != "" && u.Hash != "!") || u.DirSeen != ""
-			if u.Source != "dir" || !has || days > 0 && u.Realm == realm {
+			// ohne Verzeichnis (Anbindung abgeschaltet) bleibt der Abdruck bis zum Ablauf der Frist; Zwischenspeicher aus = weg
+			if u.Source != "dir" || !has || days > 0 && (u.Realm == realm || !idc.DirOK()) {
 				continue
 			}
 			u.Hash, u.DirSeen = "!", ""

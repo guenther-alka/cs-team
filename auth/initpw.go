@@ -253,6 +253,8 @@ func (a *Auth) ImportList(ctx context.Context, g, text string) ([]listRes, []str
 				x.Action, x.Note = "skipped", "account belongs to another group"
 			case have && !eligible(u):
 				x.Action, x.Note = "skipped", "administrator, guest or directory account"
+			case !have && SysName(r.Name): // kein neues Konto mit dem Namen eines Systemkontos (0.72)
+				x.Action, x.Note = "skipped", "name of a system account"
 			default:
 				x.Action = "unchanged"
 				if !have {

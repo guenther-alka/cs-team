@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "3 mesi prima",
  "alle 2 Jahre": "ogni 2 anni",
  "Plan (Quartale, Anzeige im Jahr)": "Piano (trimestri, mostrato nella vista annuale)",
- "Kalender {0}": "Calendario {0}"
+ "Kalender {0}": "Calendario {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Se la connessione alla directory è disattivata (indirizzo vuoto), gli account mirror accedono con l'ultima password valida fino alla scadenza di questo periodo.",
+ "Spiegelkonten in lokale Konten umwandeln": "Converti gli account mirror in account locali",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Convertire tutti gli account mirror in account locali? Nome, gruppi e diritti restano; l'ultima password valida nella directory diventa la password locale. In seguito gli account non accedono più tramite la directory.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "{0} account convertiti, {1} richiedono una password iniziale: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Non convertito (nome account non valido): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Gli account mirror degli utenti della directory sono senza @ (peter.pan): accesso con peter.pan@schule.de o peter.pan; l'account porta la directory come contrassegno e la directory conferma l'accesso. Un account locale esistente con lo stesso nome non viene mai rilevato dalla directory."
 }

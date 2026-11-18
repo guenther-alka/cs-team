@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "3 ay önce",
  "alle 2 Jahre": "2 yılda bir",
  "Plan (Quartale, Anzeige im Jahr)": "Plan (çeyrekler, yıllık görünüm)",
- "Kalender {0}": "Takvim {0}"
+ "Kalender {0}": "Takvim {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Dizin bağlantısı kapalıysa (adres boş), ayna hesaplar bu süre dolana kadar son geçerli parolalarıyla oturum açar.",
+ "Spiegelkonten in lokale Konten umwandeln": "Ayna hesapları yerel hesaplara dönüştür",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Tüm ayna hesaplar yerel hesaplara dönüştürülsün mü? Ad, gruplar ve haklar kalır; dizinde en son geçerli olan parola yerel parola olur. Sonrasında hesaplar artık dizine karşı oturum açmaz.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "{0} hesap dönüştürüldü, {1} hesabın başlangıç parolasına ihtiyacı var: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Dönüştürülmedi (geçerli hesap adı değil): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Dizin kullanıcılarının ayna hesapları @ olmadan adlandırılır (peter.pan): peter.pan@schule.de veya peter.pan ile oturum açılır; hesap dizini bir işaret olarak taşır ve oturum açmayı dizin onaylar. Aynı adlı mevcut bir yerel hesap asla dizin tarafından devralınmaz."
 }

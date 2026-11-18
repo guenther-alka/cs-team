@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "提前 3 个月",
  "alle 2 Jahre": "每 2 年",
  "Plan (Quartale, Anzeige im Jahr)": "计划（季度，在年视图中显示）",
- "Kalender {0}": "日历 {0}"
+ "Kalender {0}": "日历 {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "如果目录连接已关闭（地址为空），镜像账户在此期限结束前使用最后有效的密码登录。",
+ "Spiegelkonten in lokale Konten umwandeln": "将镜像账户转换为本地账户",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "将所有镜像账户转换为本地账户？名称、组和权限保持不变；目录中最后有效的密码成为本地密码。此后这些账户不再通过目录登录。",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "已转换 {0} 个账户，{1} 个需要初始密码：{2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "未转换（账户名无效）：{0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "目录用户的镜像账户名称不带 @（peter.pan）：使用 peter.pan@schule.de 或 peter.pan 登录；账户以目录作为标记，由目录确认登录。同名的现有本地账户绝不会被目录接管。"
 }

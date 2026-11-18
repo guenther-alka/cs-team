@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "3 μήνες πριν",
  "alle 2 Jahre": "κάθε 2 χρόνια",
  "Plan (Quartale, Anzeige im Jahr)": "Πλάνο (τρίμηνα, ετήσια προβολή)",
- "Kalender {0}": "Ημερολόγιο {0}"
+ "Kalender {0}": "Ημερολόγιο {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Αν η σύνδεση με τον κατάλογο είναι απενεργοποιημένη (κενή διεύθυνση), οι λογαριασμοί-καθρέφτες συνδέονται με τον τελευταίο έγκυρο κωδικό έως τη λήξη αυτής της προθεσμίας.",
+ "Spiegelkonten in lokale Konten umwandeln": "Μετατροπή λογαριασμών-καθρεφτών σε τοπικούς λογαριασμούς",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Μετατροπή όλων των λογαριασμών-καθρεφτών σε τοπικούς; Όνομα, ομάδες και δικαιώματα παραμένουν· ο τελευταίος έγκυρος κωδικός στον κατάλογο γίνεται τοπικός κωδικός. Στη συνέχεια οι λογαριασμοί δεν συνδέονται πλέον μέσω του καταλόγου.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "{0} λογαριασμοί μετατράπηκαν, {1} χρειάζονται αρχικό κωδικό: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Δεν μετατράπηκε (μη έγκυρο όνομα λογαριασμού): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Οι λογαριασμοί-καθρέφτες των χρηστών του καταλόγου ονομάζονται χωρίς @ (peter.pan): σύνδεση με peter.pan@schule.de ή peter.pan· ο λογαριασμός φέρει τον κατάλογο ως σήμανση και ο κατάλογος επιβεβαιώνει τη σύνδεση. Ένας υπάρχων τοπικός λογαριασμός με το ίδιο όνομα δεν αναλαμβάνεται ποτέ από τον κατάλογο."
 }

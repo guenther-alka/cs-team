@@ -23,7 +23,7 @@ func fail_(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrSysAdmin), errors.Is(err, ErrSysOnly):
 		code = http.StatusForbidden
-	case errors.Is(err, ErrGuest):
+	case errors.Is(err, ErrGuest), errors.Is(err, ErrSysName):
 		code = http.StatusBadRequest
 	case errors.Is(err, ErrExists), errors.Is(err, ErrCalUsed), errors.Is(err, ErrShortTaken):
 		code = http.StatusConflict
@@ -160,6 +160,13 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 			Seen     string   `json:"seen,omitempty"`    // zuletzt gesehen (RFC 3339, seen.go)
 			Uid      int      `json:"uid,omitempty"`     // feste numerische Kennung (ids.go)
 			Mail2    string   `json:"mail2,omitempty"`   // alternative E-Mail-Adresse (0.71)
+			Realm    string   `json:"realm,omitempty"`   // Spiegelkonto: Verzeichnis, das die Anmeldung bestaetigt (Merkmal, 0.72)
+		}
+		dirRealm := func(u Account) string {
+			if u.Source == "dir" {
+				return u.Realm
+			}
+			return ""
 		}
 		me, isAdm, ao := User(r.Context()), IsAdmin(r.Context()), AdminOf(r.Context())
 		a.mu.Lock()
@@ -178,11 +185,11 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 		for n, u := range a.users {
 			switch {
 			case isAdm:
-				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u), u.Uid, u.Mail2})
+				out = append(out, row{n, u.Admin, u.Disabled, u.Created, effGroups(u), u.Mail, u.Chat, u.Chat != "", u.Sys, u.TOTP != "", u.Guest, u.Expires, linkProv(u), gadm[n], pwState(u), a.seenOf(n, u), u.Uid, u.Mail2, dirRealm(u)})
 			case n == me:
-				out = append(out, row{Name: n, Uid: u.Uid, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
+				out = append(out, row{Name: n, Uid: u.Uid, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, Chat: u.Chat, ChatSet: u.Chat != "", TOTP: u.TOTP != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n], Realm: dirRealm(u)})
 			case len(ao) > 0 && !u.Admin && shares(effGroups(u), ao):
-				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n]})
+				out = append(out, row{Name: n, Disabled: u.Disabled, Groups: effGroups(u), Mail: u.Mail, Mail2: u.Mail2, ChatSet: u.Chat != "", Guest: u.Guest, Expires: u.Expires, OIDC: linkProv(u), PW: pwState(u), Seen: a.seenOf(n, u), AdminOf: gadm[n], Realm: dirRealm(u)})
 			}
 		}
 		a.mu.Unlock()
@@ -300,6 +307,7 @@ func (a *Auth) Routes(mux *http.ServeMux) {
 	a.dataExportRoutes(mux, adm)
 	a.ackRoutes(mux)
 	a.twofaRoutes(mux, adm)
+	a.convertRoutes(mux, adm) // Spiegelkonten in lokale Konten umwandeln (convertdir.go)
 	mux.Handle("POST /api/users/{name}/flags", adm(func(w http.ResponseWriter, r *http.Request) {
 		var in struct{ Admin, Disabled *bool }
 		if !body(w, r, &in) {

@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "за 3 місяці",
  "alle 2 Jahre": "раз на 2 роки",
  "Plan (Quartale, Anzeige im Jahr)": "План (квартали, річний вигляд)",
- "Kalender {0}": "Календар {0}"
+ "Kalender {0}": "Календар {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Якщо підключення до каталогу вимкнено (адреса порожня), дзеркальні облікові записи входять з останнім дійсним паролем до закінчення цього строку.",
+ "Spiegelkonten in lokale Konten umwandeln": "Перетворити дзеркальні облікові записи на локальні",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Перетворити всі дзеркальні облікові записи на локальні? Ім’я, групи та права зберігаються; останній дійсний у каталозі пароль стає локальним паролем. Після цього облікові записи більше не входять через каталог.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "Перетворено облікових записів: {0}, потрібен початковий пароль: {1}: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Не перетворено (недійсне ім’я облікового запису): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Дзеркальні облікові записи користувачів каталогу називаються без @ (peter.pan): вхід як peter.pan@schule.de або peter.pan; обліковий запис має каталог як позначку, і каталог підтверджує вхід. Наявний локальний обліковий запис з тим самим ім’ям ніколи не переймається каталогом."
 }

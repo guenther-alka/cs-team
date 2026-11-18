@@ -1203,5 +1203,11 @@
  "3 Monate vorher": "3 months before",
  "alle 2 Jahre": "every 2 years",
  "Plan (Quartale, Anzeige im Jahr)": "Plan (quarters, shown in the year view)",
- "Kalender {0}": "Calendar {0}"
+ "Kalender {0}": "Calendar {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "If the directory connection is switched off (address empty), mirror accounts sign in with their last valid password until this period ends.",
+ "Spiegelkonten in lokale Konten umwandeln": "Convert mirror accounts to local accounts",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Convert all mirror accounts to local accounts? Name, groups and rights stay; the password last valid in the directory becomes the local password. Afterwards the accounts no longer sign in against the directory.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "{0} accounts converted, {1} need a start password: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Not converted (not a valid account name): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Mirror accounts of directory users are named without @ (peter.pan): sign in with peter.pan@schule.de or peter.pan; the account carries the directory as a marker, and the directory confirms the sign-in. An existing local account with the same name is never taken over by the directory."
 }

@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "قبل 3 أشهر",
  "alle 2 Jahre": "كل سنتين",
  "Plan (Quartale, Anzeige im Jahr)": "خطة (أرباع السنة، تُعرض في عرض السنة)",
- "Kalender {0}": "التقويم {0}"
+ "Kalender {0}": "التقويم {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "إذا كان الاتصال بالدليل معطلاً (العنوان فارغ)، تسجّل الحسابات المرآة الدخول بآخر كلمة مرور صالحة حتى انتهاء هذه المدة.",
+ "Spiegelkonten in lokale Konten umwandeln": "تحويل الحسابات المرآة إلى حسابات محلية",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "تحويل جميع الحسابات المرآة إلى حسابات محلية؟ يبقى الاسم والمجموعات والصلاحيات، وتصبح آخر كلمة مرور صالحة في الدليل كلمة المرور المحلية. بعد ذلك لا تسجّل الحسابات الدخول عبر الدليل.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "تم تحويل {0} حساب، و{1} تحتاج إلى كلمة مرور أولية: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "لم يُحوَّل (اسم حساب غير صالح): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "تُسمّى الحسابات المرآة لمستخدمي الدليل بدون @ (peter.pan): تسجيل الدخول باسم peter.pan@schule.de أو peter.pan؛ يحمل الحساب الدليل كعلامة، ويؤكد الدليل تسجيل الدخول. لا يستولي الدليل أبداً على حساب محلي موجود بالاسم نفسه."
 }

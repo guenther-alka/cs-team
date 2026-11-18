@@ -21,8 +21,15 @@ type ExpGroup struct {
 	Members []string
 }
 
-// ExportData liefert die exportierten Konten und Gruppen, nach Name sortiert.
-func (a *Auth) ExportData(ctx context.Context) ([]ExpUser, []ExpGroup) {
+// ExportData liefert die exportierten Konten und Gruppen, nach Name sortiert (LDAP-Dienst: ohne Spiegelkonten, deren
+// Passwort das Quellverzeichnis prueft).
+func (a *Auth) ExportData(ctx context.Context) ([]ExpUser, []ExpGroup) { return a.exportData(ctx, false) }
+
+// ExportDataOS: wie ExportData, aber mit Spiegelkonten (Name ohne @, 0.72): Betriebssystem-Konten fuer SMB auf dem
+// cs-team-Rechner. Ihr Passwort setzt cs-team bei der naechsten erfolgreichen Anmeldung (Verzeichnis oder Zwischenspeicher).
+func (a *Auth) ExportDataOS(ctx context.Context) ([]ExpUser, []ExpGroup) { return a.exportData(ctx, true) }
+
+func (a *Auth) exportData(ctx context.Context, withDir bool) ([]ExpUser, []ExpGroup) {
 	a.refresh(ctx)
 	a.mu.Lock()
 	us, gs := a.users, a.groups
@@ -34,7 +41,7 @@ func (a *Auth) ExportData(ctx context.Context) ([]ExpUser, []ExpGroup) {
 	var users []ExpUser
 	member := map[string][]string{} // Gruppe -> Mitglieder (nur exportierte Konten)
 	for n, u := range us {
-		if u.Disabled || u.Source == "dir" || u.Uid <= 0 || !validName.MatchString(n) {
+		if u.Disabled || (u.Source == "dir" && !withDir) || u.Uid <= 0 || !validName.MatchString(n) {
 			continue
 		}
 		users = append(users, ExpUser{Name: n, Uid: u.Uid, Gid: prim, Mail: u.Mail})
@@ -70,7 +77,9 @@ func (a *Auth) LDAPBind(ctx context.Context, name, pass, ip string) bool {
 	}
 	if !ok {
 		a.failed(uk)
-		a.failed(ik)
+		// je Adresse dieselbe hohe Schwelle wie bei der Web-Anmeldung (0.72): LDAP-Clients probieren oft mehrere Namensformen
+		// (name@domain, DOMAIN\name, name), bevor eine passt - sonst sperren schon wenige richtige Anmeldungen die Adresse
+		a.failedMax(ik, MaxFailsIP)
 		return false
 	}
 	a.ok(uk)

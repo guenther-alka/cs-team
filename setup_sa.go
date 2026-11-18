@@ -6,7 +6,8 @@ package main
 //	2. PEM-Ordner     Vorgabe ./pem     fehlt das Zertifikat, wird ein eigenes (selbst signiert) angelegt; off = http
 //	3. Port           Vorgabe 9004
 //	4. Webcraft       Vorgabe ./webcraft (je App ein Unterordner, z. B. ./webcraft/wordcraft); off = keine
-//	5. Admin + Startpasswort, nur solange der Speicher leer ist
+//	5. Lokale Benutzer fuer SMB abgleichen (illumos, Windows; Vorgabe ja, 0.72)
+//	6. Admin + Startpasswort, nur solange der Speicher leer ist
 //
 // Relative Pfade gelten ab dem Programmordner (team.cfg liegt dort), absolute Pfade sind erlaubt.
 // Kein ZFS noetig: CS_SNAPSHOT=off, Snapshots macht der Benutzer selbst. S3 nur durch Bearbeiten von team.cfg.
@@ -113,9 +114,10 @@ func menuSA(cfg string, c map[string]string, why error) (map[string]string, stri
 			os.MkdirAll(abs(wc), 0o755) // leer anlegen: Apps spaeter hineinkopieren
 		}
 		n["CS_WEBCRAFT"] = wc
+		askOSAccounts(n, c, "5. ")
 		pw := ""
 		if n["CS_DIR"] == "" || !usersExist(abs(n["CS_DIR"])) {
-			n["CS_ADMIN_USER"] = ask("5. Admin account (sysadmin)", dflt(c["CS_ADMIN_USER"], "admin"))
+			n["CS_ADMIN_USER"] = ask("6. Admin account (sysadmin)", dflt(c["CS_ADMIN_USER"], "admin"))
 			for {
 				pw = askSecret("   Admin start password (must be changed at first login)")
 				if err := auth.CheckPass(pw); err != nil {

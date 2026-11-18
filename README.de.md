@@ -1,392 +1,135 @@
 # cs-team
 
-Kleine und in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light"): Kalender (CalDAV), Calc, Text, Dateien (WebDAV),
-Aufgaben, Chat mit Videochat, Nachrichten und KI-Assistent. Ein Go-Binary, Web-UI eingebettet, Speicher: Ordner/ZFS oder S3 (RustFS).
+Kleine, in sich geschlossene Zusammenarbeits-Plattform ("Nextcloud light") als **ein Go-Programm** mit eingebauter Weboberfläche -
+ohne Datenbank, ohne Webserver-Stack. Kalender, Tabellen, Texte, Dateien, Aufgaben und Chat für Teams, Schulen und Vereine,
+im Browser am PC und am Handy. Speicher: ein Ordner (z. B. ZFS-Dataset) oder ein S3-Bucket.
 
-Funktionen im Überblick: Benutzer, Gruppen, Organisationen mit Rechten je Bereich; Kalender (persönlich, global, Gruppe, Ressource
-ohne Doppelbuchung, Internet-Abo; Serientermine mit Zeitzonen, Bearbeiten "nur dieser / dieser und folgende / alle", Maussteuerung (Klick auf Tag = neuer Termin, Umschalt+Klick = Mehrtagesbereich, Ziehen, Strg+X/C/V), Erinnerungen, Teilnehmer mit Einladungsmail, .ics-Import/-Export); Calc/Text mit gemeinsamer Live-Bearbeitung; Dateien mit Freigaben, öffentlichem Link (mit Ablauf), Gruppenordnern,
-Kontingent und Versionen aus ZFS-Snapshots; Aufgaben; Chat mit Umfragen; Videochat (extern oder eingebaut, mit Bildschirm teilen); Zwei-Faktor-Anmeldung (TOTP) mit App-Passwörtern; Nachricht per E-Mail/Webhook/Chat; KI-Assistent; dreizehn Sprachen.
-Start als eigenständige Kommandozeilen-App (ohne napp-it): [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) (englisch).
-Handbuch (PDF): <https://www.napp-it.org/pdf/cs-team_de.pdf> · English: <https://www.napp-it.org/pdf/cs-team_en.pdf>. Siehe auch README.md.
+cs-team hat drei Aufgaben:
+
+- **Zusammenarbeits-Server** - Kalender (CalDAV), Calc/Text mit gemeinsamer Live-Bearbeitung, Dateien (WebDAV), Aufgaben,
+  Chat mit Videochat, Nachrichten, KI-Assistent; 13 Sprachen.
+- **Zentrales Verzeichnis** - Benutzer, Passwörter und Gruppen mit fester uid/gid für das ganze Netz: eingebauter, nur lesender
+  LDAPS-Server, Client-Installer `cs-ldapclient`, lokale OS-/SMB-Konten auf dem cs-team-Rechner, AD/LDAP-Anmeldung mit Spiegelkonten.
+- **Hochverfügbarkeit** - Failover mit repliziertem ZFS-Dataset (Master / nur lesender Standby / Übernahme), Dienst-IP,
+  Übernahme der SMB-Konten und -Passwörter.
+
+Teil der Werkzeugfamilie von [napp-it 4ai (Client-Server-Edition)](https://napp-it.org) ([cs-tools](https://www.napp-it.org/cs-tools.html));
+lässt sich in der napp-it CS Web-GUI verwalten, läuft aber auch eigenständig.
+
+**Handbuch (PDF, Version 0.72):** [Deutsch](https://www.napp-it.org/pdf/cs-team_de.pdf) · [English](https://www.napp-it.org/pdf/cs-team_en.pdf)
+· English README: [README.md](README.md) · Änderungen: [CHANGELOG.md](CHANGELOG.md)
 
 ## Installation
 
-**In der napp-it ZFS Web-GUI (napp-it CS):** cs-team unter *About > Download cs tools* herunterladen, unter *System > Services > cs-team*
-einrichten und starten (Speicher-Ordner, Port, HTTPS, Admin; enable = Autostart).
-
-**Standalone-Setup (jedes Betriebssystem, ohne napp-it, kein ZFS nötig):**
-1. Programm für das Betriebssystem unter [Releases](https://github.com/guenther-alka/cs-team/releases) herunterladen und in einen eigenen
-   Ordner legen (z. B. `C:\cs-team` oder `/opt/cs-team`), Name `cs-team` bzw. `cs-team.exe`.
-2. Starten (Doppelklick unter Windows, `./cs-team` im Terminal). Ein kurzes Menü fragt die Einstellungen ab - Enter übernimmt die Vorgabe:
-   Daten-Ordner (`./`, Daten in `./.csteam`), PEM-Ordner (`./pem`, fehlt das Zertifikat, wird ein eigenes selbst signiertes angelegt),
-   Port (`9004`), Webcraft-Ordner (`./webcraft`, je App ein Unterordner) und das Admin-Startpasswort.
-3. Nutzen: im Browser `https://<rechner>:9004` öffnen und als `admin` anmelden (Startpasswort beim ersten Anmelden ändern).
-
-Die Einstellungen stehen in `team.cfg` neben dem Programm; spätere Starts kommen ohne Menü aus. Neu einrichten: `team.cfg` löschen (die Daten
-bleiben) oder `cs-team setup`. Snapshots/Backup macht der Benutzer selbst. Standalone auf einem napp-it-Server testen: leere Datei `standalone.set`
-neben das Programm legen. Mehr (Startskripte, Dienst, alle Optionen): Handbuch Kapitel 3.
-
-Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto (bcrypt).
-
-Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 für Schule und Kleinbetrieb - bewusst ohne eigenen Mailserver,
-Videokonferenz-Infrastruktur, Telefonie und volle docx/xlsx-Kompatibilität - bei deutlich weniger Komplexität als Teams, O365 oder Nextcloud
-(Ziel unter 10 %, qualitative Einschätzung): eine Datei, Copy and run, dateibasiert, keine Datenbank, im eigenen Haus und DSGVO-freundlich, leicht erweiter- und übersetzbar.
-KISS gewinnt, wenn sich Ziele widersprechen. Ehrliche KI-Einschätzung (Handbuch Kapitel 17, Version 0.61, Schätzungen): etwa 60 bis 70 % der täglich genutzten Funktionen sind abgedeckt;
-seitdem ergänzt: globale Suche, 1:1-Nachrichten und Threads, Erwähnungs-Benachrichtigung (Mail, ntfy), Gäste, Kommentare in Dokumenten und Anmeldung per OIDC; offen: natives Web-Push (ntfy deckt das Handy ab) und volle docx/xlsx-Treue.
-
-## Start
-
-Ad hoc ohne napp-it: Programm in einen Ordner kopieren und ohne Parameter starten (unter Windows z. B. per Doppelklick).
-Fehlt `team.cfg` neben dem Programm, fragt ein Textmenue die Einstellungen ab (Daten-Ordner, PEM-Ordner, Port,
-Webcraft-Ordner, Admin-Konto und Startpasswort), prueft sie (Ordner beschreibbar / S3 erreichbar, Port frei, Zertifikat lesbar),
-schreibt `team.cfg` neben das Programm und startet cs-team im Vordergrund (Strg+C beendet). Der naechste Start nutzt `team.cfg`
-direkt; `./cs-team setup` oeffnet das Menue erneut zum Aendern. Das Admin-Startpasswort steht nie in `team.cfg`: es legt nur den
-ersten Admin eines leeren Speichers an, der es bei der ersten Anmeldung aendern muss. Mit `-c <datei>`, `CS_CONF` oder
-`CS_*`-Variablen (napp-it, Startskripte) gibt es kein Menue; ohne Terminal und ohne gueltige `team.cfg` endet cs-team mit einer Fehlermeldung.
-Ist napp-it auf dem Rechner installiert (`/opt/csweb-gui/_cfg`, Windows `C:\opt\csweb-gui\_cfg`), nutzt cs-team dieselbe Konfiguration
-wie das napp-it-Menue System > Services > cs-team (`_cfg/team/team.cfg`); das Setup-Menue liest und schreibt dann `team.par` und
-`team.cfg` von napp-it, beide zeigen immer dieselben Einstellungen. Eine Datei `standalone.set` neben dem Programm (Inhalt egal)
-schaltet das ab: cs-team verhaelt sich dann wie ohne napp-it (`team.cfg` und `webcraft` neben dem Programm).
-
-Standalone-Menue (kein ZFS noetig, Snapshots macht der Benutzer selbst): 1. Daten-Ordner, Vorgabe `./` (Daten in `./.csteam`),
-2. PEM-Ordner, Vorgabe `./pem` (fehlt das Zertifikat, legt cs-team ein eigenes selbst signiertes `cert.pem`/`key.pem` an; `off` = http),
-3. Port, 4. Webcraft-Ordner, Vorgabe `./webcraft` mit je App einem Unterordner, z. B. `./webcraft/wordcraft`, 5. Admin-Konto und
-Startpasswort (nur solange der Speicher leer ist). Relative Pfade in einer Konfigurationsdatei gelten ab deren Ordner (bei `team.cfg`
-der Programmordner), absolute Pfade sind erlaubt. S3-Speicher: `team.cfg` bearbeiten. Standalone zeigt die Oberflaeche nur die
-Webcraft-Apps aus dem eigenen Ordner, nie die von napp-it/cs-proxy.
-
-Webcraft-Apps (WordCraft, GridCraft, PDFCraft ...): cs-team liefert sie unter `/webcraft/<app>/` selbst aus (ohne cs-proxy), aus
-`CS_WEBCRAFT` (`off` = keine), sonst `_my/wwwroot/webcraft` von napp-it, sonst Ordner `webcraft` neben dem Programm
-(je App ein Unterordner mit `index.html`).
-
-Mit Umgebungsvariablen:
-
-    export S3_ENDPOINT=127.0.0.1:9000 S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team S3_TLS=0
-    export CS_ADMIN_USER=admin CS_ADMIN_PASS=geheim     # nur beim ersten Start (legt users.json an)
-    ./cs-team                                           # :8080  (CS_LISTEN ändert das)
-    ./cs-team adduser anna geheim2 [admin]              # Benutzer anlegen / Passwort setzen (optional als Admin)
-    CS_MEM=1 ./cs-team                                  # Demo ohne RustFS (RAM)
-
-Bitte hinter TLS-Proxy betreiben (Standard ist das Anmeldeformular; `CS_LOGIN_FORM=0` = Basic Auth im Browser).
-
-## Benutzerverwaltung
-
-`users/users.json`: `name -> {hash (bcrypt), admin, disabled, created}` (Altformat `name -> hash` wird gelesen).
-Der Start mit `CS_ADMIN_USER`/`CS_ADMIN_PASS` legt den ersten Admin an, aber nur wenn noch kein Benutzer existiert. Dieses Konto ist der **Sysadmin**: lokales cs-team-Konto, immer Admin und aktiv, nicht löschbar, sperrbar oder herabstufbar; sein Passwort ändert nur es selbst oder die Kommandozeile (`cs-team sysadmin NAME` bestimmt ein anderes lokales Konto). Weitere globale Admins und Gruppen-Admins dürfen lokale Konten oder Verzeichniskonten sein; die Rolle wird immer lokal vergeben.
-Admins (Web-UI: "Benutzer"): anlegen, löschen (optional mit Kalendern), sperren, Admin-Rolle, Passwort zurücksetzen.
-Jeder Benutzer: eigenes Passwort ändern ("Konto"). Der letzte aktive Admin ist geschützt.
-Passwort 8..72 Bytes; triviale Passwörter (z. B. `password1`, `12345678`, `qwertzui`) werden abgelehnt. Startpasswörter
-(`CS_ADMIN_PASS`, `adduser`, Passwort-Reset durch Admin) müssen beim ersten Login geändert werden.
-5 Fehlversuche je Benutzer+IP sperren 5 Minuten (429). Zusätzlich sperrt eine Adresse nach `CS_MAX_FAILS_IP`
-Fehlversuchen (Standard 60, wegen Schul-NAT/Proxy); bereits angemeldete Benutzer (Auth-Cache) sind von dieser
-Adress-Sperre ausgenommen, Fehlerzähler verfallen nach 15 Minuten Ruhe. `CS_TRUST_PROXY=1` wertet
-`X-Forwarded-For` aus (nur hinter eigenem Proxy). Anmelde-Voreinstellungen (Verzeichnis/LDAP): `CS_IDENTITY_MODE`
-(local|dir|mixed), `_REALM`, `_REALM_DEFAULT`, `_URL`, `_BASE`, `_BIND_DN`, `_BIND_PW`, `_STARTTLS`, `_ADMIT_GROUPS`,
-`_LOCAL_GROUP`, `_ALLOW_LOCAL`, `_CACHE_DAYS`; Einstellungen in der Oberfläche überschreiben sie. Gelöschte/gesperrte Benutzer verlieren den Zugriff sofort
-für neue Anfragen; offene Calc/Text-Verbindungen verlieren Rechte spätestens nach 15 Sekunden (seit 0.13.9).
-Dokumente eines gelöschten Benutzers bleiben; Admins können sie freigeben oder löschen.
-
-REST: `GET /api/me`, `POST /api/me/password`, `GET /api/users`, `POST /api/users`,
-`POST /api/users/<n>/password|flags`, `DELETE /api/users/<n>[?purge=1]`.
-
-## Anmeldung, Rollen und Gruppen (0.62)
-
-- **Anmeldung:** Standard ist ein Anmeldeformular mit Sitzungs-Cookie (`cs_session`; `CS_LOGIN_FORM=0` = HTTP Basic im Browser); WebDAV/CalDAV bleiben bei Basic bzw. App-Passwort. Jeder Benutzer wählt selbst lokales Passwort oder OIDC. Kontoarten: **lokal**, **Verzeichnis** (LDAP/AD, `name@realm`) und **OIDC**. Lokale Namen wie `anna@schule.de` sind erlaubt (eindeutig, zugleich Kontakt-Mail); der Realm des Verzeichnisses bleibt für lokale Konten gesperrt. **Anmeldeart ergibt sich aus dem Namen** (ohne `@` lokal mit Passwort oder OIDC, `name@realm` Verzeichnis; gesperrt, solange keins eingerichtet ist). **Passwort vergessen** auf der Anmeldeseite: Link per Mail (1 h, einmalig, in der Kontosprache, Standard Englisch) für aktive lokale Konten mit Mail, ohne Admins, Gäste, Verzeichnis- und 2FA-Konten; danach neues Passwort oder OIDC, Logeintrag. **OIDC für Google und Microsoft** lässt sich unter Einstellungen hinterlegen (öffentliche https-Adresse nötig, Secret nur schreibbar, hat Vorrang vor `CS_OIDC_*`).
-- **Initialpasswörter:** Der Admin lädt in einer Gruppe eine Benutzerliste hoch (`name[, mail[, passwort]]`; Kopfzeile `org: meine.schule.de` hängt die Domain an), erzeugt Initialpasswörter (30 Tage gültig, einmal angezeigt, gespeichert wird nur der Hash, Pflichtwechsel beim ersten Login) und stellt sie optional per Mail zu. *Neu konfigurieren* vergibt ein neues Initialpasswort und löscht OIDC-Verknüpfung, Zwei-Faktor und App-Passwörter. REST: `POST/GET /api/groups/<g>/userlist`, `POST /api/groups/<g>/initpw`, `POST /api/users/<n>/reconfigure`.
-- **OIDC** (Google, Microsoft, generisch; nur mit Anmeldeformular): `CS_OIDC=google,ms,keycloak`, `CS_OIDC_BASE=https://team.example.org` (Rückkehradresse `BASE/oidc/callback`), je Anbieter `CS_OIDC_<ID>_CLIENT_ID`, `_CLIENT_SECRET`, `_ISSUER`, `_NAME`, `_SCOPE`; Microsoft nur mit fester Mandanten-ID `CS_OIDC_MS_TENANT`. Der Benutzer meldet sich einmal mit dem Initialpasswort an und verknüpft sein Konto selbst (Authorization Code + PKCE, eigene id_token-Prüfung, Kennung = Aussteller + `sub`, nie die Mail-Adresse). Danach gilt nur noch OIDC (Passwort *oder* OIDC). Der Sysadmin und Verzeichniskonten nutzen kein OIDC (Notfallzugang bleibt lokal); globale Admins dürfen verknüpfen, ein verknüpfter Admin wird nur vom Sysadmin zurückgesetzt.
-- **Rollen:** Der *Sysadmin* (`CS_ADMIN_USER` bzw. `cs-team sysadmin NAME`) ist der Startup-Admin und immer globaler Admin; nur er legt weitere globale Admins an und bearbeitet sie. Globale Admins verwalten alles andere samt Gruppen-Admins und sehen andere Admins nur. Feste Systemgruppen: `globaladmins` (Mitgliedschaft = Admin-Recht, Aufnahme/Entzug nur Sysadmin) und `groupadmins` (aus den Admin-Listen berechnet, globale Admins dürfen entfernen); nicht lösch- oder umbenennbar. Zwei-Faktor bleibt freiwillig (für Admins per Einstellung Pflicht).
-- **Benutzerseite:** Anmeldeart, Zwei-Faktor-Stand, *zuletzt gesehen* (im Speicher je Anfrage, stündlich in `users.json`; nicht für Verzeichniskonten) und die Rolle in einem Satz. Gruppen haben eine editierbare Beschreibung (z.B. `kurs23` - 3D Einführung Prof. Muster).
-- **Nachricht:** Admins einer Gruppe senden per Gruppen-Chat, Mail und externer Chat-Adresse; Mitglieder (wenn die Gruppe das Senden erlaubt) nur in den Gruppen-Chat.
-- Listen links lassen sich mit Text oder (bei Sonderzeichen) als regulärer Ausdruck filtern.
-
-## Oberfläche
-
-Oben die Hauptnavigation (Benutzer, Kalender, Calc, Text, Files), links je Bereich `add` / `sel` (Liste) / `del`,
-rechts der Inhalt. Mess (Benachrichtigungen wie cs-send) folgt.
-
-## Files und WebDAV
-
-Flache Ablage pro Benutzer (`files/<owner>/<name>`, Metadaten unter `filesmeta/`). Upload wird gestreamt
-(`CS_MAX_UPLOAD_MB`, Standard 100). Gleicher Name ersetzt die ganze Datei (kein Merge; für gemeinsames
-Bearbeiten Calc/Text verwenden).
-Teilen pro Datei: ausgewählte Benutzer (lesen / schreiben), **Team** (alle angemeldeten Benutzer, technisch `"*"`
-in der Lese-/Schreibliste; gilt auch für Calc/Text) und optional ein öffentlicher Link `/pub/<token>` (nur lesen,
-widerrufbar). PDF, Bilder und Text werden im Browser angezeigt, alles andere (HTML, SVG, ...) nur als Download. Downloads unterstützen Range (Teilabrufe, Spulen, Fortsetzen) und ETag/304.
-
-WebDAV: `https://host/webdav/` (Basic Auth, dieselben Rechte wie im Browser). Root = eigene Dateien,
-`shared/<besitzer>/` = mit mir geteilt. Keine Ordner (MKCOL = 403). COPY/MOVE nur innerhalb der eigenen Dateien.
-Getestet mit dem Protokoll; im Windows-Explorer ist WebDAV wählerisch (HTTPS nötig) - rclone, WinSCP,
-Cyberduck oder macOS-Finder funktionieren zuverlässiger. Seit 0.14.2 meldet der Server DAV-Klasse 2 (`LOCK`/`UNLOCK`): exklusive
-Schreibsperre je Datei im Speicher des Prozesses (Standard 10 Minuten, höchstens 1 Stunde, Erneuerung per `If`-Token, lock-null legt eine
-leere Datei an). Gesperrt ist die Datei für alle anderen Benutzer, im Browser wie per WebDAV (HTTP 423); der Sperrende darf auch ohne
-Token schreiben. Nach einem Neustart sperren die Clients neu.
-
-**Papierkorb (0.14.2).** Löschen (Browser, WebDAV, REST) verschiebt Dateien nach `files/<besitzer>/.trash/<id>` (Metadaten mit
-Ursprungspfad, Löscher, Zeit); der Name `.trash` ist reserviert. Aufbewahrung: Einstellungen > Dateien "Papierkorb: Tage" (Standard 30,
-Vorgabe `CS_TRASH_DAYS`, 0 = kein Papierkorb, sofort endgültig). Stündlicher Lauf entfernt abgelaufene Einträge. Der Papierkorb zählt zum
-Kontingent; bei Platzmangel werden zuerst die ältesten Einträge endgültig gelöscht. Gruppenordner: Verwalter sehen und stellen wieder her.
-REST: `GET /api/trash`, `POST /api/trash/<besitzer>/<id>/restore` (bei belegtem Namen neuer Name, Antwort `{"name":...}`),
-`DELETE /api/trash/<besitzer>/<id>`, `DELETE /api/trash[?owner=@gruppe]` (leeren), `POST /api/settings/trash {"days":n}` (Admin).
-Ein Gruppenordner lässt sich erst löschen, wenn sein Papierkorb leer ist.
-
-REST: `GET/POST /api/files`, `GET/DELETE /api/files/<owner>/<name>`, `POST .../share`, `GET /pub/<token>`;
-Kalender: `GET/POST /api/cal`, `PUT /api/cal/<id>` (Name, Beschreibung, Freigabe, Ressource, Abo-URL), `DELETE /api/cal/<id>`,
-`GET/POST /api/cal/<id>/events`, `PUT/DELETE .../events/<file>`
-(`scope=one|following|all` mit `rid`), `GET /api/cal/<id>/export.ics`, `POST /api/cal/<id>/import` (Body: .ics), `POST /api/cal/<id>/refresh`.
-
-**Kalender (0.15.0).** Termine haben optional eine **Erinnerung** (`VALARM`, im Termin gespeichert, kein Mailversand durch den Server) und
-**Teilnehmer** (`ATTENDEE`/`ORGANIZER`; Benutzername oder E-Mail-Adresse). Ist SMTP eingerichtet, gehen Einladung, Aktualisierung und Absage als
-Mail mit .ics (iMIP, `METHOD:REQUEST`/`CANCEL`) hinaus, höchstens 100 Empfänger je Benutzer und Stunde; Zu-/Absagen werden nicht ausgewertet.
-"Dieser und folgende" trennt die Serie (alte Serie endet mit `UNTIL`, neue Datei/UID ab dem gewählten Termin). Für Termine mit Zeitzone wird eine
-`VTIMEZONE` eingebettet (iOS, macOS, Outlook). Abos zeigen letzten Abruf und Fehler und lassen sich sofort aktualisieren.
-Admins sehen unter Einstellungen > Dateien die **Belegung** je Besitzer (`GET /api/filesusage`).
-
-## Export / Import (Text und Calc <-> Files)
-
-Nur Go-Standardbibliothek (package `conv`). Übernommen werden Inhalt und einfache Formate: Zeichenformate (fett, kursiv, unterstrichen, durchgestrichen, Farbe, Größe, Hintergrund), Listen, Einrückung, Kommentare (Word-Kommentare) bzw. Zellwerte, Formeln, Zellformate und Notizen (Excel-Notizen). Nicht: Schriftarten, Seitenformat, Bilder, Diagramme, Makros, mehrere Blätter. PDF-Export mit Standardschrift Helvetica (Latin-1 und Euro).
-
-| Typ | Export | Import |
-|-----|--------|--------|
-| Text | `.txt` `.rtf` `.docx` `.pdf` `.cstext` | `.txt` `.docx` `.cstext` |
-| Calc | `.csv` `.xlsx` `.pdf` `.cscalc` | `.csv` (`,` oder `;`, UTF-8/Latin-1) `.xlsx` (erstes Blatt) `.cscalc` |
-
-`.cstext` / `.cscalc` sind das eigene Format (JSON, `"format":"cs-team/text"` bzw. `"cs-team/calc"`) und ermöglichen
-die eindeutige Zuordnung in der Ablage. UI: im Dokument `Export: [Format] [Download] [-> Files]`, beim Anlegen
-`Aus Files importieren` und `Aus lokaler Datei importieren` (Dateiauswahl von der lokalen Platte, z. B. in Word,
-Excel, Wordcraft oder Gridcraft gespeichert; Name aus dem Dateinamen vorbelegt, Gruppenfreigabe wie beim Anlegen;
-gleiche Formate und Prüfung wie beim Import aus Files; jeder Import legt ein neues Dokument an, nichts wird überschrieben).
-REST: `GET /api/docs/<id>/export?format=`, `POST /api/docs/<id>/tofiles?format=`,
-`POST /api/docs/import {"owner","file","name"}` (Quelle: eigene oder mit dem Benutzer geteilte Datei; das neue
-Dokument gehört dem Benutzer), `POST /api/docs/importfile?file=<name.ext>&name=<optional>` (Body = Dateiinhalt von der lokalen Platte;
-das neue Dokument gehört dem Benutzer).
-
-## Verlauf, Schreibschutz und frühere Stände von Calc und Text (0.63)
-
-Im Dokument das Feld **Verlauf** (Ersteller und Admins). Echte Versionierung machen die ZFS-Autosnap-Jobs des Betreibers (z.B. die letzten 20 stündlichen Snapshots mit `delzero`, `hold` für wichtige Stände); cs-team zeigt sie nur.
-
-- **Änderungsliste (nur Admins):** `GET /api/docs/<id>/changes` → Herkunft (`ai` reine KI-Arbeit, `ai-edited`, `human`, `unknown`), Ersteller, Bearbeiter und die Liste mit Zeit, Benutzer, Aktion (`create`, `edit`, `readonly`, `editable`) und Zähler `set`/`del` mit den Zellnamen, **nie dem Inhalt**. Bearbeitungen desselben Benutzers innerhalb von 10 Minuten werden zusammengefasst, höchstens 500 Einträge in `doc/<id>/changes.json`. Quellen beim Anlegen: `user`, `ai` (KI-Vorschlag, KI-Recherche), `import` (Datei), `merge`, `snapshot`.
-- **Frühere Stände:** `GET /api/docs/<id>/versions` (Ersteller/Admin) liest `.zfs/snapshot/*/doc/<id>/snapshot.json` (nur lesend, Symlinks nie verfolgt, bis 50 Stände, die 300 neuesten Snapshots, ohne Stand gleich dem aktuellen; nur bei Ordner/ZFS, nicht bei S3). `POST /api/docs/<id>/fromversion {"snap"}` legt ein **neues schreibgeschütztes** Dokument `Name_JJJJ-MM-TT_HH-MM` an (Besitzer: wer importiert, Schreibrecht im Bereich nötig); das Original bleibt.
-- **Schreibschutz:** `POST /api/docs/<id>/readonly {"ro":true|false}` (Ersteller/Admin): das Dokument ist für alle nur lesbar bzw. wieder mehrbenutzerfähig; offene Fenster folgen sofort. Der Zustand steht in den Metadaten (`ro`).
-- Test: `go test ./store ./doc`, `livetest` (79 Prüfungen), Handtest mit echtem Snapshot auf OmniOS (`livetest/snapflow`).
-
-## Text: Zusammenfügen, Zusammenfassen, KI-Recherche (0.62)
-
-Menü Text, `+ add`: Ergebnis ist immer ein neues cs-text-Dokument (Mehrbenutzer) oder ein PDF in Files.
-
-- **Zusammenfügen (ohne KI):** 2 bis 20 Quellen (`.pdf .docx .txt .cstext`, eigene und freigegebene, dazu Text-Dokumente) in der Reihenfolge der Auswahl. Ziel PDF: PDFs werden direkt verbunden (`conv/pdfmerge.go`; Lesezeichen, Formularfelder, Dokumentinfo gehen verloren, verschlüsselte PDFs werden abgelehnt), Word/Text vorher als PDF gesetzt. Ziel cs-text: eine fette Titelzeile je Quelle, PDFs als Text. REST: `POST /api/docs/merge`.
-- **Zusammenfassen (KI):** bis 4 Quellen, Funktionen Zusammenfassen, Stichpunkte, Aufgaben und Termine; gleicher Weg und gleiche Rechte wie das KI-Widget (40000 Zeichen je Datei, PDF bis 8 MB), Ergebnis bearbeitbar, speichern als cs-text oder PDF (`POST /api/docs/fromtext`).
-- **KI-Recherche:** Frage (die nur Thema ist, nie Anweisung) und Niveau: 1 einfache Sprache (Kurzübersicht, etwa 250 Wörter), 2 fachlich (Kurzreferat, 400-700 Wörter), 3 wissenschaftlich abwägend (Analysereferat, 900-1400 Wörter). Quellen so gut wie möglich: Websuche des KI-Anbieters (Anthropic, OpenAI-Suchmodelle), sonst Quellensuche durch cs-team (Wikipedia, OpenAlex und, wenn der Admin einen Dienst eingerichtet hat, Brave Search oder SearXNG: *Einstellungen > Websuche für die KI-Recherche*), sonst nur das Wissen der KI. Das Ergebnis trägt vom Programm erzeugte Rahmenbedingungen, einen Faktencheck mit genau einem Urteil, eine Quellenbewertung und "So prüfst du es selbst"; keine erfundenen Quellen, Webinhalte gelten als nicht vertrauenswürdig. Übersetzen in jede Oberflächensprache ersetzt den Text (`POST /api/ai/translate`), Original lässt sich wiederherstellen.
-- Calc: durchgestrichene Zellen zählen als leer (Strg+Umschalt+X), Zellnotizen (Umschalt+F2), PDF-Export; Text: Durchgestrichen und Kommentare.
-
-## Gruppen, Rechte, Speicher (0.5.0)
-
-- Jeder Benutzer gehoert mindestens einer Gruppe an (Standard `users`); Rechte = Vereinigung der Gruppen.
-- Gruppe schaltet Bereiche frei: cal, calc, text, files. Globale Admins duerfen alles verwalten, Gruppen-Admins
-  die Mitglieder ihrer Gruppe. Freigaben von Dokumenten/Dateien: `g:<gruppe>`, `*` (alle) oder Benutzername.
-- Gruppenordner (Files): `folder` = `ro` (Mitglieder lesen, Gruppen-Admins schreiben) oder `rw`; WebDAV `/webdav/groups/<gruppe>/`.
-- Kalender hierarchisch: persoenlich (`<benutzer>`), Gruppe (`@<gruppe>`), Organisation (`+<organisation>`) und global
-  (`_global`), dazu Abos (ICS-URL, immer nur lesen). UI: von innen nach aussen sortiert, die gewaehlten Kalender liegen
-  uebereinander. Verantwortlich: persoenlich der Benutzer, Gruppe deren Gruppen-Admins (sie sehen ihren Gruppenkalender
-  auch ohne Mitgliedschaft), Organisation/global die globalen Admins. Freigabe je Kalender: `off` (nur Verantwortliche),
-  `ro` (Berechtigte lesen) oder `rw` (Berechtigte tragen ein). Gruppenkalender entstehen beim Anlegen der Gruppe (Haken
-  *Gruppenkalender anlegen*, Vorlagen `team`/`klasse`) oder spaeter in den Gruppen-Einstellungen des globalen Admins: `cal`
-  = `""` (keiner bzw. entfernen - nur solange er leer ist), `off`, `ro`, `rw`. `GET /api/groups` nennt je Gruppe `cal`,
-  `POST /api/groups/<gruppe>` setzt ihn (`GET/PUT /api/cal/<id>`, Kalender-Menue *Bearbeiten*, koennen dasselbe).
-- CSV: `POST /api/users/import` (`name;passwort;gruppe1,gruppe2`), `GET /api/users/export`, `GET /api/groups/export`.
-- JSON (ab 0.61, Sicherung und Migration): `GET /api/users/exportjson` (globaler Admin: alle Benutzer und Gruppen mit allen Feldern; Gruppen-Admin: nur eigene Gruppen; selektiv mit `&users=a,b` / `&groups=g1,g2`; `&pw=1` nimmt den Passwort-Hash mit, `&secrets=1` zusaetzlich TOTP-Schluessel, Wiederherstellungscodes und App-Passwoerter - beides Standard aus), `POST /api/users/importjson` (nur globaler Admin; `&create=1` legt unbekannte Gruppen an, `&update=1` ueberschreibt vorhandene, `&genpw=1` erzeugt Startpasswoerter, wenn die Quelle keinen Hash liefert, z.B. Windows oder AD/LDAP; die Passwoerter stehen nur in der HTTP-Antwort). Siehe Handbuch Kapitel 15.
-- Speicher: `S3_*` (RustFS/S3-Bucket) oder `CS_DIR=/pfad` (Ordner/ZFS-Dataset, Daten in `/pfad/.csteam`, ein Prozess je Ordner).
-  Konfigdatei `-c datei` oder `CS_CONF` (KEY=VALUE, gesetzte Umgebungsvariablen gewinnen).
-
-## Zentrales Verzeichnis (LDAP) und Hochverfügbarkeit (0.67 / 0.68)
-
-**cs-team als LDAP-Server (0.68):** `CS_LDAP=:636` (mit `CS_TLS_CERT`/`CS_TLS_KEY`) startet einen kleinen, nur lesenden LDAPv3-Server, nur über LDAPS. Benutzer: `uid=<name>,ou=people,<base>`
-(posixAccount/inetOrgPerson mit uid, uidNumber, gidNumber der Gruppe `alluser`, homeDirectory, loginShell, mail), Gruppen: `cn=<gruppe>,ou=groups,<base>` (posixGroup mit flachen `memberUid`; nur Gruppen mit
-dem Schalter *Export*). `CS_LDAP_BASE` (Standard `dc=csteam,dc=local`), `CS_LDAP_READER` = Konto, das alles sieht; andere Benutzer sehen nur ihren eigenen Eintrag, anonym nur die Wurzel-DSE (mit `CS_LDAP_ANON=1` auch Benutzer und Gruppen, noetig fuer macOS-Clients, nie Passwoerter); Schreiben wird
-abgelehnt (53). Konten mit Zwei-Faktor, OIDC-Verknüpfung oder Verzeichnisquelle können sich nicht per LDAP anmelden. Auf OmniOS mit OpenLDAP `ldapsearch` geprüft; Einrichtung der Clients je Betriebssystem: Handbuch Kapitel 19.
-
-**Client-Installer `cs-ldapclient` (0.68.2):** ein kleines Konsolenprogramm je Betriebssystem (`cs-ldapclient-windows.exe`, `-linux`, `-freebsd`, `-osx`, `-osx-arm64`; auch als `cs-ldapclient.zip`
-für einen USB-Stick) richtet aus einer gemeinsamen `ldap.cfg` (Server, Lesekonto, Zertifikat, Gruppe = lokale Gruppe) die Anmeldung mit cs-team-Konten ein: Windows mit pGina, Linux und FreeBSD
-mit sssd, macOS mit Open Directory. Jeder cs-team-Benutzer darf sich an jedem Rechner anmelden, Gruppen bestimmen nur die lokalen Rechte, das lokale Profil wird beim Abmelden gelöscht.
-macOS braucht `CS_LDAP_ANON=1`. Handbuch Kapitel 20.
-
-**Labortest pGina + SMB (Nov. 2026, cs-team 0.71.0 auf OmniOS als LDAPS- und SMB-Server, Clients Windows 11 mit pGina und Debian 12 mit sssd):** Anmeldung mit cs-team-Konten
-auf beiden Clients (LDAPS mit Zertifikatsprüfung); die Gruppenregeln setzen die lokalen Rechte (`lehrer` -> Administratoren, `klasse5a` -> Benutzer). pGina legt bei jeder Anmeldung ein
-neues lokales Konto an und löscht beim Abmelden Konto, Profilordner und Registry-Eintrag, **die Windows-SID ist also bei jeder Anmeldung neu** - SMB-Rechte und HA hängen deshalb am
-Benutzernamen bzw. an der cs-team-uid, nie an der SID des Clients (`docs/HA_SPEC.md`, Abschnitt 12). SMB-Zugriff auf eine Freigabe des OmniOS-Rechners mit den cs-team-Namen und
--Passwörtern (SMB-Passwörter über `pam_smb_passwd`) liefert unter Windows (`net use`) und Linux (`mount.cifs`) dasselbe Ergebnis: `lehrer` lesen und schreiben, `klasse5a` nur lesen,
-uid/gid aus cs-team auf allen Rechnern gleich.
-
-**Kontoarten:** lokale Benutzer mit lokalem Passwort (auch als LDAP-Benutzer für andere Clients), lokale Spiegelkonten einer entfernten AD-Domäne und lokale Spiegelkonten eines entfernten LDAP-Verzeichnisses (das Passwort bleibt dort).
-
-**Failover (0.67):** Der Datenordner liegt in einem ZFS-Dataset, das ein **von Hand angelegter und verwalteter Replikationsjob** (z. B. napp-it) auf einen zweiten Rechner kopiert. Startoptionen `CS_FAILOVER=master|standby|takeover`
-(`CS_HA_NAME`, `CS_HA_ASSUME_OFF`, `CS_HA_FORCE`); Standby liest nur (Schreiben: 503), `takeover` stuft hoch (Epoche + 1); die HA-Gruppe steht in *Einstellungen > Hochverfügbarkeit*. Ein Failover **mit Erhalt der
-SMB-Rechte** funktioniert am besten mit **OmniOS/illumos** (Windows-SID als ZFS-Attribut, ACLs bleiben in replizierten Dateisystemen, Benutzer und SMB-Passwörter bleiben erhalten). Handbuch Kapitel 18, `docs/HA_SPEC.md`.
-Menü im napp-it CS Web-GUI: System > Services > cs-team (Failover- und LDAP-Felder). Eigenständiges Startskript (Alternative zum napp-it-Start): Handbuch Kapitel 21.9.
-
-## Sprachen (0.6.0)
-Die Oberfläche gibt es in de, en, fr, es, it, ru, cn, tr, ar (rechts-nach-links), uk, pl, el und ja. Die Auswahl steht oben rechts und wird im
-Benutzerkonto gespeichert; ohne Auswahl gilt die Browsersprache, sonst `CS_LANG` (Standard de).
-
-Weitere Sprachen, z.B. für Schüler mit anderem Sprachhintergrund: `CS_LANGDIR=/pfad/lang` setzen und dort `<code>.json`
-ablegen (z.B. `fa.json`, `uk.json`). Die Datei erscheint sofort in der Auswahl (Name aus `"_name"`). Aufbau: ein JSON-Objekt,
-Schlüssel = deutscher Text, Wert = Übersetzung; fehlende Einträge fallen auf Deutsch zurück. Als Vorlage dient
-`web/lang/_template.json`: Datei einer KI geben ("übersetze die Werte nach Ukrainisch, Platzhalter {0} {1} und Leerzeichen am
-Rand behalten, `_name` ergänzen"). Dateien in `CS_LANGDIR` überschreiben gleichnamige eingebaute Texte, so lassen sich auch
-einzelne Begriffe anpassen (z.B. "Gruppe" → "Klasse"). Rechts-nach-links-Schrift wird für ar, he, fa, ur automatisch gesetzt.
-
-## Layout im Bucket
-
-    users/users.json                     name -> bcrypt
-    cal/<user>/<kalender>/_meta.json     Name, Beschreibung
-    cal/<user>/<kalender>/<uid>.ics      ein Termin = ein Objekt
-    doc/<id>/meta.json                   Name, Typ (sheet|text), Owner, Read[], Write[]
-    doc/<id>/snapshot.json               {"items":{key:{v,pos,ts,by,del}}}
-    files/<owner>/<name>                 Dateiinhalt
-    filesmeta/<owner>/<name>.json        Größe, Typ, Freigaben, Token
-    filestok/<token>                     "<owner>/<name>" (öffentlicher Link)
-
-## CalDAV
-
-URL: `https://host/dav/` (auch `/.well-known/caldav`). Thunderbird, DAVx5, iOS, macOS.
-Ein Client sieht genau die Kalender, die der Benutzer sehen darf (eigene, Gruppen-, Organisations- und globale Kalender
-sowie Abos); nicht freigegebene Kalender (`off`) fehlen in der Liste und sind per Direktzugriff 404. Geschrieben wird nur
-dort, wo die Freigabe es erlaubt (`rw` oder als Verantwortlicher/Admin); Abos sind immer nur lesbar (403).
-Schreiben mit `If-Match` / `If-None-Match: *` wird auf S3-ETags abgebildet (412 bei Konflikt).
-Eigene Kalender darf der Besitzer immer ändern und löschen (die Freigabe regelt nur den Zugriff anderer); ist der Bereich
-*Kalender* für den Benutzer nur lesend (Gruppen-Vorlage `klasse`), bleibt auch der eigene Kalender gesperrt (403).
-Neue Kalender entstehen in der Oberfläche (Kalender-Leiste → **+ add**); per CalDAV legt `MKCOL` mit `<c:calendar/>`
-einen Kalender an, `MKCALENDAR` beantwortet der WebDAV-Server mit 405.
-
-**Einen Kalender als Datei** (für Programme ohne CalDAV oder zum Weitergeben): in der Kalender-Leiste **Exportieren (.ics)**
-= `GET /api/cal/<id>/export.ics` (alle Termine des gewählten Kalenders, mit Zeitzone/`VTIMEZONE`, Dateiname aus dem
-Kalendernamen; funktioniert auch für nur lesbare Kalender und Abos). Zurück in einen beschreibbaren Kalender:
-**Importieren (.ics)** = `POST /api/cal/<id>/import` (nach UID, wiederholter Import erzeugt keine Dubletten).
-
-## Calc und Text (LWW)
-
-Beide sind dieselbe Map key -> Item. Der Server vergibt pro Änderung einen monotonen Zeitstempel,
-der neuere gewinnt: bei Calc pro Zelle (`A1`), bei Text pro Absatz (Reihenfolge über `pos`, Fließkomma).
-Löschen = Tombstone. Snapshot wird 2 s nach der letzten Änderung geschrieben (ETag-Update, bei
-Konflikt LWW-Merge). WebSocket: `/ws/<id>`, Nachrichten `{"t":"set","k":"A1","v":"=A2*2"}` / `{"t":"del","k":..}`.
-Formeln (+ - * / SUM(A1:B3)) rechnet der Browser.
-
-REST: `GET/POST /api/docs`, `POST /api/docs/<id>/share {"read":[],"write":[]}`,
-`GET /api/docs/<id>/export` (CSV / Text), `DELETE /api/docs/<id>`.
-
-## Chat und Nachricht (0.8.0)
-
-Hauptmenü **Chat**: je Gruppe ein Chat mit Kanälen (`#allgemein` immer; weitere anlegen je nach Gruppeneinstellung), Live per WebSocket,
-Anhänge (max. `CS_CHAT_MAX_MB`, Standard 10), @Name, Reaktionen, Bearbeiten/Löschen, Ungelesen-Markierung. Hauptmenü **Nachricht**: Text
-an alle Mitglieder einer Gruppe per E-Mail, externe Chat-Adresse (Webhook) und/oder Gruppen-Chat. Je Gruppe einstellbar: Chat (Mitglieder
-schreiben / nur Admins schreiben / aus), Kanäle anlegen (nur Admins / jedes Mitglied / niemand), Nachricht senden (nur Admins / jedes
-Mitglied / aus; Standard nur Admins). Benutzer pflegen E-Mail und Chat-Adresse im Konto (Admins auch bei anderen).
-
-Einstellungen (Mail/SMTP, öffentliche Adresse, Webhooks in private Netze): Klick auf den Titel „cs-team“ (nur globale Admins), gespeichert in
-`settings.json` im Speicher, wirksam ohne Neustart. Die Umgebungsvariablen `CS_SMTP_HOST`, `CS_SMTP_PORT` (587), `CS_SMTP_TLS` (`starttls`|`ssl`|`none`),
-`CS_SMTP_USER`, `CS_SMTP_PASS`, `CS_SMTP_FROM` und `CS_CHAT_ALLOW_PRIVATE=1` gelten nur als Vorgabe, solange dort nichts gespeichert ist.
-Webhooks in private Netze sind sonst gesperrt (SSRF-Schutz). Start-Parameter (Port, Speicher, HTTPS, Admin) bleiben im Dienst/Menü.
-Webhook-Formate: Slack (`{"text"}`), Discord (`{"content"}`), Telegram (`text=`), sonst text/plain (z.B. ntfy).
-
-## Handy (0.10.0)
-
-Bis 760 px Breite zeigt cs-team Liste und Inhalt nacheinander (Pfeil links oben = zurueck). Ohne Installation im Browser nutzbar; Calc ist per Touch eingeschraenkt.
-
-Besonderheiten Android (Handbuch Kapitel 6.1):
-- Browser: **Firefox** verwenden. Chrome lehnt das eigene (selbst signierte) Zertifikat oft ab (`ERR_TOO_MANY_RETRIES`).
-- Kalender (iCal/CalDAV): **DAVx5** installieren (F-Droid kostenlos), URL `https://server:9004/dav/`.
-- Die Kalender im DAVx5-Konto (CalDAV) anhaken und **zusätzlich in der Kalender-App einschalten** (z.B. Google Kalender › ☰ › Kalender des DAVx5-Kontos anhaken), sonst bleiben sie unsichtbar.
-- Läuft cs-team im **lokalen Netz**, muss DAVx5 der Zugriff auf Geräte im lokalen Netzwerk **erlaubt** werden (Android 16 fragt beim ersten Verbinden), sonst bleibt DAVx5 bei „Bitte warten“.
-- Eigenes Zertifikat (Test): die CA von cs-proxy einmal installieren, `http://server/cs-proxy-ca.crt` laden, dann Einstellungen › Sicherheit › Verschlüsselung & Anmeldedaten › Zertifikat installieren › CA-Zertifikat. Mit Let's Encrypt entfällt das.
-
-## Aufgaben (0.9.0)
-
-Hauptmenü **Aufgaben**: Ticketsystem light. Eine Aufgabe hat Auftraggeber, optional eine Gruppe, einen Bearbeiter (leer = „Bitte bearbeiten“,
-jedes Gruppenmitglied kann übernehmen), Beteiligte, Priorität, Fälligkeit, Meilensteine (Text + Datum) und einen Verlauf aus Kommentaren und
-Systemzeilen. Status: Offen → In Arbeit → Erledigt → Abgenommen. Nur Auftraggeber, Gruppen-Admin und globale Admins ändern Stammdaten, nehmen ab
-und löschen; der Bearbeiter setzt „In Arbeit“/„Erledigt“, hakt Meilensteine ab und kommentiert. **Wiederholung** (täglich/wöchentlich/monatlich/
-jährlich, braucht ein Fälligkeitsdatum): mit der Abnahme entsteht genau eine Folgeaufgabe, Fälligkeit und Meilensteine rücken weiter (nie in die
-Vergangenheit). E-Mail/Webhook (SMTP und Chat-Adresse wie bei Nachricht) bei Zuweisung, Übernahme, Erledigt, Abnahme, Kommentar und Fälligkeit
-(stündliche Prüfung). Rechte: Gruppen-Einstellung „Aufgaben anlegen“ (jedes Mitglied/nur Admins/aus); Aufgaben ohne Gruppe darf jeder anlegen,
-sichtbar für Auftraggeber, Bearbeiter, Beteiligte und Admins. Speicherung: `tasks/<id>.json`.
-
-## Bereitgestellte Dokumente: Ordner `share` (unveröffentlicht)
-
-Admins legen Dokumente lokal auf dem cs-team-Server ab (z. B. über einen SMB-Share, viel einfacher als per Browser); cs-team zeigt sie unter
-Dateien > **Bereitgestellt** an. Ort: Startparameter `CS_SHARE`, sonst `<CS_DIR>/share` (neben `.csteam`); gibt es den Ordner nicht, ist die Funktion aus.
-Der Ordner muss lokal auf dem cs-team-Server liegen (kein entfernter Mount).
-
-- **Sichtbarkeit nur nach Ordnernamen** (cs-team läuft als root/Admin, die SMB-ACL spielt für cs-team keine Rolle; Rechte also nicht per ACL auf Unterordnern von `share/*` steuern):
-  `share/*` alle angemeldeten Benutzer (Gäste ebenfalls), `share/groups/<gruppe>/` Mitglieder dieser Gruppe, `share/users/<name>/` nur dieser Benutzer;
-  globale Admins sehen alles. Namen ohne Groß-/Kleinschreibung (AD: `name@domain`, `gruppe@domain`).
-- **Nur lesen:** anzeigen, herunterladen, öffnen (pdf, Bilder, txt). Es gibt keine Schreib- oder Lösch-Funktion für `share`.
-- **Bearbeiten = Import:** „In Meine Ablage importieren“ legt eine Kopie in der eigenen Ablage an (bei gleichem Namen `name (2).ext`, nichts wird überschrieben).
-  Die Kopie ist danach eine normale eigene Datei und kann wie jede andere für Gruppen freigegeben werden (lesen oder schreiben).
-- **Jahrgangswechsel:** `share` wird nicht umbenannt. `share/groups/<gruppe>` bleibt beim Gruppennamen (Klasse 6 bleibt bei „klasse6“ und wandert nicht nach „klasse7“);
-  Aufräumen erledigt der Admin von Hand. Eine neue Gruppe mit gleichem Namen sieht den alten Ordner.
-- **Sicherheit:** Jeder Pfad wird geprüft: kein `..`, keine Symlinks/Junctions, keine versteckten Namen (`.zfs`, `.xyz`, `~$…`), keine Windows-Tricks (Punkt oder Leerzeichen am Ende, `:`).
-- REST: `GET /api/share?path=`, `GET /api/share/file?path=[&dl=1]`, `POST /api/share/import?path=`.
-
-## Kontingent (0.13.9)
-
-Einstellungen > Dateien: Kontingent je Benutzer und je Gruppenordner in MB (0 = unbegrenzt). Vorgabe aus `CS_QUOTA_MB`. Es gilt für Browser und
-WebDAV (der Papierkorb zählt mit) und wirkt sofort; ist es voll, antwortet der Server mit HTTP 507 (`storage quota exceeded`). Eine ersetzte Datei zählt nicht doppelt,
-parallele Uploads überschreiten das Kontingent nicht. Die Dateiansicht zeigt "belegt X von Y". REST: `POST /api/settings/quota {"mb":n}`
-(Admin), `GET /api/settings` liefert `quotaMB`, `GET /api/files` liefert `quota` und `used`.
-
-## Videochat (0.13.7 / 0.13.8)
-
-Im Chat unter der Gruppenliste, Einrichtung unter Einstellungen. Plätze 1 bis 3 nutzen externe Server (Jitsi, MiroTalk oder eigene Adresse mit
-`{room}`): fester Raum je Gruppe, Ad-hoc-Raum für Gruppen-Admins, Ad-hoc-Raum für alle Schreiber. Der Raumname ist ein HMAC (nicht erratbar),
-die Einladung im Kanal gilt 24 Stunden. Platz 4 ist der **eingebaute Videochat (WebRTC)**: nur Browser, höchstens 6 Teilnehmer, Bild und Ton laufen
-direkt zwischen den Browsern (Mesh), der Server vermittelt nur die Signalisierung über die Chat-WebSocket (`rtcjoin`, `rtcsig`, `rtcleave`) und
-prüft Leserecht und Einladung. STUN-Server vorbelegt (änderbar), optional TURN (coturn `use-auth-secret`, zeitlich begrenzte Zugangsdaten).
-Der Browser braucht HTTPS oder localhost.
-
-## KI-Assistent (0.12 ff.)
-
-Optionales Widget "KI" (Einstellungen: Anbieter Anthropic, OpenAI-kompatibel oder Ollama, Schlüssel nur auf dem Server). Die KI sieht nur,
-was der Benutzer selbst sehen darf, schreibt nichts selbst und schlägt neue Dokumente (Text, Calc) nur vor; angelegt wird nach Bestätigung.
-Gewählte Dateien (Text, CSV, DOCX, XLSX, PDF mit Text, Bilder) werden ausgewertet. Ein zweiter Anbieter springt bei Ausfall ein.
-
-## Datenschutz (DSGVO)
-
-cs-team hält alle Daten auf dem eigenen Server (Ordner/ZFS-Dataset oder S3); keine Cookies, kein Tracking, keine externen Schriften oder Skripte.
-- **Auskunft/Datenübertragung (Art. 15, 20):** "Meine Daten exportieren (ZIP)" auf der Kontoseite (Konto ohne Passwort-Hash, eigene Dateien, Kalender, Aufgaben, Chat); Admins können den Export für einen Benutzer erstellen.
-- **Löschung (Art. 17):** Benutzer löschen mit Vorschau, Snapshot und der Option, den Namen in Chat, Aufgaben und Terminen durch "gelöschter Benutzer" zu ersetzen (anonymisieren, Standard an).
-- **Aufbewahrung:** je Gruppe "Aufbewahrung Chat (Tage)", global "Abgeschlossene Aufgaben: Tage bis zum automatischen Löschen", Papierkorb-Tage; jeder Lauf steht im Log (`retention: ...`).
-- **Hinweis vor der ersten Nutzung** von KI-Assistent und externem Videochat (Anbieter/Server, welche Daten, freiwillig); Bestätigung je Benutzer, ungültig bei Wechsel von Anbieter oder Server; optionaler Zusatztext in den Einstellungen.
-- **Protokolle:** fehlgeschlagene Anmeldungen, Sperren, Audit-Zeilen (wer hat Benutzer/Gruppen/Einstellungen geändert) und Fehler, nie Passwörter oder Inhalte; sie enthalten Benutzernamen und IP-Adressen, daher extern rotieren (30-90 Tage).
-- Das Handbuch-Kapitel 11 "Datenschutz (DSGVO)" enthält eine TOM-Checkliste, Vorlagen für Schulen (Hinweis, Verzeichnis der Verarbeitungstätigkeiten, Einwilligung) und eine Anleitung für Datenpannen (72 Stunden). Es ist eine technische Hilfe, keine Rechtsberatung.
-
-## Sicherheit (Auswahl)
-
-Chat-/Webhook-Adressen enthalten Zugangsschlüssel und sind nur für den Benutzer und globale Admins sichtbar und änderbar (0.13.9).
-Rechteentzug trennt offene Calc/Text-Verbindungen (sofort, spätestens nach 15 s). Ressourcen-Kalender buchen atomar (auch Serientermine).
-SSRF-Sperrliste für Webhooks, Kalender-Abos und KI-Endpunkte; CSV-/XLSX-Export gegen Formel-Injektion; Anmelde-Sperre; Security-Header.
-Prüfbericht: `AUDIT.md`.
-
-## Grenzen / TODO
-
-- Soft-Locks (Zelle/Absatz sperren) und Freigabe-Dialog in der UI fehlen noch.
-- Kalender-Freigaben gelten je Kalender (`off` = nur Verantwortliche, `ro` = Berechtigte lesen, `rw` = Berechtigte schreiben);
-  Rechte einzelner Personen (ACL je Benutzer) fehlen noch.
-- Kalender *anlegen* per CalDAV nur mit `MKCOL` (`MKCALENDAR` → 405); in der Oberfläche geht es immer.
-- ListCalendarObjects liest je Termin ein Objekt (N x Get); ab einigen tausend Terminen Index/Cache.
-- Änderungen anderer Server-Instanzen werden beim Persist gemerged, aber nicht live gebroadcastet.
-- Tombstones werden nicht kompaktiert. Gleichzeitiges Tippen im selben Absatz: letzter Schreiber gewinnt.
-- RustFS: bedingte Writes (If-Match / If-None-Match) vor Produktivbetrieb gegen die eigene Version testen.
+**Mit napp-it CS:** cs-team unter *About > Download cs tools* herunterladen, unter *System > Services > cs-team* einrichten und
+starten (Speicher, Port, HTTPS, Admin, SMB-Benutzer, HA, LDAP; enable = Autostart).
+
+**Eigenständig (jedes Betriebssystem, ohne napp-it, kein ZFS nötig):**
+
+1. Programm für das Betriebssystem unter [Releases](https://github.com/guenther-alka/cs-team/releases) in einen eigenen Ordner laden
+   (z. B. `C:\cs-team` oder `/opt/cs-team`), Name `cs-team` bzw. `cs-team.exe`.
+2. Starten (Doppelklick unter Windows, `./cs-team` im Terminal). Ein kurzes Menü fragt die Einstellungen ab, Enter übernimmt die
+   Vorgabe: Daten-Ordner (`./`), PEM-Ordner (`./pem`, fehlt das Zertifikat, wird ein selbst signiertes angelegt), Port (`9004`),
+   Webcraft-Ordner, *Sync local users for SMB* und das Admin-Startpasswort.
+3. `https://<rechner>:9004` öffnen und als `admin` anmelden (Startpasswort beim ersten Anmelden ändern).
+
+Die Einstellungen stehen in `team.cfg` neben dem Programm; `cs-team setup` öffnet das Menü erneut. Snapshots und Sicherung macht
+der Betreiber selbst. Startskripte, Dienst, alle Optionen: [docs/HOWTO-standalone.md](docs/HOWTO-standalone.md) und Handbuch Kapitel 3.
+
+Mit Umgebungsvariablen statt Menü:
+
+```
+export CS_DIR=/tank/team CS_LISTEN=:9004                   # Daten in /tank/team/.csteam
+export CS_ADMIN_USER=admin CS_ADMIN_PASS=bitte-aendern-1   # nur beim ersten Start
+./cs-team
+```
+
+S3 statt Ordner: `S3_ENDPOINT=... S3_KEY=... S3_SECRET=... S3_BUCKET=cs-team`. Demo im RAM: `CS_MEM=1 ./cs-team`.
+Weitere Befehle: `cs-team adduser NAME PASS [admin]`, `cs-team sysadmin NAME`, `cs-team osaccounts status`, `cs-team version`.
+
+## Funktionen
+
+| Bereich | Inhalt |
+|---------|--------|
+| Benutzer / Gruppen | Rollen Sysadmin, globaler Admin, Gruppen-Admin, Benutzer, Gäste mit Ablauf; Gruppen schalten Bereiche frei; CSV- und JSON-Import/-Export; Initialpasswörter; Zwei-Faktor (TOTP) und App-Passwörter; Anmeldeformular, OIDC (Google, Microsoft, generisch), AD/LDAP-Anmeldung |
+| Kalender | CalDAV (Thunderbird, iOS, DAVx5); persönliche, Gruppen-, Organisations- und globale Kalender, Ressourcen, Abos; Serien mit Zeitzonen, Erinnerungen, Einladungen (iMIP), .ics-Import/-Export, Plan-Kalender und Jahresansicht |
+| Calc / Text | gemeinsame Live-Bearbeitung, Formeln, Kommentare/Notizen; Import/Export csv, xlsx, txt, rtf, docx, pdf; Änderungsliste, Schreibschutz, frühere Stände aus ZFS-Snapshots; Dateien zusammenfügen, KI-Zusammenfassung und KI-Recherche |
+| Dateien | Freigaben (Benutzer, Gruppen, Team, öffentlicher Link mit Ablauf), Gruppenordner, WebDAV mit Sperren, Kontingent, Papierkorb, Versionen aus ZFS-Snapshots, nur lesender Ordner `share` |
+| Aktuell / Suche | Termine, fällige Aufgaben, Aushänge; globale Suche (Strg+K) mit den eigenen Rechten |
+| Aufgaben | Ticketsystem light: Bearbeiter, Meilensteine, Board, Wiederholung, Klassenaufgaben |
+| Chat / Nachricht | Gruppen-Chat mit Kanälen, Threads, 1:1-Nachrichten, Umfragen; Nachricht per Gruppen-Chat, E-Mail (zwei SMTP-Server) und Webhook |
+| Videochat | externe Server (Jitsi, MiroTalk) oder eingebauter WebRTC-Raum (bis 6 Teilnehmer, Bildschirm teilen) |
+| KI-Assistent | Anthropic, OpenAI-kompatibel oder Ollama; sieht nur, was der Benutzer sehen darf, schreibt nichts ohne Bestätigung |
+
+Ziel: rund 80 % der meistgenutzten Funktionen von Microsoft Teams / Office 365 für Schule und Kleinbetrieb bei einem Bruchteil der
+Komplexität - eine Datei, dateibasiert, im eigenen Haus, DSGVO-freundlich (kein Tracking, Datenexport und Löschung, Aufbewahrungsfristen,
+Hinweise; Handbuch Kapitel 14). KISS gewinnt, wenn sich Ziele widersprechen.
+
+## Verzeichnis, SMB-Konten und Hochverfügbarkeit
+
+- **LDAPS-Server:** `CS_LDAP=:636` liefert Benutzer (`uid=<name>,ou=people,<base>`, posixAccount) und exportierte Gruppen (posixGroup)
+  nur lesend; Anmeldungen prüfen das cs-team-Passwort. Clients: Linux/FreeBSD mit sssd, illumos/Solaris, macOS (`CS_LDAP_ANON=1`),
+  Windows (pGina), Geräte. Handbuch Kapitel 17.
+- **cs-ldapclient:** Konsolen-Installer für Windows, Linux, FreeBSD und macOS (auch als `cs-ldapclient.zip` für den USB-Stick);
+  jeder cs-team-Benutzer darf sich an jedem Client anmelden, Gruppen bestimmen die lokalen Rechte. Handbuch Kapitel 18.
+- **Spiegelkonten (AD/LDAP):** ein Verzeichnisbenutzer meldet sich mit `paula@domain` oder `paula` an; das Konto heißt überall
+  `paula`, das Verzeichnis ist nur ein Merkmal. Alte Konten `name@realm` werden beim Start umbenannt (vorher Snapshot, Daten ziehen
+  mit). Ist das Verzeichnis nicht erreichbar oder abgeschaltet, melden sich Spiegelkonten bis zum Fristende aus dem Zwischenspeicher an;
+  *Einstellungen > Anmeldung* wandelt sie in lokale Konten um, die ihr Passwort behalten.
+- **Lokale Benutzer für SMB** (`CS_OSACCOUNTS=1`, Setup-Frage *Sync local users for SMB*, Vorgabe ja): Mitglieder exportierter Gruppen
+  bekommen Betriebssystem-Konten auf dem cs-team-Rechner (illumos/OmniOS und Solaris 11 mit der cs-team-uid/gid und dem Kernel-SMB-Server,
+  Linux/FreeBSD mit Samba, Windows). cs-team speichert keinen NT-Hash; es setzt das SMB-/OS-Passwort, wenn es das Passwort im Klartext
+  sieht (Anmeldung, Passwortwechsel). Gesperrte Benutzer werden gesperrt, nie gelöscht. Systemnamen (root, administrator, guest ...)
+  werden nie angelegt. Handbuch Kapitel 19.
+- **Failover:** der Datenordner liegt in einem ZFS-Dataset, das ein eigener Replikationsjob auf einen zweiten Rechner kopiert;
+  `CS_FAILOVER=master|standby|takeover`, HA-Gruppe und Dienst-IP unter *Einstellungen > Hochverfügbarkeit*. Beim Hochstufen übernimmt
+  der neue Master die OS-Konten: illumos/Solaris mit Rechner-SID und SMB-Passwörtern (Rechte sofort gültig), Windows schreibt die
+  ACL der Freigaben auf die neuen SIDs um, Linux/FreeBSD behalten uid/gid; sonst gilt das Passwort ab der nächsten Anmeldung. Der
+  Standby verändert das Betriebssystem nie. Handbuch Kapitel 20, [docs/HA_SPEC.md](docs/HA_SPEC.md).
+
+Im Labor getestet (Nov. 2026): OmniOS-Failover mit SMB von Linux vor und nach der Übernahme, Windows-11-Hochstufen mit SID-Umschreibung
+und Passwort-Sync, Konten unter FreeBSD 15.1 und Debian 12, Clients mit pGina und sssd. Nicht getestet: Solaris 11, echtes AD.
+
+## Konfiguration
+
+Die meisten Einstellungen (Mail, öffentliche Adresse, Webhooks, Videochat, KI, Kontingent, Anmeldung, HA-Gruppe) macht man in der
+Oberfläche (*Einstellungen*, globale Admins). Startparameter als Umgebungsvariablen oder `KEY=VALUE`-Zeilen in `team.cfg` / `-c datei`:
+
+| Variable | Bedeutung | Standard |
+|----------|-----------|----------|
+| `CS_DIR` oder `S3_*` | Speicher: Ordner (Daten in `<ordner>/.csteam`) oder S3-Bucket; ein Prozess je Speicher | - |
+| `CS_LISTEN` | Adresse/Port | `:8080` |
+| `CS_TLS_CERT` / `CS_TLS_KEY` | HTTPS-Zertifikat / Schlüssel (PEM, bei Änderung neu geladen) | HTTP |
+| `CS_ADMIN_USER` / `CS_ADMIN_PASS` | erster Admin eines leeren Speichers = Sysadmin | - |
+| `CS_LOGIN_FORM` | `0` = Basic Auth im Browser statt Anmeldeformular | Formular |
+| `CS_TRUST_PROXY` / `CS_MAX_FAILS_IP` | hinter HTTPS-Proxy / Fehlversuche je Adresse bis zur Sperre | `0` / `60` |
+| `CS_IDENTITY_*` | Vorgaben AD/LDAP-Anmeldung (`URL`, `REALM`, `BASE`, `BIND_DN`, `CACHE_DAYS` ...) | lokal |
+| `CS_OIDC*` | OIDC-Anbieter (auch in der Oberfläche) | - |
+| `CS_LDAP` / `CS_LDAP_BASE` / `CS_LDAP_READER` / `CS_LDAP_ANON` | eingebauter LDAPS-Server | aus |
+| `CS_OSACCOUNTS` / `CS_OSACCOUNTS_SHARES` | lokale Benutzer für SMB / Windows-Freigaben für die SID-Umschreibung | aus |
+| `CS_FAILOVER` / `CS_HA_NAME` | `master`, `standby`, `takeover` / eigener Name in der HA-Gruppe | aus / automatisch |
+| `CS_WEBCRAFT` / `CS_SHARE` | Ordner der Webcraft-Apps / nur lesender Dokumentordner | automatisch |
+| `CS_LANG` / `CS_LANGDIR` | Standardsprache / eigene Sprachdateien | `de` |
+| `CS_MAX_UPLOAD_MB` / `CS_QUOTA_MB` / `CS_TRASH_DAYS` | Upload-Grenze / Standard-Kontingent / Papierkorb-Tage | 100 / 0 / 30 |
+
+Vollständige Liste: Handbuch Kapitel 3.
+
+## Clients
+
+CalDAV `https://host:9004/dav/` · WebDAV `https://host:9004/webdav/` (rclone, WinSCP, Cyberduck, Finder, Windows-Netzlaufwerk mit
+HTTPS) · REST `/api/...`. Android: Firefox als Browser, DAVx5 für Kalender (Handbuch Kapitel 9.1).
+Nicht direkt in `.csteam` oder den S3-Bucket schreiben; WebDAV oder die Oberfläche verwenden.
 
 ## Build
 
-    go test ./... && go build -o cs-team .
-    GOOS=illumos GOARCH=amd64 go build -o cs-team .     # OmniOS
+```
+go vet ./... && go test ./... && go build -o cs-team .
+powershell -NoProfile -File build-all.ps1 -Test     # Release-Builds nach dist\
+```
 
+Release-Builds: Windows, Linux (amd64, arm64), macOS (amd64, arm64), FreeBSD, illumos/OmniOS, Solaris, dazu `cs-ldapclient`.
+Abhängigkeiten: minio-go (S3), emersion/go-webdav + go-ical (CalDAV), coder/websocket, x/crypto, x/term.
 
-## Dateizugriff von aussen
-Per WebDAV: `http(s)://host:9004/webdav/` (rclone Typ webdav, WinSCP WebDAV, Finder, Windows Netzlaufwerk nur mit HTTPS).
-Nicht direkt auf den Basisordner (`.csteam`, SMB) oder den S3-Bucket schreiben: dort liegt die interne Ablage
-(Metadaten, Rechte, Freigaben getrennt). SMB/S3-Tools nur lesend fuer Backup/Snapshots.
+## Lizenz
 
-## HTTPS
-`CS_TLS_CERT=/pfad/cert.pem` (und `CS_TLS_KEY=/pfad/key.pem`, falls der Key nicht im selben PEM steht) schaltet HTTPS ein.
-Erneuerte Zertifikate werden ohne Neustart uebernommen. Mit HTTPS funktioniert auch das Windows-Netzlaufwerk (WebDAV).
+BSD 2-Clause - siehe [LICENSE](LICENSE). Copyright (c) 2026 Guenther Alka / napp-it.org

@@ -1205,5 +1205,11 @@
  "3 Monate vorher": "3 miesiące wcześniej",
  "alle 2 Jahre": "co 2 lata",
  "Plan (Quartale, Anzeige im Jahr)": "Plan (kwartały, widok roczny)",
- "Kalender {0}": "Kalendarz {0}"
+ "Kalender {0}": "Kalendarz {0}",
+ "Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.": "Gdy połączenie z katalogiem jest wyłączone (pusty adres), konta lustrzane logują się ostatnim ważnym hasłem do końca tego okresu.",
+ "Spiegelkonten in lokale Konten umwandeln": "Przekształć konta lustrzane w konta lokalne",
+ "Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.": "Przekształcić wszystkie konta lustrzane w konta lokalne? Nazwa, grupy i uprawnienia pozostają; hasło ostatnio ważne w katalogu staje się hasłem lokalnym. Potem konta nie logują się już przez katalog.",
+ "{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}": "Przekształcono kont: {0}, hasła startowego potrzebuje: {1}: {2}",
+ "Nicht umgewandelt (kein gültiger Kontoname): {0}": "Nie przekształcono (nieprawidłowa nazwa konta): {0}",
+ "Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.": "Konta lustrzane użytkowników katalogu nazywają się bez @ (peter.pan): logowanie jako peter.pan@schule.de lub peter.pan; konto nosi katalog jako znacznik, a katalog potwierdza logowanie. Istniejące konto lokalne o tej samej nazwie nigdy nie zostaje przejęte przez katalog."
 }

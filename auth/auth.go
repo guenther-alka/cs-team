@@ -136,6 +136,8 @@ type Auth struct {
 	warm   chan struct{}  // beendet das Warmhalten der Verzeichnisverbindung (WarmDir), nil = läuft nicht
 	web    map[[32]byte]webSess // Browser-Sitzungen des Anmeldeformulars (session.go), unter mu
 	seen   map[string]time.Time // zuletzt gesehen je Konto (seen.go), unter mu
+
+	OnPlain func(name, pass string) // Klartext-Passwort an osacct (plain.go), nil = aus
 }
 
 var std *Auth // zuletzt erzeugte Instanz: Freigabe-Prüfung (Allowed) braucht die Gruppen eines Benutzers
@@ -335,7 +337,27 @@ func (a *Auth) Bootstrap(ctx context.Context, user, pass string) error {
 func okName(n string) bool { return validName.MatchString(n) && !store.WinReserved(n) }
 
 // okAcct: gültiger Name für neue Konten: einfacher Name oder Adresse name@domain.tld (nur lokale Konten).
-func okAcct(n string) bool { return validAcct.MatchString(n) && !store.WinReserved(strings.SplitN(n, "@", 2)[0]) }
+func okAcct(n string) bool {
+	return validAcct.MatchString(n) && !store.WinReserved(strings.SplitN(n, "@", 2)[0])
+}
+
+// sysNames: Namen von Systemkonten (illumos/Linux/Windows). Ueber Oberflaeche, Import und Verzeichnis legt cs-team solche
+// Konten nicht neu an, weil daraus Betriebssystem-Konten fuer SMB werden (0.72); vorhandene Konten und das Startkonto
+// (CS_ADMIN_USER, z. B. root) bleiben erlaubt. "admin" ist kein Systemname (Vorgabe des Sysadmin-Kontos im Setup).
+// Namen mit @ (Adresse) werden nie Betriebssystem-Konten und sind nicht betroffen.
+var sysNames = map[string]bool{"root": true, "administrator": true, "guest": true, "daemon": true, "bin": true, "sys": true,
+	"adm": true, "lp": true, "uucp": true, "nuucp": true, "smmsp": true, "listen": true, "nobody": true, "nobody4": true,
+	"noaccess": true, "sshd": true, "gdm": true, "upnp": true, "dladm": true, "netadm": true, "netcfg": true, "zfssnap": true,
+	"defaultaccount": true, "wdagutilityaccount": true, "krbtgt": true, "system": true, "everyone": true, "operator": true,
+	"games": true, "mail": true, "news": true, "www-data": true, "backup": true, "proxy": true, "sync": true, "halt": true,
+	"shutdown": true, "postgres": true, "mysql": true}
+
+// SysName: ist n (ohne @domain) der Name eines Systemkontos?
+func SysName(n string) bool { return !strings.Contains(n, "@") && sysNames[strings.ToLower(n)] }
+
+func (a *Auth) exists(ctx context.Context, n string) bool { _, ok := a.get(ctx, n); return ok }
+
+var ErrSysName = errors.New("name of a system account (root, administrator, guest ...): choose another name")
 
 // NameRealmClash: ein lokaler Kontoname name@domain darf nicht in den Namensraum des Verzeichnisses fallen.
 func (a *Auth) NameRealmClash(n string) bool {
@@ -366,10 +388,18 @@ func addTo(m map[string]Account, name, pass string, admin bool, groups []string)
 	return nil
 }
 
-func (a *Auth) AddUser(ctx context.Context, name, pass string, admin bool, groups []string) error {
+func (a *Auth) AddUser(ctx context.Context, name, pass string, admin bool, groups []string) (err error) {
+	defer func() {
+		if err == nil {
+			a.plain(name, pass)
+		}
+	}()
 	groups = noSysGroups(groups)
 	if a.NameRealmClash(name) {
 		return ErrBadRealm // name@<Namensraum des Verzeichnisses> bliebe mehrdeutig
+	}
+	if SysName(name) { // Oberflaeche/Gaeste: keine neuen Konten mit Systemnamen (0.72)
+		return ErrSysName
 	}
 	if err := a.checkGroups(ctx, groups); err != nil {
 		return err
@@ -386,7 +416,12 @@ func (a *Auth) AddUser(ctx context.Context, name, pass string, admin bool, group
 }
 
 // SetUser (CLI): anlegen oder Passwort setzen; admin=true macht zusätzlich zum Admin.
-func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) error {
+func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) (err error) {
+	defer func() {
+		if err == nil {
+			a.plain(name, pass)
+		}
+	}()
 	if a.NameRealmClash(name) {
 		return ErrBadRealm
 	}
@@ -415,12 +450,20 @@ func (a *Auth) SetUser(ctx context.Context, name, pass string, admin bool) error
 
 // SetPassword: Benutzer ändert sein eigenes Passwort (hebt die Änderungspflicht auf).
 func (a *Auth) SetPassword(ctx context.Context, name, pass string) error {
-	return a.setPass(ctx, name, pass, false)
+	err := a.setPass(ctx, name, pass, false)
+	if err == nil {
+		a.plain(name, pass)
+	}
+	return err
 }
 
 // ResetPassword: Admin/Gruppen-Admin setzt ein Startpasswort, der Benutzer muss es beim Login ändern.
 func (a *Auth) ResetPassword(ctx context.Context, name, pass string) error {
-	return a.setPass(ctx, name, pass, true)
+	err := a.setPass(ctx, name, pass, true)
+	if err == nil {
+		a.plain(name, pass)
+	}
+	return err
 }
 
 func (a *Auth) setPass(ctx context.Context, name, pass string, must bool) error {
@@ -608,7 +651,11 @@ func (a *Auth) verify(ctx context.Context, name, pass string) (Account, bool) {
 		bcrypt.CompareHashAndPassword(a.dummy, []byte(pass))
 		return Account{}, false
 	}
-	return u, bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(pass)) == nil
+	good := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(pass)) == nil
+	if good {
+		a.plain(name, pass)
+	}
+	return u, good
 }
 
 // sameOrigin: CSRF-Schutz für Basic Auth. Browser senden die Zugangsdaten auch von fremden Seiten mit.

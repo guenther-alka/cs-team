@@ -58,8 +58,8 @@ func TestParseLogin(t *testing.T) {
 		{"anna", "anna", RealmLocal, true, nil},
 		{"Anna", "anna", RealmLocal, true, nil},
 		{"anna@local", "anna", RealmLocal, true, nil},
-		{"anna@local.de", "anna@local.de", "local.de", false, nil},
-		{" ANNA@LOCAL.DE ", "anna@local.de", "local.de", false, nil},
+		{"anna@local.de", "anna", "local.de", false, nil},
+		{" ANNA@LOCAL.DE ", "anna", "local.de", false, nil},
 		{"anna@fremd.de", "anna@fremd.de", "fremd.de", false, ErrBadRealm},
 		{"anna@", "anna@", "", false, ErrBadRealm},
 		{"@local.de", "", "", false, ErrBadName},
@@ -175,10 +175,10 @@ func TestDirLogin(t *testing.T) {
 	a.SetIdentitySource(fixedIdentity{Mode: "dir", Realm: "local.de", AdmitGroups: []string{"lehrer"}, LocalGroup: "teaching"})
 	h := a.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok " + User(r.Context()))) }))
 
-	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.5"); code != 200 || body != "ok anna@local.de" {
+	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.5"); code != 200 || body != "ok anna" {
 		t.Fatalf("Anmeldung: %d %q", code, body)
 	}
-	u, ok := a.get(ctx, "anna@local.de")
+	u, ok := a.get(ctx, "anna")
 	if !ok || u.Source != "dir" || u.Realm != "local.de" || u.Hash != "!" || u.Mail != "anna@schule.de" ||
 		len(u.Groups) != 1 || u.Groups[0] != "teaching" || u.Admin || u.Must || u.Disabled {
 		t.Fatalf("Spiegelkonto: %+v", u)
@@ -193,10 +193,12 @@ func TestDirLogin(t *testing.T) {
 	if st.puts != 1 {
 		t.Fatalf("Schreibzugriffe nach Cache-Treffer: %d", st.puts)
 	}
-	// lokale cs-team-Konten bleiben auch bei Mode "dir" anmeldefähig (Notfallzugang, 0.55): es gibt hier aber kein
-	// lokales Konto "anna"
-	if code, _ := wrapCall(h, "anna", "geheim123", "192.0.2.5"); code != 401 {
-		t.Fatalf("lokale Anmeldung ohne lokales Konto: %d", code)
+	// 0.72: das Spiegelkonto heisst "anna"; die Anmeldung mit dem Namen ohne Namensraum bestaetigt ebenfalls das Verzeichnis
+	if code, body := wrapCall(h, "anna", "geheim123", "192.0.2.5"); code != 200 || body != "ok anna" {
+		t.Fatalf("Anmeldung ohne Namensraum: %d %q", code, body)
+	}
+	if code, _ := wrapCall(h, "anna", "falsch123", "192.0.2.6"); code != 401 {
+		t.Fatalf("ohne Namensraum, falsches Passwort: %d", code)
 	}
 	if code, _ := wrapCall(h, "anna@local.de", "falsch123", "192.0.2.5"); code != 401 {
 		t.Fatalf("falsches Passwort: %d", code)
@@ -246,11 +248,11 @@ func TestDirAdmitAndDown(t *testing.T) {
 	a := New(store.NewMem())
 	a.SetDirChecker(dir)
 	a.SetIdentitySource(fixedIdentity{Realm: "local.de", AdmitGroups: []string{"lehrer"}})
-	id := loginID{Key: "anna@local.de", Name: "anna", Realm: "local.de", Source: "dir"}
+	id := loginID{Key: "anna", Name: "anna", Realm: "local.de", Source: "dir"}
 	if _, err := a.verifyDir(ctx, id, "geheim123"); !errors.Is(err, ErrNotAdmit) {
 		t.Fatalf("Aufnahme: %v", err)
 	}
-	if u, ok := a.get(ctx, "anna@local.de"); ok {
+	if u, ok := a.get(ctx, "anna"); ok {
 		t.Fatalf("Konto trotz Ablehnung angelegt: %+v", u)
 	}
 	// ohne Aufnahmegruppen ist jeder gültige Benutzer erlaubt
@@ -265,7 +267,7 @@ func TestDirAdmitAndDown(t *testing.T) {
 	if _, err := down.verifyDir(ctx, id, "geheim123"); !errors.Is(err, ErrDirDown) {
 		t.Fatalf("Verzeichnis weg: %v", err)
 	}
-	if _, ok := down.get(ctx, "anna@local.de"); ok {
+	if _, ok := down.get(ctx, "anna"); ok {
 		t.Fatal("Konto trotz nicht erreichbarem Verzeichnis")
 	}
 	// leeres Passwort wird nie ans Verzeichnis gegeben
@@ -326,7 +328,7 @@ func TestMeDirFields(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["realm"] != "local.de" || m["source"] != "dir" || m["name"] != "anna@local.de" ||
+	if m["realm"] != "local.de" || m["source"] != "dir" || m["name"] != "anna" ||
 		m["idRealm"] != "local.de" || m["idMode"] != "directory + local" || m["allowLocal"] != true {
 		t.Fatalf("/api/me: %v", m)
 	}

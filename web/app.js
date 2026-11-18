@@ -459,7 +459,7 @@ S.users={
   async load(){
     allUsers=(await J('GET','/api/users'))||[];
     allGroups=(await J('GET','/api/groups'))||[];
-    this.items=allUsers.map(u=>({k:u.name,label:u.name,sub:(u.sys?t('Sysadmin')+' ':u.admin?t('Globaler Admin')+' ':'')+(u.guest?t('Gast bis {0}',u.expires||'?')+' ':'')+(u.disabled?t('gesperrt')+' ':'')+(u.totp?'2FA ':'')+(u.groups||[]).join(',')}));
+    this.items=allUsers.map(u=>({k:u.name,label:u.name,sub:(u.sys?t('Sysadmin')+' ':u.admin?t('Globaler Admin')+' ':'')+(u.guest?t('Gast bis {0}',u.expires||'?')+' ':'')+(u.disabled?t('gesperrt')+' ':'')+(u.totp?'2FA ':'')+(u.realm?'@'+u.realm+' ':'')+(u.groups||[]).join(',')}));
     setList(this.items);
   },
   home(){
@@ -503,7 +503,7 @@ S.users={
     const u=allUsers.find(x=>x.name==k);if(!u)return;
     if(k==me.name&&!me.admin){this.home();return;}
     let h='<h3>'+esc(u.name)+'</h3><div class="muted">'+t('angelegt: ')+esc((u.created||'').slice(0,10))+(u.uid?' &nbsp; uid '+u.uid:'')+'</div><div class="muted">'+esc(roleText(u))+'</div>'+
-     '<div class="muted">'+t('Anmeldung: ')+esc(pwText(u))+' &nbsp; '+(u.totp!==undefined||me.admin||u.name==me.name?t('Zwei-Faktor: ')+t(u.totp?'ein':'aus')+' &nbsp; ':'')+t('zuletzt gesehen: ')+esc(u.seen?new Date(u.seen).toLocaleString():t('noch nie'))+'</div>'+
+     '<div class="muted">'+t('Anmeldung: ')+esc(pwText(u)+(u.realm?' @'+u.realm:''))+' &nbsp; '+(u.totp!==undefined||me.admin||u.name==me.name?t('Zwei-Faktor: ')+t(u.totp?'ein':'aus')+' &nbsp; ':'')+t('zuletzt gesehen: ')+esc(u.seen?new Date(u.seen).toLocaleString():t('noch nie'))+'</div>'+
      '<div class="row">'+t('Gruppen: ')+esc((u.groups||[]).join(', '))+'</div>'+
       (u.guest?'<div class="row">'+t('Gast-Konto, gültig bis')+' <input id="fge" type="date" value="'+esc(u.expires||'')+'"> <button id="fges">'+t('Frist ändern')+'</button></div>':'');
     if(me.admin)h+='<div class="row">'+t('Gruppen ändern: ')+'<input id="fg" list="dlall" value="'+esc((u.groups||[]).join(', '))+'" style="width:320px">'+pickBtn('fg','groups')+' <button id="fgs">'+t('Speichern')+'</button></div>'+gdl('dlall',allGroups.map(g=>g.name))+
@@ -3816,7 +3816,7 @@ function idPanel(i){
     ((e.admit||[]).length?' ('+t('Aufnahme: ')+esc(e.admit.join(', '))+')':'');
   const warn=e.unencrypted?t('Achtung: {0} überträgt Passwörter ohne TLS. Bitte ldaps:// oder StartTLS verwenden.',esc(e.url||'')):'';
   return '<div class="panel"><b>'+t('Anmeldung (Konten und Verzeichnis)')+'</b> <small class="muted">'+t('Ohne Verzeichnis melden sich Benutzer mit ihrem cs-team-Namen an. Mit Verzeichnis zusätzlich mit name@Namensraum (Active Directory, LDAP, OpenLDAP, Samba). Änderungen gelten sofort.')+'</small>'+
-   '<div class="row muted">'+t('Namen ohne @ (peter.pan) sind lokale Konten: Passwort oder OIDC, das entscheidet der Benutzer. Namen mit @ (peter.pan@schule.de) melden sich am Verzeichnis an; ist keins eingerichtet, werden sie abgelehnt.')+'</div>'+
+   '<div class="row muted">'+t('Spiegelkonten der Verzeichnisbenutzer heißen ohne @ (peter.pan): Anmeldung mit peter.pan@schule.de oder peter.pan, das Konto trägt das Verzeichnis als Merkmal, und das Verzeichnis bestätigt die Anmeldung. Ein vorhandenes lokales Konto gleichen Namens wird nie vom Verzeichnis übernommen.')+'</div>'+
    '<div class="row"><input id="sidre" style="width:170px" placeholder="'+t('Namensraum (schule.de)')+'" value="'+esc(i.realm||'')+'"> '+
     '<input id="siddef" style="width:230px" placeholder="'+t('Anzeige-Namensraum (wie angemeldet wird)')+'" value="'+esc(i.defaultRealm||'')+'"> '+
     '<small class="muted">'+t('Angemeldet wird mit name@Namensraum. Ohne eigene Suchbasis wird der Namensraum aus DC=… gebildet.')+'</small></div>'+
@@ -3829,6 +3829,8 @@ function idPanel(i){
    '<div class="row"><input id="sidadm" style="width:310px" placeholder="'+t('Aufnahme-Gruppen (durch Komma getrennt, leer = alle Benutzer)')+'" value="'+esc((i.admit||[]).join(', '))+'"> '+
     '<input id="sidgrp" style="width:190px" placeholder="'+t('cs-team-Gruppe der Verzeichnisbenutzer')+'" value="'+esc(i.group||'')+'"></div>'+
    '<div class="row"><input id="sidcache" type="number" min="0" max="365" style="width:80px" value="'+(i.cacheDays||0)+'"> '+t('Tage, die eine Anmeldung ohne erreichbares Verzeichnis gilt (0 = kein Zwischenspeicher). Ein im Verzeichnis geändertes Passwort gilt sofort, das alte höchstens bis zum Ablauf.')+'</div>'+
+   '<div class="muted row">'+t('Ist die Verzeichnisanbindung abgeschaltet (Adresse leer), melden sich Spiegelkonten bis zum Ablauf dieser Frist mit dem zuletzt gültigen Passwort an.')+'</div>'+
+   '<div class="row"><button id="sidconv" type="button">'+t('Spiegelkonten in lokale Konten umwandeln')+'</button></div>'+
    '<div class="muted row">'+eff+(warn?'<br><b>'+esc(warn)+'</b>':'')+'</div></div>';
 }
 let AIP=[];   // Anbieter-Vorlagen (providers.txt bzw. eingebaute Liste)
@@ -4029,6 +4031,12 @@ S.set={
       {const sp=$('#aswp').value,sb={provider:sp,url:$('#aswu').value.trim()};if(sp=='brave'&&$('#aswk').value)sb.key=$('#aswk').value;if(!await api('POST','/api/ai/search-settings',sb))return false;}   // Suchdienst der KI-Recherche
       if(!await api('POST','/api/ai/settings',ab))return false;this.ai=(await J('GET','/api/ai/settings'))||{};aiStart();return true;};
     $('#ssave').onclick=async()=>{if(await save()){this.select();alert(t('Gespeichert'));}};
+    $('#sidconv').onclick=async()=>{   // Abschied vom Verzeichnis (0.72): Spiegelkonten werden lokale Konten, das zuletzt gueltige Passwort bleibt
+      if(!await uiAsk(t('Alle Spiegelkonten in lokale Konten umwandeln? Name, Gruppen und Rechte bleiben, das zuletzt im Verzeichnis gültige Passwort wird zum lokalen Passwort. Die Konten melden sich danach nicht mehr am Verzeichnis an.')))return;
+      const r=await J('POST','/api/users/convertdir',{names:[]});if(!r)return;
+      const np=r.nopw||[],sk=r.skipped||[];
+      await uiAlert(t('{0} Konten umgewandelt, {1} brauchen ein Startpasswort: {2}',(r.converted||[]).length+np.length,np.length,np.join(', ')||'-')+(sk.length?'\n'+t('Nicht umgewandelt (kein gültiger Kontoname): {0}',sk.join(', ')):''));
+      allUsers=[];};
     $('#aitest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/settings/test');this.select();if(r)alert(t('KI-Test ok: {0} ({1} ms)',r.reply,r.ms));};
     $('#aswt').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/ai/search-settings/test');this.select();if(r)alert(t('Suchdienst ok: {0} Treffer, z. B. {1}',r.count,r.first));};
     $('#stest').onclick=async()=>{if(!await save())return;const r=await J('POST','/api/settings/testmail');this.select();if(r)alert(t('Testmail gesendet an {0}',r.to)+'\nServer 1: '+r.server+' / '+r.user+' / '+r.from);};

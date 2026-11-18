@@ -1551,6 +1551,8 @@ func (a *Auth) ImportCSV(ctx context.Context, csv string, o ImportOpts) ImportRe
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: group required", r.line, r.name))
 		case !okName(r.name):
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadName))
+		case SysName(r.name) && !a.exists(ctx, r.name): // keine neuen Konten mit Systemnamen (0.72), vorhandene bleiben aenderbar
+			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrSysName))
 		case r.pw != "" && (len(r.pw) < minPass || len(r.pw) > maxPass): // leer = unverändert (nur vorhandene Benutzer)
 			res.Errors = append(res.Errors, fmt.Sprintf("line %d %s: %v", r.line, r.name, ErrBadPass))
 		case r.pw != "" && weakPass(r.pw):

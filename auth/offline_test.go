@@ -37,10 +37,10 @@ func TestDirCacheOffline(t *testing.T) {
 		info: map[string]DirUser{"anna": {Groups: []string{"lehrer"}}}}
 	a, h, st := offlineSetup(t, 14, dir)
 	ctx := context.Background()
-	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.7"); code != 200 || body != "anna@local.de" {
+	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.7"); code != 200 || body != "anna" {
 		t.Fatalf("Anmeldung: %d %q", code, body)
 	}
-	u, ok := a.get(ctx, "anna@local.de")
+	u, ok := a.get(ctx, "anna")
 	if !ok || u.Hash == "" || u.Hash == "!" || u.DirSeen == "" {
 		t.Fatalf("kein Zwischenspeicher angelegt: %+v", u)
 	}
@@ -48,7 +48,7 @@ func TestDirCacheOffline(t *testing.T) {
 	// das Verzeichnis fällt aus: die Anmeldung läuft aus dem Zwischenspeicher, ohne den Speicher zu schreiben
 	dir.err = ErrDirDown
 	clearLogins(a)
-	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.7"); code != 200 || body != "anna@local.de" {
+	if code, body := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.7"); code != 200 || body != "anna" {
 		t.Fatalf("Anmeldung aus dem Zwischenspeicher: %d %q", code, body)
 	}
 	if st.puts != puts {
@@ -75,9 +75,9 @@ func TestDirCacheExpiry(t *testing.T) {
 	}
 	seenAgo := func(d time.Duration) {
 		err := a.mutate(ctx, func(m map[string]Account) error {
-			u := m["anna@local.de"]
+			u := m["anna"]
 			u.DirSeen = time.Now().Add(-d).UTC().Format(time.RFC3339)
-			m["anna@local.de"] = u
+			m["anna"] = u
 			return nil
 		})
 		if err != nil {
@@ -103,7 +103,7 @@ func TestDirCacheOff(t *testing.T) {
 	if code, _ := wrapCall(h, "anna@local.de", "geheim123", "192.0.2.9"); code != 200 {
 		t.Fatalf("Anmeldung: %d", code)
 	}
-	if u, _ := a.get(ctx, "anna@local.de"); u.Hash != "!" || u.DirSeen != "" {
+	if u, _ := a.get(ctx, "anna"); u.Hash != "!" || u.DirSeen != "" {
 		t.Fatalf("ohne Zwischenspeicher wird keiner angelegt: %+v", u)
 	}
 	dir.err = ErrDirDown
@@ -141,7 +141,7 @@ func TestDirCacheDrop(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	err := a.mutate(ctx, func(m map[string]Account) error {
 		h := "$2a$10$0123456789012345678901234567890123456789012345678901"
-		m["anna@local.de"] = Account{Hash: h, Realm: "local.de", Source: "dir", DirSeen: now, Groups: []string{DefaultGroup}}
+		m["anna"] = Account{Hash: h, Realm: "local.de", Source: "dir", DirSeen: now, Groups: []string{DefaultGroup}}
 		m["bert@alt.de"] = Account{Hash: h, Realm: "alt.de", Source: "dir", DirSeen: now, Groups: []string{DefaultGroup}}
 		return nil
 	})
@@ -149,14 +149,14 @@ func TestDirCacheDrop(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.dropDirCache(ctx, Identity{Realm: "local.de", CacheDays: 14})
-	if u, _ := a.get(ctx, "anna@local.de"); u.Hash == "!" || u.DirSeen == "" {
+	if u, _ := a.get(ctx, "anna"); u.Hash == "!" || u.DirSeen == "" {
 		t.Fatalf("Zwischenspeicher unnötig entfernt: %+v", u)
 	}
 	if u, _ := a.get(ctx, "bert@alt.de"); u.Hash != "!" || u.DirSeen != "" {
 		t.Fatalf("anderer Namensraum nicht bereinigt: %+v", u)
 	}
 	a.dropDirCache(ctx, Identity{Realm: "local.de", CacheDays: 0})
-	if u, _ := a.get(ctx, "anna@local.de"); u.Hash != "!" || u.DirSeen != "" {
+	if u, _ := a.get(ctx, "anna"); u.Hash != "!" || u.DirSeen != "" {
 		t.Fatalf("abgeschalteter Zwischenspeicher nicht bereinigt: %+v", u)
 	}
 }

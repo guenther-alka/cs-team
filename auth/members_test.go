@@ -147,11 +147,11 @@ func TestDirMembership(t *testing.T) {
 	if err := a.SetMembers(ctx, "lehrerteam", []string{"@klasse5a"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	id := loginID{Key: "dirk@local.de", Name: "dirk", Realm: "local.de", Source: "dir"}
+	id := loginID{Key: "dirk", Name: "dirk", Realm: "local.de", Source: "dir"}
 	if _, err := a.verifyDir(ctx, id, "geheim123"); err != nil {
 		t.Fatal(err)
 	}
-	u, ok := a.get(ctx, "dirk@local.de")
+	u, ok := a.get(ctx, "dirk")
 	if !ok || strings.Join(u.DirGroups, ",") != "grundschule,lehrer" {
 		t.Fatalf("Verzeichnisgruppen des Kontos: %+v", u.DirGroups)
 	}
@@ -159,8 +159,8 @@ func TestDirMembership(t *testing.T) {
 		t.Fatalf("Spiegelkonto: %+v", u)
 	}
 	for _, g := range []string{DefaultGroup, "klasse5a", "lehrerteam"} {
-		if !IsMember("dirk@local.de", g) {
-			t.Errorf("dirk ist nicht in %s: %v", g, GroupsOf("dirk@local.de"))
+		if !IsMember("dirk", g) {
+			t.Errorf("dirk ist nicht in %s: %v", g, GroupsOf("dirk"))
 		}
 	}
 	// lokales Konto carl: Handliste klasse5a und darüber Mitglied der Untergruppe lehrerteam
@@ -234,19 +234,19 @@ func TestDirAccountRoles(t *testing.T) {
 	}
 	a.SetDirChecker(&fakeDir{users: map[string]string{"dirk": "geheim123"}, info: map[string]DirUser{"dirk": {}}})
 	a.SetIdentitySource(fixedIdentity{Realm: "local.de"})
-	id := loginID{Key: "dirk@local.de", Name: "dirk", Realm: "local.de", Source: "dir"}
+	id := loginID{Key: "dirk", Name: "dirk", Realm: "local.de", Source: "dir"}
 	if _, err := a.verifyDir(ctx, id, "geheim123"); err != nil {
 		t.Fatal(err)
 	}
 	yes := true
-	if err := a.SetFlags(ctx, "dirk@local.de", &yes, nil); err != nil { // weitere globale Admins duerfen Verzeichniskonten sein (0.57.1)
+	if err := a.SetFlags(ctx, "dirk", &yes, nil); err != nil { // weitere globale Admins duerfen Verzeichniskonten sein (0.57.1)
 		t.Errorf("globaler Admin fuer Verzeichniskonto: %v", err)
 	}
-	if err := a.SetGroupAdmins(ctx, "klasse5a", []string{"dirk@local.de"}); err != nil {
+	if err := a.SetGroupAdmins(ctx, "klasse5a", []string{"dirk"}); err != nil {
 		t.Fatalf("Gruppen-Admin fuer Verzeichniskonto: %v", err)
 	}
 	a.refresh(ctx)
-	if l := a.adminOf("dirk@local.de"); len(l) != 1 || l[0] != "klasse5a" {
+	if l := a.adminOf("dirk"); len(l) != 1 || l[0] != "klasse5a" {
 		t.Errorf("adminOf Verzeichniskonto: %v", l)
 	}
 	if err := a.SetGroupAdmins(ctx, "klasse5a", []string{"gibtsnicht@local.de"}); !errors.Is(err, ErrNoUser) {

@@ -75,6 +75,21 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
   Betriebssystems. Ein NT-Hash waere nur ein ausdruecklicher, getrennt gespeicherter Schalter fuer mehrere SMB-Server.
 - Aufwand grob: Einstellung/Exportgeruest/adopt/Epoche rund eine Woche; je System 2-4 Tage.
 
+**Stand 0.72 (umgesetzt fuer illumos und Windows, Paket osacct, Schalter CS_OSACCOUNTS=1):** Entscheidung Gea 2026-11-18: Konten und
+Passwoerter im laufenden cs-team (laeuft ohnehin als root/Administrator), nicht nur als Unterbefehl; nur Mitglieder exportierter Gruppen.
+- Abgleich beim Start, jede Minute und bei einem Passwort fuer einen unbekannten Namen; Konten mit Kommentar "cs-team", sperren statt loeschen.
+- Passwort ueber auth.OnPlain (Anmeldung, Wechsel, Startpasswort); illumos NT-Hash in /var/smb/smbpasswd (libsmb-Format: Halbbytes je Byte
+  vertauscht), Windows NetUserSetInfo. Kein NT-Hash in users.json; die smbpasswd-Zeilen der verwalteten Konten stehen aber in
+  failover/osaccounts.json (repliziert, noetig fuer die Uebernahme der SMB-Passwoerter auf illumos).
+- export = laufender Abgleich des Masters (failover/osaccounts.json: Konten, Gruppen, gesperrte, je Rechner SID/UUID/smbpasswd bzw. Windows-SIDs,
+  Last = letzter Master). adopt = automatisch beim Start als master auf einem anderen Rechner als Last, oder `cs-team osaccounts adopt|adopt-dry`.
+- Nicht umgesetzt: Linux/FreeBSD/macOS, SMB-Gruppen per smbadm (Unix-Gruppen reichen fuer die ACL), Weiterreichen der Windows-Passwoerter an den Standby.
+- Livetest 2026-11-18 (0.72.0-test1, zwei OmniOS-Rechner): Ziel = ZFS-Klon von .189 (pve VM 104, DHCP 192.168.2.33, Name omnios58b),
+  vorher eigene Rechner-SID/-UUID gesetzt, anna/ben, Gruppen und smbpasswd-Zeilen entfernt; SMB von Debian .190 auf das Ziel abgelehnt.
+  Start mit CS_FAILOVER=takeover: adopt setzte machine_sid/machine_uuid von .189, legte anna 10002/ben 10003 und alluser/lehrer/klasse5a an,
+  spielte beide smbpasswd-Zeilen ein, startete idmap und smb/server neu (Dauer ca. 10 s); danach SMB von .190 mit den alten Passwoertern:
+  anna lesen ja/schreiben nein, ben schreiben ja; idmap uid:10002 -> gleiche SID wie auf .189 (-11002). last = omnios58b.
+
 ## 8. Dienst-IP (virtuell)
 - Setzen nicht dauerhaft (muss einen Neustart nicht ueberleben), vorher auf "frei" pruefen, nachher bekanntmachen (ARP).
 - Windows: New-NetIPAddress -SkipAsSource $true -PolicyStore ActiveStore / Remove-NetIPAddress.
@@ -107,7 +122,11 @@ Stand Umsetzung: Abschnitt 2 (uid/gid, Kurzname, Export-Schalter) ist erledigt i
 - Ob smbadm lokale Gruppen in Gruppen kann (wird nicht gebraucht, da aufgeloest wird).
 - Gruppen mit mehr als 16 gids: NFS (AUTH_SYS) und illumos ngroups_max (Standard 16) abschneiden; Schalter "Export" je Gruppe haelt die Liste klein.
 
-## 12. Windows als SMB-Server mit HA: Name als Schluessel, SID-Uebersetzung (Konzept, 2026-11-17, nicht umgesetzt)
+## 12. Windows als SMB-Server mit HA: Name als Schluessel, SID-Uebersetzung (Konzept 2026-11-17, umgesetzt 0.72 ohne Passwort-Weitergabe)
+Stand 0.72: Konten/Gruppen per netapi32, SID-Tabelle in failover/osaccounts.json (hosts.<name>.winsid), beim Hochstufen ersetzt cs-team
+Besitzer und explizite ACL-Eintraege in CS_OSACCOUNTS_SHARES ueber die Windows-API (SubstTree), nicht mit icacls: /substitute wirkt nur mit
+/save + /restore und macht dabei geerbte Eintraege explizit (Test .103). Passwoerter werden nicht an den Standby weitergereicht (Punkt 2
+unten): nach dem Hochstufen gilt das SMB-Passwort ab der naechsten cs-team-Anmeldung. Test auf einem Rechner (.103) mit simuliertem altem Master.
 Ausgangslage (Gespraech mit Gea 2026-11-17, Tests auf my-w11 und w11.103):
 - Windows speichert in ACLs (NTFS und OpenZFS on Windows) nur SIDs, nie Namen. Lokale SIDs = Rechner-SID + RID; die RID vergibt die SAM,
   sie ist nicht vorgebbar. Jeder Windows-Server hat eine andere Rechner-SID, also hat derselbe Benutzer auf Server A und B verschiedene SIDs.
